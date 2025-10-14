@@ -1,0 +1,6 @@
+@AlSaqr.API_HostAddress = http://localhost:5135
+
+GET {{AlSaqr.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
