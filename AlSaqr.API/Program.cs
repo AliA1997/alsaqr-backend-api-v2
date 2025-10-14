@@ -101,6 +101,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.Configure<GraphDbConfig>(builder.Configuration.GetSection("GraphDB"));
 builder.Services.Configure<MongoDbConfig>(builder.Configuration.GetSection("MongoDB"));
 
+builder.Services.AddHealthChecks();
 var app = builder.Build();
 
 app.MapHealthChecks("/healthz");
