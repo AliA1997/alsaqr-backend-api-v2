@@ -46,53 +46,8 @@ builder.Services.AddAuthentication(opts =>
 {
     opts.LoginPath = "/api/Auth/login";
     opts.LogoutPath = "/api/Auth/logout";
-})
-.AddGoogle(opts =>
-{
-    opts.ClientId = builder.Configuration["Authentication:Google:ClientId"];
-    opts.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
-    opts.CallbackPath = "/api/Auth/signin-google";
-})
-.AddFacebook(opts =>
-{
-    opts.AppId = builder.Configuration["Authentication:Facebook:AppId"];
-    opts.AppSecret = builder.Configuration["Authentication:Facebook:AppSecret"];
-    opts.CallbackPath = "/api/Auth/signin-facebook";
-})
-.AddDiscord(opts =>
-{
-    opts.ClientId = builder.Configuration["Authentication:Discord:ClientId"];
-    opts.ClientSecret = builder.Configuration["Authentication:Discord:ClientSecret"];
-    opts.CallbackPath = "/api/Auth/signin-discord";
-
-    opts.AuthorizationEndpoint = "https://discord.com/api/oauth2/authorize";
-    opts.TokenEndpoint = "https://discord.com/api/oauth2/token";
-    opts.UserInformationEndpoint = "https://discord.com/api/users/@me";
-
-    opts.Scope.Add("identify");
-    opts.Scope.Add("email");
-
-    opts.ClaimActions.MapJsonKey(ClaimTypes.NameIdentifier, "id");
-    opts.ClaimActions.MapJsonKey(ClaimTypes.Name, "username");
-    opts.ClaimActions.MapJsonKey(ClaimTypes.Email, "email");
-
-
-
-    opts.Events = new OAuthEvents
-    {
-        OnCreatingTicket = async context =>
-        {
-            var request = new HttpRequestMessage(HttpMethod.Get, context.Options.UserInformationEndpoint);
-            request.Headers.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", context.AccessToken);
-            var response = await context.Backchannel.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-
-            var user = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
-            context.RunClaimActions(user);
-        }
-    };
 });
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
