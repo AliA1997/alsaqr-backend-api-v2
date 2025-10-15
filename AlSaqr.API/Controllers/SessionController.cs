@@ -1,12 +1,15 @@
-﻿using AlSaqr.API.Utils;
+﻿using AlSaqr.Data;
 using AlSaqr.Domain.Common;
+using AlSaqr.Domain.Utils;
+using AlSaqr.Infrastructure;
 using Microsoft.AspNet.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Neo4j.Driver;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Data.Entity.Core.Metadata.Edm;
-using static AlSaqr.API.Utils.Session;
+using System.Runtime.ConstrainedExecution;
+using static AlSaqr.Domain.Utils.Session;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace AlSaqr.API.Controllers
@@ -19,13 +22,18 @@ namespace AlSaqr.API.Controllers
         private readonly ILogger<SessionController> _logger;
         private readonly IDriver _driver;
         private readonly IConfiguration _configuration;
+        private readonly IUserCacheService _userCacheService;
 
-
-        public SessionController(ILogger<SessionController> logger, IDriver driver, IConfiguration configuration)
+        public SessionController(
+            ILogger<SessionController> logger, 
+            IDriver driver, 
+            IConfiguration configuration,
+            IUserCacheService userCacheService)
         {
             _logger = logger;
             _driver = driver;
             _configuration = configuration;
+            _userCacheService = userCacheService;
         }
 
         /// <summary>
@@ -60,7 +68,7 @@ namespace AlSaqr.API.Controllers
             
                 var user = userResult?.FirstOrDefault();
 
-                if (user == null)
+                if (user == null && !string.IsNullOrEmpty(data.Email))
                 {
                     string mutateCipher = @"
                       CREATE (u:User {
@@ -169,7 +177,7 @@ namespace AlSaqr.API.Controllers
 
             try
             {
-                var userResult = await Neo4jHelpers.ReadAsync(
+                var userResult = await Neo4jHelpers.ReadUserData(
                     session,
                     sessionQuery,
                     new Dictionary<string, object>
@@ -180,34 +188,44 @@ namespace AlSaqr.API.Controllers
                 );
 
 
-                var user = userResult?.FirstOrDefault();
+                var userRes = userResult?.FirstOrDefault();
 
-                if (user == null || user["user"] == null)
+                if (userRes == null || userRes.User == null)
                     return BadRequest($"User not found for {data.Email}");
 
                 _logger.LogInformation("User signed in successfully!");
-
-                var bookmarkIds = user["bookmarks"] != null
-                                    ? ((IEnumerable<IDictionary<string, object>>)(user["bookmarks"])).Select(x => x["id"]?.ToString() ?? "").ToList()
+                var user = userRes;
+                var bookmarkIds = user.Bookmarks != null
+                                    ? user.Bookmarks.Select(x => x["id"].ToString() ?? "").ToList()
                                     : new List<string>();
-                var repostsIds = user["reposts"] != null
-                    ? ((IEnumerable<IDictionary<string, object>>)(user["reposts"])).Select(x => x["id"]?.ToString() ?? "").ToList()
+
+                var repostsIds = user.Reposts != null
+                    ? user.Reposts.Select(x => x["id"].ToString() ?? "").ToList()
                     : new List<string>();
-                var likedPostsIds = user["likedPosts"] != null
-                    ? ((IEnumerable<IDictionary<string, object>>)(user["likedPosts"])).Select(x => x["id"]?.ToString() ?? "").ToList()
+                var likedPostsIds = user.LikedPosts != null
+                    ? user.LikedPosts.Select(x => x["id"].ToString() ?? "").ToList()
                     : new List<string>();
 
-                return Ok(new SessionUser((Dictionary<string, object>)(user["user"]))
+
+                var sessionUser = new SessionUser(user.User!)
                 {
                     Bookmarks = bookmarkIds.ToArray(),
                     Reposts = repostsIds.ToArray(),
                     LikedPosts = likedPostsIds.ToArray()
-                });
+                };
+                var userId = user.User["id"].ToString();
+
+                if (string.IsNullOrEmpty(userId))
+                    return BadRequest("Invalid user retrieved");
+
+                _userCacheService.SetLoggedInUser(sessionUser);
+
+                return Ok(new {  result = sessionUser });
             }
             catch (Exception err)
             {
-                _logger.LogError(err, "Fetch Post error!");
-                return StatusCode(500, new { message = "Fetch Post error!", success = false });
+                _logger.LogError(err, "Fetch User Session error!");
+                return StatusCode(500, new { message = "Fetch User Session error!", success = false });
             }
             finally
             {

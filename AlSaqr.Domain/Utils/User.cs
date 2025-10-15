@@ -1,9 +1,36 @@
 ﻿using Newtonsoft.Json;
+using System.Text.Json.Serialization;
 
-namespace AlSaqr.API.Utils
+namespace  AlSaqr.Domain.Utils
 {
     public static class User
     {
+        public class CheckUserResponse
+        {
+            [JsonPropertyName("user")]
+            public IDictionary<string, object>? User { get; set; }
+
+            [JsonPropertyName("bookmarks")]
+            //public IEnumerable<IDictionary<string, object>>? Bookmarks { get; set; }
+            public List<IReadOnlyDictionary<string, object>>? Bookmarks { get; set; }
+
+
+            [JsonPropertyName("reposts")]
+            //public IEnumerable<IDictionary<string, object>>? Reposts { get; set; }
+            public List<IReadOnlyDictionary<string, object>>? Reposts { get; set; }
+
+            
+
+            [JsonPropertyName("likedPosts")]
+            //public IEnumerable<IDictionary<string, object>>? LikedPosts { get; set; }
+            public List<IReadOnlyDictionary<string, object>>? LikedPosts { get; set; }
+
+
+            public long? Total { get; set; }
+
+        }
+
+
         public class GetUserResponse
         {
             [JsonProperty("user")]
@@ -54,8 +81,6 @@ namespace AlSaqr.API.Utils
             public string[]? Hobbies { get; set; }
             public string? Religion { get; set; }
             public string? CountryOfOrigin { get; set; }
-
-
         }
     }
 }

@@ -2,6 +2,7 @@ using AlSaqr.API.Config;
 using AlSaqr.API.Extensions;
 using AlSaqr.Data;
 using AlSaqr.Domain.Common;
+using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OAuth;
@@ -36,6 +37,8 @@ builder.Services.AddSingleton<NewsApiClient>(o =>
     var apiKey = configuration["NewsApiKey"];
     return new NewsApiClient(apiKey);
 });
+builder.Services.AddSingleton<IUserCacheService, UserCacheService>(_ => UserCacheService.Instance);
+
 // Add Identity (optional but recommended)
 builder.Services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase("AlSaqr"));
 builder.Services.AddIdentityApiEndpoints<User>().AddEntityFrameworkStores<AppDbContext>();

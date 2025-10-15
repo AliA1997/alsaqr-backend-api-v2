@@ -4,12 +4,103 @@ using System.Linq;
 using System.Threading.Tasks;
 using Neo4j.Driver;
 using Newtonsoft.Json;
+using static  AlSaqr.Domain.Utils.User;
 
-namespace AlSaqr.API.Utils
+namespace  AlSaqr.Data
 {
 
     public static class Neo4jHelpers
     {
+        public static async Task<List<CheckUserResponse>> ReadUserData(
+            IAsyncSession session,
+            string cypher,
+            IDictionary<string, object> parameters,
+            IEnumerable<string>? aliases = null,
+            string? countQuery = null
+        )
+        {
+            try
+            {
+                var resultCursor = await session.RunAsync(cypher, parameters);
+                var records = await resultCursor.ToListAsync();
+
+                return records.Select(record =>
+                {
+                    var result = new CheckUserResponse();
+
+                    if (aliases != null && aliases.Any())
+                    {
+                        foreach (var alias in aliases)
+                        {
+                            var recordValue = record[alias];
+
+                            if (alias == "user" && recordValue is INode node)
+                            {
+                                // Convert node properties to proper User object
+                                result.User = ConvertNodeToUser(node);
+                            }
+                            else if (alias == "bookmarks" && recordValue is IEnumerable<object> bookmarkList)
+                            {
+                                result.Bookmarks = bookmarkList
+                                                    .OfType<INode>()
+                                                    .Select(n => n.Properties)
+                                                    .ToList();
+                            }
+                            else if (alias == "reposts" && recordValue is IEnumerable<object> repostList)
+                            {
+                                result.Reposts = repostList
+                                                    .OfType<INode>()
+                                                    .Select(n => n.Properties)
+                                                    .ToList();
+                            }
+                            else if (alias == "likedPosts" && recordValue is IEnumerable<object> likedPostList)
+                            {
+                                result.LikedPosts = likedPostList
+                                                        .OfType<INode>()
+                                                        .Select(n => n.Properties)
+                                                        .ToList();
+                            }
+                            else if (alias == "total" && recordValue is long countValue)
+                            {
+                                // Handle count if needed
+                                result.Total = countValue;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Default alias handling
+                        var defaultAlias = aliases?.FirstOrDefault() ?? "u";
+                        var defaultValue = record[defaultAlias];
+
+                        if (defaultValue is INode defaultNode)
+                        {
+                            result.User = ConvertNodeToUser(defaultNode);
+                        }
+                    }
+
+                    return result;
+                }).ToList();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in ReadUserData (aliases: {string.Join(",", aliases ?? new List<string>())}): {ex}");
+                throw;
+            }
+            finally
+            {
+                Console.WriteLine("Successfully Read Data");
+            }
+        }
+
+        private static IDictionary<string, object> ConvertNodeToUser(INode node)
+        {
+            return node.Properties.ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value
+            );
+        }
+
         public static async Task<List<Dictionary<string, object>>> ReadAsync(
                 IAsyncSession session,
                 string cypher,

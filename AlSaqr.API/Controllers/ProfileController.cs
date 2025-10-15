@@ -1,5 +1,6 @@
-﻿using AlSaqr.API.Utils;
+﻿using AlSaqr.Domain.Utils;
 using Microsoft.AspNetCore.Mvc;
+using AlSaqr.Data;
 using Neo4j.Driver;
 
 namespace AlSaqr.API.Controllers

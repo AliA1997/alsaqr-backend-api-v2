@@ -1,4 +1,4 @@
-﻿using AlSaqr.API.Utils;
+﻿using AlSaqr.Domain.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Neo4j.Driver;
 using NewsAPI;
@@ -6,7 +6,8 @@ using NewsAPI.Constants;
 using System;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
-using static AlSaqr.API.Utils.Common;
+using AlSaqr.Data;
+using static AlSaqr.Domain.Utils.Common;
 
 namespace AlSaqr.API.Controllers
 {

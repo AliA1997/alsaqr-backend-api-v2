@@ -1,9 +1,11 @@
-using AlSaqr.API.Utils;
+using AlSaqr.Domain.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using Neo4j.Driver;
 using System.Collections.Generic;
-using static AlSaqr.API.Utils.Common;
+using AlSaqr.Data;
+using static AlSaqr.Domain.Utils.Common;
+using AlSaqr.Infrastructure;
 
 namespace AlSaqr.API.Controllers
 {
@@ -14,12 +16,16 @@ namespace AlSaqr.API.Controllers
 
         private readonly ILogger<BookmarksController> _logger;
         private readonly IDriver _driver;
+        private readonly IUserCacheService _userCacheService;
 
-
-        public BookmarksController(ILogger<BookmarksController> logger, IDriver driver)
+        public BookmarksController(
+            ILogger<BookmarksController> logger, 
+            IDriver driver,
+            IUserCacheService userCacheService)
         {
             _logger = logger;
             _driver = driver;
+            _userCacheService = userCacheService;
         }
 
         [HttpGet("{userId}")]
@@ -30,6 +36,7 @@ namespace AlSaqr.API.Controllers
                 [FromQuery] string? searchTerm = null
             )
         {
+            //var user = _userCacheService.GetLoggedInUser();
             await using var session = _driver.AsyncSession();
             var posts = new List<Dictionary<string, object>>();
             Pagination? pagination = null;

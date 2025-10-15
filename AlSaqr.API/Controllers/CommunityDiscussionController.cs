@@ -1,9 +1,10 @@
-﻿using AlSaqr.API.Utils;
+﻿using AlSaqr.Domain.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Neo4j.Driver;
 using System.Data.Entity.Core.Metadata.Edm;
-using static AlSaqr.API.Utils.Common;
+using AlSaqr.Data;
+using static AlSaqr.Domain.Utils.Common;
 
 namespace AlSaqr.API.Controllers
 {

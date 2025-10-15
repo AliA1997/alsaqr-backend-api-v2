@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>009502a9-acd5-453e-aee1-354854d62e97</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+	<DockerfileFile>./Dockerfile.dev</DockerfileFile>
   </PropertyGroup>
 	
   <ItemGroup>
@@ -24,6 +25,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AlSaqr.Data\AlSaqr.Data.csproj" />
+	<ProjectReference Include="..\AlSaqr.Infrastructure\AlSaqr.Infrastructure.csproj" />
+	<ProjectReference Include="..\AlSaqr.Services\AlSaqr.Services.csproj" />
   </ItemGroup>
 
 </Project>

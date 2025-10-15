@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
  
 
-namespace AlSaqr.API.Utils
+namespace  AlSaqr.Domain.Utils
 {
     public static class Session
     {
@@ -237,33 +237,37 @@ namespace AlSaqr.API.Utils
         {
             public SessionUser(IDictionary<string, object> sessionData)
             {
-                this.Id = sessionData["id"]?.ToString() ?? "";
-                this.Username = sessionData["username"]?.ToString() ?? "";
-                this.CountryOfOrigin = sessionData["countryOfOrigin"]?.ToString() ?? "";
-                this.FirstName = sessionData["firstName"]?.ToString() ?? "";
-                this.LastName = sessionData["lastName"]?.ToString() ?? "";
-                this.Bio = sessionData["bio"]?.ToString() ?? "";
-                this.Email = sessionData["email"]?.ToString() ?? "";
-                this.Phone = sessionData["phone"]?.ToString() ?? "";
-                this.BgThumbnail = sessionData["bgThumbnail"]?.ToString() ?? "";
-                this.Avatar = sessionData["avatar"]?.ToString() ?? "";
-                this.DateOfBirth = sessionData["dateOfBirth"] != null ? (DateTimeOffset)(sessionData["dateOfBirth"]) : null;
-                this.GeoId = sessionData["geoId"]?.ToString() ?? "";
-                this.MaritalStatus = sessionData["maritalStatus"].ToString() ?? "";
-                this.Religion = sessionData["religion"]?.ToString() ?? "";
-                this.PreferredMadhab = sessionData["preferredMadhab"].ToString() ?? "";
-                this.Hobbies = sessionData["hobbies"] != null ? (string[])(sessionData["hobbies"]) : new string[] { };
-                this.FrequentMasjid = sessionData["frequentMasjid"].ToString() ?? "";
-                this.FavoriteQuranReciters = sessionData["favoriteQuranReciters"] != null ? (string[])(sessionData["favoriteQuranReciters"]) : new string[] { };
-                this.FavoriteIslamicScholars = sessionData["favoriteIslamicScholars"] != null ? (string[])(sessionData["favoriteIslamicScholars"]) : new string[] { };
-                this.IslamicStudyTopics = sessionData["islamicStudyTopics"] != null ? (string[])(sessionData["islamicStudyTopics"]) : new string[] { };
-                this.Verified = sessionData["verified"] != null ? (bool)(sessionData["verified"]) : false;
-                this.IsCompleted = sessionData["isCompleted"] != null ? (bool)(sessionData["isCompleted"]) : false;
-                this.CreatedAt = sessionData["createdAt"] != null ? (DateTimeOffset)(sessionData["createdAt"]) : null;
+                this.Id = sessionData.ContainsKey("id") ? sessionData["id"].ToString() : "";
+                this.Username = sessionData.ContainsKey("username") ? sessionData["username"].ToString() : "";
+                this.CountryOfOrigin = sessionData.ContainsKey("countryOfOrigin") ? sessionData["countryOfOrigin"].ToString() : "";
+                this.FirstName = sessionData.ContainsKey("firstName") ? sessionData["firstName"].ToString() : "";
+                this.LastName = sessionData.ContainsKey("lastName") ? sessionData["lastName"].ToString() : "";
+                this.Bio = sessionData.ContainsKey("bio") ? sessionData["bio"].ToString() : "";
+                this.Email = sessionData.ContainsKey("email") ? sessionData["email"].ToString() : "";
+                this.Phone = sessionData.ContainsKey("phone") ? sessionData["phone"].ToString() : "";
+                this.BgThumbnail = sessionData.ContainsKey("bgThumbnail") ? sessionData["bgThumbnail"].ToString() : "";
+                this.Avatar = sessionData.ContainsKey("avatar") ? sessionData["avatar"].ToString() : "";
+
+                // For properties that require casting, TryGetValue might be safer
+                this.DateOfBirth = sessionData.TryGetValue("dateOfBirth", out dynamic dob) ? dob : null;
+                this.GeoId = sessionData.ContainsKey("geoId") ? sessionData["geoId"].ToString() : "";
+                this.MaritalStatus = sessionData.ContainsKey("maritalStatus") ? sessionData["maritalStatus"].ToString() : "";
+                this.Religion = sessionData.ContainsKey("religion") ? sessionData["religion"].ToString() : "";
+                this.PreferredMadhab = sessionData.ContainsKey("preferredMadhab") ? sessionData["preferredMadhab"].ToString() : "";
+
+                this.Hobbies = sessionData.TryGetValue("hobbies", out dynamic hobbies) ? hobbies : new string[] { };
+                this.FrequentMasjid = sessionData.ContainsKey("frequentMasjid") ? sessionData["frequentMasjid"].ToString() : "";
+                this.FavoriteQuranReciters = sessionData.TryGetValue("favoriteQuranReciters", out dynamic reciters) ? reciters : new string[] { };
+                this.FavoriteIslamicScholars = sessionData.TryGetValue("favoriteIslamicScholars", out dynamic scholars) ? scholars : new string[] { };
+                this.IslamicStudyTopics = sessionData.TryGetValue("islamicStudyTopics", out dynamic topics) ? topics : new string[] { };
+
+                this.Verified = sessionData.TryGetValue("verified", out object verified) ? (bool)verified : false;
+                this.IsCompleted = sessionData.TryGetValue("isCompleted", out object completed) ? (bool)completed : false;
+                this.CreatedAt = sessionData.TryGetValue("createdAt", out dynamic createdAt) ? createdAt : null;
             }
             public string? Id { get; set; }
-            public DateTimeOffset? CreatedAt { get; set; }
-            public DateTime UpdatedAt { get; set; }
+            public dynamic? CreatedAt { get; set; }
+            public object? UpdatedAt { get; set; }
             public string? Username { get; set; }
             public string? CountryOfOrigin { get; set; }
             public string? Email { get; set; }
@@ -273,16 +277,16 @@ namespace AlSaqr.API.Utils
             public string? Bio { get; set; }
             public string? BgThumbnail { get; set; }
             public string? Avatar { get; set; }
-            public DateTimeOffset? DateOfBirth { get; set; }
+            public dynamic? DateOfBirth { get; set; }
             public string? GeoId { get; set; }
             public string? MaritalStatus { get; set; }
             public string? Religion { get; set; }
             public string? PreferredMadhab { get; set; }
-            public string[] Hobbies { get; set; }
+            public dynamic? Hobbies { get; set; }
             public string? FrequentMasjid { get; set; }
-            public string[] FavoriteQuranReciters { get; set; }
-            public string[] FavoriteIslamicScholars { get; set; }
-            public string[] IslamicStudyTopics { get; set; }
+            public dynamic? FavoriteQuranReciters { get; set; }
+            public dynamic? FavoriteIslamicScholars { get; set; }
+            public dynamic? IslamicStudyTopics { get; set; }
             public bool? Verified { get; set; }
             public bool? IsCompleted { get; set; }
             public string[] Bookmarks { get; set; }
