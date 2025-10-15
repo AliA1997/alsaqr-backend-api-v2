@@ -6,7 +6,9 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Neo4j.Driver;
+using NewsAPI;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
@@ -19,7 +21,7 @@ var uri = neo4jSettings["Uri"];
 var username = neo4jSettings["Username"];
 var password = neo4jSettings["Password"];
 var database = neo4jSettings["Database"];
-
+IConfiguration configuration = builder.Configuration;
 // Register IDriver as a singleton
 builder.Services.AddSingleton<IDriver>(sp =>
     GraphDatabase.Driver(uri, AuthTokens.Basic(username, password))
@@ -29,6 +31,11 @@ builder.Services.AddSingleton<IDriver>(sp =>
 
 builder.Services.AddControllers(o => o.UseRoutePrefix("api"));
 
+builder.Services.AddSingleton<NewsApiClient>(o =>
+{
+    var apiKey = configuration["NewsApiKey"];
+    return new NewsApiClient(apiKey);
+});
 // Add Identity (optional but recommended)
 builder.Services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase("AlSaqr"));
 builder.Services.AddIdentityApiEndpoints<User>().AddEntityFrameworkStores<AppDbContext>();

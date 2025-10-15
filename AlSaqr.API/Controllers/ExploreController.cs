@@ -1,6 +1,8 @@
 ﻿using AlSaqr.API.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Neo4j.Driver;
+using NewsAPI;
+using NewsAPI.Constants;
 using System;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
@@ -16,13 +18,18 @@ namespace AlSaqr.API.Controllers
         private readonly ILogger<ExploreController> _logger;
         private readonly IDriver _driver;
         private readonly IConfiguration _configuration;
+        private readonly NewsApiClient _newsApiClient;
 
-
-        public ExploreController(ILogger<ExploreController> logger, IDriver driver, IConfiguration configuration)
+        public ExploreController(
+            ILogger<ExploreController> logger, 
+            IDriver driver, 
+            IConfiguration configuration,
+            NewsApiClient newsApiClient)
         {
             _logger = logger;
             _driver = driver;
             _configuration = configuration;
+            _newsApiClient = newsApiClient;
         }
 
 
@@ -34,27 +41,24 @@ namespace AlSaqr.API.Controllers
         {
             try
             {
-                // Build the API URL
-                var apiUrl = $"https://newsapi.org/v2/top-headlines?country={country}&sortBy=popularity&apiKey={_configuration["NewsApiKey"]}";
-
-                // Fetch recent news from NewsAPI
-                using var httpClient = new HttpClient();
-                var response = await httpClient.GetAsync(apiUrl);
-
-                if (!response.IsSuccessStatusCode)
+                var articleResponse = await _newsApiClient.GetTopHeadlinesAsync(new NewsAPI.Models.TopHeadlinesRequest()
                 {
-                    return StatusCode((int)response.StatusCode, "Failed to fetch news from NewsAPI");
+                    Country = Countries.US,
+                    Language = Languages.EN,
+                });
+
+
+                if (articleResponse.Status == Statuses.Error)
+                {
+                    return StatusCode((int)articleResponse.Status, "Failed to fetch news from NewsAPI");
                 }
-
-                var recentNews = await response.Content.ReadFromJsonAsync<Explore.NewsApiResponse>();
-                var articles = recentNews?.Articles ?? new List<Explore.Article>();
-
+                
                 // Calculate pagination
                 var startIndex = (currentPage - 1) * itemsPerPage;
-                var totalArticles = articles.Count;
+                var totalArticles = articleResponse.Articles.Count;
 
                 // Filter and map articles
-                var result = articles
+                var result = articleResponse.Articles
                     .Where(a => !string.IsNullOrEmpty(a.UrlToImage))
                     .Skip(startIndex)
                     .Take(itemsPerPage)
@@ -87,7 +91,6 @@ namespace AlSaqr.API.Controllers
             }
         }
 
-        
         [HttpGet("source/{sourceId}")]
         public async Task<IActionResult> GetNewsBasedOnSource(
             string sourceId,
@@ -96,27 +99,22 @@ namespace AlSaqr.API.Controllers
         {
             try
             {
-                // Build the API URL
-                var apiUrl = $"https://newsapi.org/v2/top-headlines?sources=${sourceId}&sortBy=popularity&apiKey=${_configuration["NewsApiKey"]}";
-
-                // Fetch recent news from NewsAPI
-                using var httpClient = new HttpClient();
-                var response = await httpClient.GetAsync(apiUrl);
-
-                if (!response.IsSuccessStatusCode)
+                var articlesResponse = await _newsApiClient.GetTopHeadlinesAsync(new NewsAPI.Models.TopHeadlinesRequest()
                 {
-                    return StatusCode((int)response.StatusCode, "Failed to fetch news from NewsAPI");
-                }
+                    Sources = new List<string> { sourceId },
+                });
 
-                var recentNews = await response.Content.ReadFromJsonAsync<Explore.NewsApiResponse>();
-                var articles = recentNews?.Articles ?? new List<Explore.Article>();
+                if (articlesResponse.Status == Statuses.Error)
+                {
+                    return StatusCode((int)articlesResponse.Status, "Failed to fetch news from NewsAPI");
+                }
 
                 // Calculate pagination
                 var startIndex = (currentPage - 1) * itemsPerPage;
-                var totalArticles = articles.Count;
+                var totalArticles = articlesResponse.Articles.Count;
 
                 // Filter and map articles
-                var result = articles
+                var result = articlesResponse.Articles
                     .Where(a => !string.IsNullOrEmpty(a.UrlToImage))
                     .Skip(startIndex)
                     .Take(itemsPerPage)
