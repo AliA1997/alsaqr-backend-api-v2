@@ -5,11 +5,11 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 
 # DigitalOcean App Platform expects the app to listen on $PORT
-ENV ASPNETCORE_URLS=http://+:${PORT:-8080}
+ENV ASPNETCORE_URLS="https://+:8081;http://+:8080"
 
 # Expose default port for local dev
 EXPOSE 8080
-
+EXPOSE 8081
 # ================================
 # Build and publish the app
 # ================================
@@ -49,5 +49,5 @@ USER appuser
 COPY --from=publish /app/publish .
 
 # DigitalOcean will automatically inject PORT; this uses it
-ENV ASPNETCORE_URLS=http://+:${PORT:-8080}
+ENV ASPNETCORE_URLS="https://+:8081;http://+:8080" 
 ENTRYPOINT ["dotnet", "AlSaqr.API.dll"]
