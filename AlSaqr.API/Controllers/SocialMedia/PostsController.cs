@@ -1,12 +1,14 @@
-using AlSaqr.Domain.Utils;
+using AlSaqr.Data;
 using AlSaqr.Domain.Common;
+using AlSaqr.Domain.Utils;
+using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using Neo4j.Driver;
-using AlSaqr.Data;
 using static AlSaqr.Domain.Utils.Common;
+using static AlSaqr.Domain.Utils.Community;
 
-namespace AlSaqr.API.Controllers
+namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
@@ -15,12 +17,13 @@ namespace AlSaqr.API.Controllers
 
         private readonly ILogger<PostsController> _logger;
         private readonly IDriver _driver;
+        private readonly IUserCacheService _userCacheService;
 
-
-        public PostsController(ILogger<PostsController> logger, IDriver driver)
+        public PostsController(ILogger<PostsController> logger, IDriver driver, IUserCacheService userCacheService)
         {
             _logger = logger;
             _driver = driver;
+            _userCacheService = userCacheService;
         }
 
         [HttpGet]
@@ -138,6 +141,81 @@ namespace AlSaqr.API.Controllers
             return Ok(new PaginatedResult<Dictionary<string, object>>(posts, pagination!));
         }
 
+        /// <summary>
+        /// Create a post
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost]
+        public async Task<IActionResult> CreatePost([FromBody] AlSaqrUpsertRequest<Posts.CreatePostDto> request)
+        {
+            var data = request.Values;
+
+            if (string.IsNullOrEmpty(data.UserId))
+            {
+                return BadRequest("User ID is required");
+            }
+
+            await using var session = _driver.AsyncSession();
+
+            if (string.IsNullOrEmpty(data?.Text))
+            {
+                return BadRequest("Text of the Post is required");
+            }
+
+            try
+            {
+                var createCipher = @"
+                    MATCH (u:User {id: $userId})
+                      CREATE (u)-[:POSTED]->(t:Post {
+                        id: $id,
+                        createdAt: datetime(),
+                        updatedAt: datetime(),
+                        _rev: $_rev,
+                        _type: $_type,
+                        blockTweet: $blockTweet,
+                        text: $text,
+                        userId: $userId,
+                        image: $image,
+                        tags: $tags
+                      })
+                    ";
+
+                await Neo4jHelpers.WriteAsync(
+                    session,
+                    createCipher,
+                    new Dictionary<string, object>()
+                    {
+                        { "id", data.Id },
+                        { "userId", data.UserId },
+                        { "text", data.Text },
+                        { "image", data.Image ?? "" },
+                        { "blockTweet", data.BlockTweet },
+                        { "_rev", data._Rev },
+                        { "_type", data._Type },
+                        { "tags", data.Tags ?? new string[0] }
+                    }
+                );
+
+                return Ok(new { success = true });
+            }
+            catch (Exception err)
+            {
+                // Log the exception here
+                Console.WriteLine($"Error creating post: {err.Message}");
+                return StatusCode(500, new { message = "Add post error!", success = false });
+            }
+            finally
+            {
+                await session.CloseAsync();
+            }
+        }
+
+        /// <summary>
+        /// Get a specific post
+        /// </summary>
+        /// <param name="postId"></param>
+        /// <returns></returns>
         [HttpGet("{postId}")]
         public async Task<IActionResult> GetPost(string postId)
         {
@@ -201,8 +279,14 @@ namespace AlSaqr.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Get comments for a specific post
+        /// </summary>
+        /// <param name="postId"></param>
+        /// <returns></returns>
         [HttpGet("{postId}/comments")]
-        public async Task<IActionResult> GetPostComments(string postId,
+        public async Task<IActionResult> GetPostComments(
+                string postId,
                 [FromQuery] int currentPage = 1,
                 [FromQuery] int itemsPerPage = 10)
         {
@@ -283,15 +367,12 @@ namespace AlSaqr.API.Controllers
 
                 var comments = selectResult ?? new List<Dictionary<string, object>>();
 
-                // Get the first comment or null if no results
-                var post = selectResult?.FirstOrDefault();
-
                 if (comments == null)
                 {
-                    return NotFound(new { message = $"Comments not found for the post id {postId}", success = false });
+                    return NotFound(new { message = $"CIssue finding comment for given post with an id of {postId}", success = false });
                 }
 
-                return Ok(new { comments, success = true });
+                return Ok(new PaginatedResult<Dictionary<string, object>>(comments, pagination!));
             }
             catch (Exception err)
             {
@@ -301,14 +382,24 @@ namespace AlSaqr.API.Controllers
         }
 
 
+        /// <summary>
+        /// Bookmark for a specific post
+        /// </summary>
+        /// <param name="postId"></param>
+        /// <returns></returns>
         [HttpPatch("{postId}/bookmark")]
         public async Task<IActionResult> BookmarkPost(
             string postId,
-            [FromBody] Posts.BookmarkRequest request)
+            [FromBody] AlSaqrUpsertRequest<BookmarkRequest> request)
         {
-            var userId = "";
+            var data = request.Values;
+            var user = _userCacheService.GetLoggedInUser();
+            if (user == null)
+                return Unauthorized("Need to be logged in to bookmark posts.");
+
+            var userId = user.Id;
             // Input validation
-            if (string.IsNullOrEmpty(request.StatusId))
+            if (string.IsNullOrEmpty(data.StatusId))
             {
                 return BadRequest("Post ID is required");
             }
@@ -317,7 +408,7 @@ namespace AlSaqr.API.Controllers
 
             try
             {
-                if (request.Bookmarked == false)
+                if (data.Bookmarked == false)
                 {
                     // Add bookmarked relationship
                     await Neo4jHelpers.WriteAsync(
@@ -368,7 +459,7 @@ namespace AlSaqr.API.Controllers
                         }
                     );
                 }
-                else if (request.Bookmarked == true)
+                else if (data.Bookmarked == true)
                 {
                     await Neo4jHelpers.WriteAsync(
                         session,
@@ -417,23 +508,34 @@ namespace AlSaqr.API.Controllers
         }
 
 
+        /// <summary>
+        /// Like a specific post
+        /// </summary>
+        /// <param name="postId"></param>
+        /// <returns></returns>
         [HttpPatch("{postId}/liked")]
         public async Task<IActionResult> LikedPost(
             string postId, 
-            [FromBody] Posts.LikePostRequest request)
+            [FromBody] AlSaqrUpsertRequest<LikeRequest> request)
         {
-            var userId = "";
-            // Input validation
-            if (string.IsNullOrEmpty(request.StatusId))
+            var data = request.Values;
+
+            if (string.IsNullOrEmpty(data.StatusId))
             {
                 return BadRequest("Post ID is required");
             }
+            
+            var user = _userCacheService.GetLoggedInUser();
+            if (user == null)
+                return Unauthorized("User must be logged in to like a post");
 
+            var userId = user.Id;
+            
             await using var session = _driver.AsyncSession();
 
             try
             {
-                if (request.Liked == false)
+                if (data.Liked == false)
                 {
                     // Add reposted relationship
                     await Neo4jHelpers.WriteAsync(
@@ -486,7 +588,7 @@ namespace AlSaqr.API.Controllers
                         }
                     );
                 }
-                else if (request.Liked == true)
+                else if (data.Liked == true)
                 {
                     await Neo4jHelpers.WriteAsync(
                         session,
@@ -536,23 +638,33 @@ namespace AlSaqr.API.Controllers
 
         }
 
+        /// <summary>
+        /// Repost a specific post
+        /// </summary>
+        /// <param name="postId"></param>
+        /// <returns></returns>
         [HttpPatch("{postId}/repost")]
         public async Task<IActionResult> RePostPost(
             string postId, 
-            [FromBody] Posts.RePostRequest request)
+            [FromBody] AlSaqrUpsertRequest<RePostRequest> request)
         {
-            var userId = "";
+            var data = request.Values;
             // Input validation
-            if (string.IsNullOrEmpty(request.StatusId))
+            if (string.IsNullOrEmpty(data.StatusId))
             {
                 return BadRequest("Post ID is required");
             }
+            var user = _userCacheService.GetLoggedInUser();
+            if (user == null)
+                return Unauthorized("Must be logged in to repost a post.");
+
+            var userId = user.Id;
 
             await using var session = _driver.AsyncSession();
 
             try
             {
-                if (request.Reposted == false)
+                if (data.Reposted == false)
                 {
                     // Add reposted relationship
                     await Neo4jHelpers.WriteAsync(
@@ -605,7 +717,7 @@ namespace AlSaqr.API.Controllers
                         }
                     );
                 }
-                else if (request.Reposted == true)
+                else if (data.Reposted == true)
                 {
                     await Neo4jHelpers.WriteAsync(
                         session,
@@ -653,15 +765,24 @@ namespace AlSaqr.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Delete a specific post
+        /// </summary>
+        /// <param name="postId"></param>
+        /// <returns></returns>
         [HttpDelete("{postId}")]
         public async Task<IActionResult> DeletePost(string postId)
         {
-            var userId = "61223c34-590a-4d59-8049-d828957d4a03";
             // Input validation
             if (string.IsNullOrEmpty(postId))
             {
                 return BadRequest("Post ID is required");
             }
+            var user = _userCacheService.GetLoggedInUser();
+            if (user == null)
+                return Unauthorized("Must be logged in to delete a post.");
+
+            var userId = user.Id;
 
             await using var session = _driver.AsyncSession();
 

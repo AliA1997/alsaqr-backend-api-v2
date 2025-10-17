@@ -9,7 +9,7 @@ using System.Text.Json.Serialization;
 using AlSaqr.Data;
 using static AlSaqr.Domain.Utils.Common;
 
-namespace AlSaqr.API.Controllers
+namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]

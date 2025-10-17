@@ -6,7 +6,7 @@ using System.Data.Entity.Core.Metadata.Edm;
 using AlSaqr.Data;
 using static AlSaqr.Domain.Utils.Common;
 
-namespace AlSaqr.API.Controllers
+namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
@@ -249,10 +249,11 @@ namespace AlSaqr.API.Controllers
             string userId,
             string communityId,
             string communityDiscussionId,
-            [FromBody] CommunityDiscussion.CommunityDiscussionInviteConfirmationDto request)
+            [FromBody] AlSaqrUpsertRequest<CommunityDiscussion.CommunityDiscussionInviteConfirmationDto> request)
         {
+            var data = request.Values;
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId) || string.IsNullOrEmpty(communityDiscussionId)
-                || string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Username))
+                || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
             {
                 return BadRequest("Missing required fields");
             }
@@ -339,10 +340,11 @@ namespace AlSaqr.API.Controllers
             string userId,
             string communityId,
             string communityDiscussionId,
-            [FromBody] CommunityDiscussion.CommunityDiscussionInviteConfirmationDto request)
+            [FromBody] AlSaqrUpsertRequest<CommunityDiscussion.CommunityDiscussionInviteConfirmationDto> request)
         {
+            var data = request.Values;
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId) || string.IsNullOrEmpty(communityDiscussionId)
-                || string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Username))
+                || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
             {
                 return BadRequest("Missing required fields");
             }
@@ -431,10 +433,11 @@ namespace AlSaqr.API.Controllers
             string userId,
             string communityId,
             string communityDiscussionId,
-            [FromBody] CommunityDiscussion.CommunityDiscussionInviteConfirmationDto request)
+            [FromBody] AlSaqrUpsertRequest<CommunityDiscussion.CommunityDiscussionInviteConfirmationDto> request)
         {
+            var data = request.Values;
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId) || string.IsNullOrEmpty(communityDiscussionId)
-                || string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Username))
+                || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
             {
                 return BadRequest("Missing required fields");
             }
@@ -523,8 +526,9 @@ namespace AlSaqr.API.Controllers
             string userId,
             string communityId,
             string communityDiscussionId,
-            [FromBody] CommunityDiscussion.AcceptOrDenyCommunityDiscussionInviteConfirmationDto request)
+            [FromBody] AlSaqrUpsertRequest<CommunityDiscussion.AcceptOrDenyCommunityDiscussionInviteConfirmationDto> request)
         {
+            var data = request.Values;
             // Input validation
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId) || string.IsNullOrEmpty(communityDiscussionId))
             {
@@ -535,7 +539,7 @@ namespace AlSaqr.API.Controllers
 
             try
             {
-                if (request.Accept == true)
+                if (data.Accept == true)
                 {
                     // Add a invite relationship, since accept request to join.
                     await Neo4jHelpers.WriteAsync(

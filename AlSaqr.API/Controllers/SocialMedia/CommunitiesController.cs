@@ -5,7 +5,7 @@ using AlSaqr.Data;
 using static AlSaqr.Domain.Utils.Common;
 using static AlSaqr.Domain.Utils.Community;
 
-namespace AlSaqr.API.Controllers
+namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
@@ -301,8 +301,9 @@ namespace AlSaqr.API.Controllers
         [HttpPost("{userId}")]
         public async Task<IActionResult> CreateCommunity(
                 [FromRoute] string userId,
-                [FromBody] CreateCommunityFormDto data)
+                [FromBody] AlSaqrUpsertRequest<CreateCommunityFormDto> request)
         {
+            var data = request.Values;
             if (string.IsNullOrEmpty(userId))
             {
                 return BadRequest("User ID is required");
@@ -397,12 +398,17 @@ namespace AlSaqr.API.Controllers
         public async Task<IActionResult> UpdateCommunity(
             string userId,
             string communityId,
-            [FromBody] UpdateCommunityForm request)
+            [FromBody] AlSaqrUpsertRequest<UpdateCommunityForm> request)
         {
-         
+            var data = request.Values;
+
             if (userId == null)
             {
                 return BadRequest("User ID is required for updating your user.");
+            }
+            if (communityId == null && data?.Id == null)
+            {
+                return BadRequest("Community ID is required for updating your user.");
             }
 
             await using var session = _driver.AsyncSession();
@@ -425,10 +431,10 @@ namespace AlSaqr.API.Controllers
                     {
                         { "userId", userId },
                         {"communityId", communityId },
-                        { "name", request.Name },
-                        { "avatar", request.Avatar },
-                        { "tags", request.Tags },
-                        { "isPrivate", request.IsPrivate?.ToLower() == "private" }
+                        { "name", data.Name },
+                        { "avatar", data.Avatar },
+                        { "tags", data.Tags },
+                        { "isPrivate", data.IsPrivate?.ToLower() == "private" }
                     }
                 );
 
@@ -458,9 +464,11 @@ namespace AlSaqr.API.Controllers
         public async Task<IActionResult> JoinCommunity(
             string userId,
             string communityId,
-            [FromBody] Community.CommunityInviteConfirmationDto request)
+            [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request)
         {
-            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId) || string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Username))
+            var data = request.Values;
+
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId) || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
             {
                 return BadRequest("Missing required fields");
             }
@@ -541,9 +549,10 @@ namespace AlSaqr.API.Controllers
         public async Task<IActionResult> UnJoinCommunity(
             string userId,
             string communityId,
-            [FromBody] Community.CommunityInviteConfirmationDto request)
+            [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request)
         {
-            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId) || string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Username))
+            var data = request.Values;
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId) || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
             {
                 return BadRequest("Missing required fields");
             }
@@ -630,9 +639,10 @@ namespace AlSaqr.API.Controllers
         public async Task<IActionResult> PostRequestJoin(
             string userId,
             string communityId,
-            [FromBody] Community.CommunityInviteConfirmationDto request)
+            [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request)
         {
-            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId) || string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Username))
+            var data = request.Values;
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId) || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
             {
                 return BadRequest("Missing required fields");
             }
@@ -711,8 +721,9 @@ namespace AlSaqr.API.Controllers
         public async Task<IActionResult> RequestJoin(
             string userId,
             string communityId,
-            [FromBody] Community.AcceptOrDenyCommunityInviteConfirmationDto request)
+            [FromBody] AlSaqrUpsertRequest<AcceptOrDenyCommunityInviteConfirmationDto> request)
         {
+            var data = request.Values;
             // Input validation
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId))
             {
@@ -723,7 +734,7 @@ namespace AlSaqr.API.Controllers
 
             try
             {
-                if (request.Accept == true)
+                if (data.Accept == true)
                 {
                     // Add a invite relationship, since accept request to join.
                     await Neo4jHelpers.WriteAsync(

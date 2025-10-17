@@ -5,7 +5,7 @@ using AlSaqr.Data;
 using static AlSaqr.Domain.Utils.Common;
 using static AlSaqr.Domain.Utils.Community;
 
-namespace AlSaqr.API.Controllers
+namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
@@ -22,7 +22,14 @@ namespace AlSaqr.API.Controllers
             _driver = driver;
         }
 
-
+        /// <summary>
+        /// Get the lists for the logged in user
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <param name="currentPage"></param>
+        /// <param name="itemsPerPage"></param>
+        /// <param name="searchTerm"></param>
+        /// <returns></returns>
         [HttpGet("{userId}")]
         public async Task<IActionResult> GetLists(
             string userId,
@@ -136,13 +143,14 @@ namespace AlSaqr.API.Controllers
         /// Create a list
         /// </summary>
         /// <param name="userId"></param>
-        /// <param name="data"></param>
+        /// <param name="request"></param>
         /// <returns></returns>
         [HttpPost("{userId}")]
         public async Task<IActionResult> CreateList(
                 [FromRoute] string userId,
-                [FromBody] List.CreateListFormDto data)
+                [FromBody] AlSaqrUpsertRequest<List.CreateListFormDto> request)
         {
+            var data = request.Values;
             if (string.IsNullOrEmpty(userId))
             {
                 return BadRequest("User ID is required");
@@ -271,6 +279,14 @@ namespace AlSaqr.API.Controllers
         }
 
 
+        /// <summary>
+        /// Get the list items for a given list.
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <param name="listId"></param>
+        /// <param name="currentPage"></param>
+        /// <param name="itemsPerPage"></param>
+        /// <returns></returns>
         [HttpGet("{userId}/{listId}")]
         public async Task<IActionResult> GetListItems(
             string userId,
@@ -399,8 +415,9 @@ namespace AlSaqr.API.Controllers
         public async Task<IActionResult> SavedItemToList(
             string userId,
             string listId,
-            [FromBody] List.SaveItemToListDto request)
+            [FromBody] AlSaqrUpsertRequest<List.SaveItemToListDto> request)
         {
+            var data = request.Values;
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(listId))
             {
                 return BadRequest("Missing required fields");
@@ -410,7 +427,7 @@ namespace AlSaqr.API.Controllers
 
             try
             {
-                var savingPostToList = (request.Type == "post");
+                var savingPostToList = data.Type == "post";
 
                 if (savingPostToList)
                 {
@@ -439,7 +456,7 @@ namespace AlSaqr.API.Controllers
                         {
                             { "userId", userId },
                             { "listId", listId },
-                            { "postId", request.RelatedEntityId }
+                            { "postId", data.RelatedEntityId }
                         }
                     );
                 } 
@@ -470,7 +487,7 @@ namespace AlSaqr.API.Controllers
                         {
                             { "userId", userId },
                             { "listId", listId },
-                            { "savedUserId", request.RelatedEntityId }
+                            { "savedUserId", data.RelatedEntityId }
                         }
                     );
                 }

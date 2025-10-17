@@ -4,7 +4,7 @@ using Neo4j.Driver;
 using AlSaqr.Data;
 using static AlSaqr.Domain.Utils.Common;
 
-namespace AlSaqr.API.Controllers
+namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
@@ -34,7 +34,7 @@ namespace AlSaqr.API.Controllers
             await using var session = _driver.AsyncSession();
             var notifications = new List<Dictionary<string, object>>();
             Pagination? pagination = null;
-            var getAll = (all == "false");
+            var getAll = all == "false";
 
             try
             {

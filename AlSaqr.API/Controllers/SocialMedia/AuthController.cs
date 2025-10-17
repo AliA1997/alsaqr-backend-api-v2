@@ -8,7 +8,7 @@ using System;
 using AlSaqr.Data;
 using System.Security.Claims;
 
-namespace AlSaqr.API.Controllers
+namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
@@ -62,7 +62,7 @@ namespace AlSaqr.API.Controllers
         {
             return Ok(new
             {
-                Name = User.Identity?.Name,
+                User.Identity?.Name,
                 Email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
             });
         }

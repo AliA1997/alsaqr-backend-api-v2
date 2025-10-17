@@ -82,5 +82,27 @@ namespace  AlSaqr.Domain.Utils
             public string? Religion { get; set; }
             public string? CountryOfOrigin { get; set; }
         }
+
+        public class UserProfilePostsResponse
+        {
+            [JsonPropertyName("userPosts")]
+            public dynamic UserPosts { get; set; }
+
+            [JsonPropertyName("bookmarkedPosts")]
+            public dynamic BookmarkedPosts { get; set; }
+            
+            [JsonPropertyName("likedPosts")]
+            public dynamic LikedPosts { get; set; }
+
+            [JsonPropertyName("repostedPosts")]
+            public dynamic RepostedPosts { get; set; }
+
+            [JsonPropertyName("repliedPosts")]
+            public dynamic RepliedPosts { get; set; }
+
+            [JsonPropertyName("success")]
+            public bool Success { get; set; }
+
+        }
     }
 }

@@ -36,10 +36,31 @@ namespace  AlSaqr.Domain.Utils
             public string? SearchTerm { get; set; }
         }
 
-        public class AlSaqrPostRequest<T>
+        public class AlSaqrUpsertRequest<T>
         {
             [JsonPropertyName("values")]
             public T Values { get; set; }
+        }
+
+        public class BookmarkRequest
+        {
+            public string StatusId { get; set; }
+            public string UserId { get; set; }
+            public bool Bookmarked { get; set; }
+        }
+
+        public class LikeRequest
+        {
+            public string StatusId { get; set; }
+            public string UserId { get; set; }
+            public bool Liked { get; set; }
+        }
+
+        public class RePostRequest
+        {
+            public string StatusId { get; set; }
+            public string UserId { get; set; }
+            public bool Reposted { get; set; }
         }
     }
 }

@@ -12,7 +12,7 @@ using System.Runtime.ConstrainedExecution;
 using static AlSaqr.Domain.Utils.Session;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
-namespace AlSaqr.API.Controllers
+namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
@@ -41,7 +41,7 @@ namespace AlSaqr.API.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpPost("signin")]
-        public async Task<IActionResult> SignInWithSupabase([FromBody] Common.AlSaqrPostRequest<Session.OAuthUserProfile> request)
+        public async Task<IActionResult> SignInWithSupabase([FromBody] Common.AlSaqrUpsertRequest<OAuthUserProfile> request)
         {
             var data = request.Values;
             // Input validation
@@ -108,7 +108,7 @@ namespace AlSaqr.API.Controllers
                             { "id", Guid.NewGuid() },
                             { "createdAt", new DateTime().ToString() },
                             { "updatedAt", null },
-                            { "username", isDiscordAccount ? data.GlobalName : Session.GetEmailUsername(data.Email ?? "") },
+                            { "username", isDiscordAccount ? data.GlobalName : GetEmailUsername(data.Email ?? "") },
                             { "email", data.Email },
                             { "firstName", string.IsNullOrEmpty(data?.FirstName) ? data.Name : data?.FirstName ?? "" },
                             { "lastName", string.IsNullOrEmpty(data?.LastName) ? data.Name : data?.LastName ?? "" },
@@ -116,7 +116,7 @@ namespace AlSaqr.API.Controllers
                             { "countryOfOrigin", "United States" },
                             { "phone", null },
                             { "avatar", data.Picture != null ? data?.Picture : data?.ImageUrl },
-                            { "bgThumbnail", Session.GetRandomCityImage() },
+                            { "bgThumbnail", GetRandomCityImage() },
                             { "dateOfBirth", null },
                             { "geoId", null },
                             { "maritalStatus", "Single" },
@@ -152,7 +152,7 @@ namespace AlSaqr.API.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpPost("check")]
-        public async Task<IActionResult> Check([FromBody] Common.AlSaqrPostRequest<Session.SessionCheckRequest> request)
+        public async Task<IActionResult> Check([FromBody] Common.AlSaqrUpsertRequest<SessionCheckRequest> request)
         {
             var data = request.Values;
             // Input validation

@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using AlSaqr.Data;
 using static AlSaqr.Domain.Utils.Common;
 
-namespace AlSaqr.API.Controllers
+namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
@@ -23,7 +23,15 @@ namespace AlSaqr.API.Controllers
             _driver = driver;
             _configuration = configuration;
         }
-
+        /// <summary>
+        /// Get message threads for a given user.
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <param name="receiverId"></param>
+        /// <param name="senderId"></param>
+        /// <param name="currentPage"></param>
+        /// <param name="itemsPerPage"></param>
+        /// <returns></returns>
         [HttpGet("{userId}")]
         public async Task<IActionResult> GetMessageThreads(
                 string userId,
@@ -108,12 +116,20 @@ namespace AlSaqr.API.Controllers
             return Ok(new PaginatedResult<Dictionary<string, object>>(messageThreads, pagination!));
         }
 
+        /// <summary>
+        /// Send a message to a user.
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <param name="request"></param>
+        /// <returns></returns>
         [HttpPost("{userId}/sendMessage")]
         public async Task<IActionResult> SendMessage(
                 string userId,
-                [FromBody] Messages.MessageFormDto data
+                [FromBody] AlSaqrUpsertRequest<Messages.MessageFormDto> request
             )
         {
+            var data = request.Values;
+
             if (userId != data.SenderId)
                 return BadRequest("Logged in user can only send this message.");
 
