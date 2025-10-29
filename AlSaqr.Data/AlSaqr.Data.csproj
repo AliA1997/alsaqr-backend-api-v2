@@ -7,9 +7,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Zook\sql\**" />
+    <EmbeddedResource Remove="Zook\sql\**" />
+    <None Remove="Zook\sql\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.20" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
     <PackageReference Include="Neo4j.Driver" Version="5.28.3" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="Supabase" Version="1.0.5" />
   </ItemGroup>
 
   <ItemGroup>

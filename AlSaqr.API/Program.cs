@@ -10,6 +10,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Neo4j.Driver;
 using NewsAPI;
+using Supabase.Gotrue;
+using Supabase.Interfaces;
+using Supabase.Realtime;
+using Supabase.Storage;
+using System;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
@@ -18,17 +23,30 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHttpClient();
 // Retrieve Neo4j settings from configuration
 var neo4jSettings = builder.Configuration.GetSection("GraphDB");
+// Retrieve Supabase settings from configuration
+var supabaseSettings = builder.Configuration.GetSection("Supabase");
 var uri = neo4jSettings["Uri"];
 var username = neo4jSettings["Username"];
 var password = neo4jSettings["Password"];
 var database = neo4jSettings["Database"];
 IConfiguration configuration = builder.Configuration;
+
+// Add services to the container.
 // Register IDriver as a singleton
 builder.Services.AddSingleton<IDriver>(sp =>
     GraphDatabase.Driver(uri, AuthTokens.Basic(username, password))
 );
 
-// Add services to the container.
+var supabaseUrl = supabaseSettings["Url"];
+var supabaseKey = supabaseSettings["Key"];
+builder.Services.AddSingleton<Supabase.Client>(sp =>
+{
+    var options = new Supabase.SupabaseOptions { AutoConnectRealtime = true };
+    return new Supabase.Client(supabaseUrl, supabaseKey, options);
+});
+
+builder.Services.AddHostedService<SupabaseInitializer>();
+
 
 builder.Services.AddControllers(o => o.UseRoutePrefix("api"));
 
@@ -41,7 +59,7 @@ builder.Services.AddSingleton<IUserCacheService, UserCacheService>(_ => UserCach
 
 // Add Identity (optional but recommended)
 builder.Services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase("AlSaqr"));
-builder.Services.AddIdentityApiEndpoints<User>().AddEntityFrameworkStores<AppDbContext>();
+builder.Services.AddIdentityApiEndpoints<AlSaqr.Domain.Common.User>().AddEntityFrameworkStores<AppDbContext>();
 
 // Add JWT authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
