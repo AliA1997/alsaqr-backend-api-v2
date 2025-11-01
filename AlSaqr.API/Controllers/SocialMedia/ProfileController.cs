@@ -1,8 +1,8 @@
 ﻿using AlSaqr.Domain.Utils;
 using Microsoft.AspNetCore.Mvc;
-using AlSaqr.Data;
 using Neo4j.Driver;
 using static AlSaqr.Domain.Utils.User;
+using AlSaqr.Data.Helpers;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {

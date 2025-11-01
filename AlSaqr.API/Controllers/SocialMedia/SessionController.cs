@@ -1,4 +1,4 @@
-﻿using AlSaqr.Data;
+﻿using AlSaqr.Data.Helpers;
 using AlSaqr.Domain.Common;
 using AlSaqr.Domain.Utils;
 using AlSaqr.Infrastructure;

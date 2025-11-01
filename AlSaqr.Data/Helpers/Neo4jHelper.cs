@@ -4,9 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using Neo4j.Driver;
 using Newtonsoft.Json;
-using static  AlSaqr.Domain.Utils.User;
+using static AlSaqr.Domain.Utils.User;
 
-namespace  AlSaqr.Data
+namespace  AlSaqr.Data.Helpers
 {
 
     public static class Neo4jHelpers

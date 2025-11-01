@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AlSaqr.Data.Zook
+namespace AlSaqr.Data.Entities.Zook
 {
 
     [Table("products")]

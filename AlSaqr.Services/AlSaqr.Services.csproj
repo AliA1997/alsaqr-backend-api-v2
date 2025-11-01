@@ -6,4 +6,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Folder Include="Zook\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AlSaqr.Domain\AlSaqr.Domain.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -3,9 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using Neo4j.Driver;
 using System.Collections.Generic;
-using AlSaqr.Data;
 using static AlSaqr.Domain.Utils.Common;
 using AlSaqr.Infrastructure;
+using AlSaqr.Data.Helpers;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {

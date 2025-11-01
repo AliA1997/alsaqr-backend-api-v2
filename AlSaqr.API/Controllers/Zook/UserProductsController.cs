@@ -1,5 +1,4 @@
-﻿using AlSaqr.Data;
-using AlSaqr.Data.Zook;
+﻿using AlSaqr.Data.Helpers;
 using AlSaqr.Domain.Zook;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;

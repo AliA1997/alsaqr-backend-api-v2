@@ -1,21 +1,15 @@
 using AlSaqr.API.Config;
 using AlSaqr.API.Extensions;
 using AlSaqr.Data;
+using AlSaqr.Data.Repositories.Meetup;
+using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Common;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Neo4j.Driver;
 using NewsAPI;
-using Supabase.Gotrue;
-using Supabase.Interfaces;
-using Supabase.Realtime;
-using Supabase.Storage;
-using System;
-using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 
@@ -44,6 +38,13 @@ builder.Services.AddSingleton<Supabase.Client>(sp =>
     var options = new Supabase.SupabaseOptions { AutoConnectRealtime = true };
     return new Supabase.Client(supabaseUrl, supabaseKey, options);
 });
+builder.Services.AddScoped<ICityRepository, CityRepository>();
+builder.Services.AddScoped<IAttendeeRepository, AttendeeRepository>();
+builder.Services.AddScoped<IEventRepository, EventRepository>();
+builder.Services.AddScoped<IGroupRepository, GroupRepository>();
+builder.Services.AddScoped<ILocalGuidesRepository, LocalGuidesRepository>();
+builder.Services.AddScoped<ITopicRepository, TopicRepository>();
+
 
 builder.Services.AddHostedService<SupabaseInitializer>();
 

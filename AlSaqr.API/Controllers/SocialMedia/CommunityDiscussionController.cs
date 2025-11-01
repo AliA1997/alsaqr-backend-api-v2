@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Neo4j.Driver;
 using System.Data.Entity.Core.Metadata.Edm;
-using AlSaqr.Data;
 using static AlSaqr.Domain.Utils.Common;
+using AlSaqr.Data.Helpers;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {

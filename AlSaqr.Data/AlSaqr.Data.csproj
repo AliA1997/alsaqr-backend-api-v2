@@ -7,9 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Zook\sql\**" />
-    <EmbeddedResource Remove="Zook\sql\**" />
-    <None Remove="Zook\sql\**" />
+    <Compile Remove="Entities\Meetup\sql\**" />
+    <Compile Remove="Entities\Zook\sql\**" />
+    <EmbeddedResource Remove="Entities\Meetup\sql\**" />
+    <EmbeddedResource Remove="Entities\Zook\sql\**" />
+    <None Remove="Entities\Meetup\sql\**" />
+    <None Remove="Entities\Zook\sql\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,6 +25,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AlSaqr.Domain\AlSaqr.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Repositories\Zook\" />
   </ItemGroup>
 
 </Project>
