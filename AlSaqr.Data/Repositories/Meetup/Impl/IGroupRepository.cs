@@ -26,6 +26,12 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
             string? searchTerm,
             double? maxDistanceKm);
 
+        Task<List<SimilarGroupDto>> GetSimilarGroups(
+            Supabase.Client client,
+            int groupId,
+            string latitude,
+            string longitude);
+
         Task<Groups> CreateGroup(Supabase.Client client, CreateGroupForm form, string neo4jUserId, int organizerId, int cityId);
     }
 }

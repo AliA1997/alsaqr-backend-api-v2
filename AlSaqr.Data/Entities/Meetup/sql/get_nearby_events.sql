@@ -9,6 +9,7 @@ CREATE OR REPLACE FUNCTION get_nearby_events (
 )
 RETURNS TABLE(
     id bigint,
+    slug character varying,
     name character varying,
     description text,
     images json,
@@ -23,6 +24,7 @@ BEGIN
     RETURN QUERY
     SELECT 
         ve.id,
+        ve.slug,
         ve.name,
         ve.description,
         ve.images,

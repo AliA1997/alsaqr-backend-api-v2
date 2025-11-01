@@ -1,4 +1,6 @@
 ﻿using AlSaqr.Data.Entities.Meetup;
+using AlSaqr.Data.Repositories.Meetup;
+using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
@@ -15,16 +17,19 @@ namespace AlSaqr.API.Controllers.Meetup
         private readonly IDriver _driver;
         private readonly IUserCacheService _userCacheService;
         private readonly Supabase.Client _supabase;
+        private readonly IGroupRepository _groupRepository;
 
         public GroupDetailsController(
             ILogger<GroupDetailsController> logger,
             IDriver driver,
             Supabase.Client supabase,
+            IGroupRepository groupRepository,
             IUserCacheService userCacheService)
         {
             _logger = logger;
             _driver = driver;
             _supabase = supabase;
+            _groupRepository = groupRepository;
             _userCacheService = userCacheService;
         }
 
@@ -53,6 +58,7 @@ namespace AlSaqr.API.Controllers.Meetup
                 events = (await selectEventResult.Get()).Models.Select(sr => new EventDto()
                 {
                     Id = sr.Id,
+                    Slug = sr.Slug,
                     GroupId = sr.GroupId,
                     GroupName = sr.GroupName,
                     Name = sr.Name,
@@ -64,6 +70,7 @@ namespace AlSaqr.API.Controllers.Meetup
                 groupDetails = (await selectGroupResult.Get()).Models.Select(sr => new GroupDto()
                 {
                     Id = sr.Id,
+                    Slug = sr.Slug,
                     Name = sr.Name,
                     Description = sr.Description,
                     City = sr.HqCity,
@@ -80,6 +87,22 @@ namespace AlSaqr.API.Controllers.Meetup
             }
 
             return Ok(new { events, groupDetails, success = true });
+        }
+
+        [HttpGet("{groupId}/similar")]
+        public async Task<IActionResult> GetSimilarGroups(
+            int groupId,
+            [FromQuery] string latitude,
+            [FromQuery] string longitude)
+        {
+            
+            var result = await _groupRepository.GetSimilarGroups(
+                _supabase,
+                groupId,
+                latitude,
+                longitude);
+
+            return Ok(result);
         }
     }
 }

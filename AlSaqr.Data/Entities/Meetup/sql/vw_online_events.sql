@@ -1,6 +1,7 @@
 create view vw_online_events as
 select
   e.id,
+  e.slug,
   e.name,
   e.description,
   e.images,

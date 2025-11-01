@@ -6,6 +6,8 @@ namespace AlSaqr.Domain.Meetup
     {
         [JsonProperty("id")]
         public long? Id { get; set; }
+        [JsonProperty("slug")]
+        public string? Slug { get; set; }
         [JsonProperty("name")]
         public string? Name { get; set; }
         [JsonProperty("description")]

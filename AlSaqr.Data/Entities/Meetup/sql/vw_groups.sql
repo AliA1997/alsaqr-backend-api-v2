@@ -3,6 +3,7 @@ SELECT
   g.id,
   g.name,
   g.images,
+  g.slug,
   c.id AS hq_city_id,
   c.name AS hq_city,
   c.country as hq_country,

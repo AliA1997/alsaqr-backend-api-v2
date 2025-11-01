@@ -1,4 +1,6 @@
-CREATE OR REPLACE FUNCTION get_nearby_local_guides (
+
+CREATE OR REPLACE FUNCTION get_nearby_local_guides_for_guide (
+    localguideid bigint,
     skip bigint,
     itemsPerPage bigint,
     target_lat double precision,
@@ -40,8 +42,11 @@ BEGIN
             ) AS distance_km
         FROM vw_local_guides vlg
         WHERE 
-            search_term IS NULL
-            OR vlg.name ILIKE '%' || search_term || '%'
+            vlg.id != localguideid
+            AND (
+                search_term IS NULL
+                OR vlg.name ILIKE '%' || search_term || '%'
+            )
     )
     SELECT 
         gd.id,

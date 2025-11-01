@@ -8,7 +8,8 @@ namespace AlSaqr.Data.Entities.Meetup
     {
         [PrimaryKey("id")]
         public int Id { get; set; }
-
+        [Column("slug")]
+        public string? Slug { get; set; }
         [Column("neo4j_user_id")]
         public string Neo4jUserId { get; set; }
         [Column("name")]

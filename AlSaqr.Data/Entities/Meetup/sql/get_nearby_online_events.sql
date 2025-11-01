@@ -10,6 +10,7 @@ CREATE OR REPLACE FUNCTION get_nearby_online_events (
 )
 RETURNS TABLE(
     id bigint,
+    slug character varying,
     name character varying,
     description text,
     images json,
@@ -24,6 +25,7 @@ BEGIN
     RETURN QUERY
     SELECT 
         voe.id,
+        voe.slug,
         voe.name,
         voe.description,
         voe.images,

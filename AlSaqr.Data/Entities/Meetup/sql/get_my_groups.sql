@@ -1,3 +1,4 @@
+
 CREATE OR REPLACE FUNCTION get_my_groups(
     userid varchar,
     skip bigint,
@@ -9,6 +10,7 @@ CREATE OR REPLACE FUNCTION get_my_groups(
 )
 RETURNS TABLE(
     id bigint,
+    slug character varying,
     name character varying,
     description text,
     images json,
@@ -27,6 +29,7 @@ BEGIN
     RETURN QUERY
     SELECT 
         vg.id,
+        vg.slug,
         vg.name, 
         vg.description,
         vg.images,

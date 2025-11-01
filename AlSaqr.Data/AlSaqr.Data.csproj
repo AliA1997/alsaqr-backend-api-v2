@@ -27,8 +27,4 @@
     <ProjectReference Include="..\AlSaqr.Domain\AlSaqr.Domain.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Repositories\Zook\" />
-  </ItemGroup>
-
 </Project>

@@ -1,13 +1,10 @@
 using AlSaqr.Data.Entities.Zook;
 using AlSaqr.Data.Helpers;
-using AlSaqr.Domain.Utils;
-using AlSaqr.Domain.Zook;
+using AlSaqr.Data.Repositories.Zook.Impl;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Neo4j.Driver;
-using Newtonsoft.Json;
 using Supabase.Postgrest;
-using Supabase.Postgrest.Interfaces;
 using System.Text.RegularExpressions;
 using static AlSaqr.Domain.Utils.Common;
 using static AlSaqr.Domain.Utils.Products;
@@ -24,16 +21,19 @@ namespace AlSaqr.API.Controllers.Zook
         private readonly IDriver _driver;
         private readonly IUserCacheService _userCacheService;
         private readonly Supabase.Client _supabase;
+        private readonly IProductRepository _productRepository;
 
         public ProductsController(
             ILogger<ProductsController> logger, 
             IDriver driver,
             Supabase.Client supabase,
+            IProductRepository productRepository,
             IUserCacheService userCacheService)
         {
             _logger = logger;
             _driver = driver;
             _supabase = supabase;
+            _productRepository = productRepository;
             _userCacheService = userCacheService;
         }
 
@@ -56,43 +56,16 @@ namespace AlSaqr.API.Controllers.Zook
                 [FromQuery] double? maxDistanceKm = 25.0
             )
         {
-            var products = new List<ProductDto>();
-            var functionName = "get_nearby_products";
-            var pagingFunctionName = "get_nearby_products_total";
-            Pagination? pagination = null;
-            var skip = (currentPage - 1) * itemsPerPage;
-            try
-            {
-                int totalItems;
-                IDictionary<string, object> functionParams = SupabaseHelper.DefineGetProductParams(
-                            latitude: latitude,
-                            longitude: longitude,
-                            skip: skip,
-                            currentPage: currentPage,
-                            itemsPerPage: itemsPerPage,
-                            maxDistanceKm: null,
-                            searchTerm: searchTerm
-                );
+            var result = await _productRepository.GetNearbyProduct(
+                                                    _supabase,
+                                                    latitude,
+                                                    longitude,
+                                                    currentPage,
+                                                    itemsPerPage,
+                                                    searchTerm,
+                                                    maxDistanceKm);
 
-                products = JsonConvert.DeserializeObject<List<ProductDto>>(
-                    await SupabaseHelper.CallFunction(_supabase, functionName, functionParams)
-                );
-                var parsedSuccessfully = int.TryParse(await SupabaseHelper.CallFunction(_supabase, pagingFunctionName, functionParams), out var total);
-                totalItems = parsedSuccessfully ? total : 0;
-
-                pagination = new Pagination
-                {
-                    ItemsPerPage = itemsPerPage,
-                    CurrentPage = currentPage,
-                    TotalItems = totalItems,
-                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
-                };
-            } catch(Exception ex)
-            {
-                throw ex;
-            }
-
-            return Ok(new PaginatedResult<ProductDto>(products ?? new List<ProductDto>(), pagination!));
+            return Ok(result);
         }
 
 
@@ -116,48 +89,16 @@ namespace AlSaqr.API.Controllers.Zook
                 [FromQuery] string? searchTerm = null
             )
         {
-            var products = new List<ProductDto>();
-            var functionName = "get_nearby_products_by_category";
-            var pagingFunctionName = "get_nearby_products_by_category_total";
+            var result = await _productRepository.NearbyProductsByCategory(
+                                                _supabase,
+                                                categoryId,
+                                                latitude,
+                                                longitude,
+                                                currentPage,
+                                                itemsPerPage,
+                                                searchTerm);
 
-            Pagination? pagination = null;
-            var skip = (currentPage - 1) * itemsPerPage;
-
-            try
-            {
-                int totalItems;
-
-                IDictionary<string, object> functionParams = SupabaseHelper.DefineGetProductByCategoryParams(
-                        latitude: latitude,
-                        longitude: longitude,
-                        productCategoryId: categoryId,
-                        skip: skip,
-                        currentPage: currentPage,
-                        itemsPerPage: itemsPerPage,
-                        maxDistanceKm: null,
-                        searchTerm: searchTerm
-                );
-
-                products = JsonConvert.DeserializeObject<List<ProductDto>>(
-                                await SupabaseHelper.CallFunction(_supabase, functionName, functionParams)
-                            );
-                var parsedSuccessfully = int.TryParse(await SupabaseHelper.CallFunction(_supabase, pagingFunctionName, functionParams), out var total);
-                totalItems = parsedSuccessfully ? total : 0;
-
-                pagination = new Pagination
-                {
-                    ItemsPerPage = itemsPerPage,
-                    CurrentPage = currentPage,
-                    TotalItems = totalItems,
-                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
-                };
-            }
-            catch(Exception ex)
-            {
-                throw ex;
-            }
-
-            return Ok(new PaginatedResult<ProductDto>(products ?? new List<ProductDto>(), pagination!));
+            return Ok(result);
         }
 
         /// <summary>
@@ -186,32 +127,11 @@ namespace AlSaqr.API.Controllers.Zook
                 {
                     return Unauthorized("User must be logged in, in order to create a product.");
                 }
-                var recentInsertedId = await _supabase.From<Product>().Count(CountType.Estimated);
-                string productSlug = Regex.Replace(input: data.Title, pattern: @"[^a-zA-Z0-9]", replacement: "_").ToLower();
-                var model = new Product()
-                {
-                    Id = recentInsertedId + 1,
-                    Title = data.Title,
-                    Description = data.Description,
-                    Price = data.Price,
-                    Slug = productSlug,
-                    Attributes = data.Attributes ?? new Dictionary<string, object>() { },
-                    ProductCategoryId = (int)data.ProductCategoryId,
-                    Images = data.Images != null ? data.Images : new string[] { },
-                    Latitude = data.Latitude,
-                    Longitude = data.Longitude,
-                    Country = data.Country,
-                    Tags = data.Tags ?? new string[]{ },
-                    Neo4jUserId = loggedInUser.Id,
-                    CreatedAt = DateTime.UtcNow
-                };
 
-                
-
-                var insertedProduct = (await _supabase.From<Product>().Upsert(model, new QueryOptions() 
-                {  
-                    Returning = QueryOptions.ReturnType.Representation,
-                })).Model;
+                var insertedProduct = await _productRepository.CreateProduct(
+                                                                _supabase,
+                                                                loggedInUser.Id!,
+                                                                data);
 
 
                 await Neo4jHelpers.WriteAsync(

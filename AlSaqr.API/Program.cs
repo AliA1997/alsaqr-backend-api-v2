@@ -3,6 +3,8 @@ using AlSaqr.API.Extensions;
 using AlSaqr.Data;
 using AlSaqr.Data.Repositories.Meetup;
 using AlSaqr.Data.Repositories.Meetup.Impl;
+using AlSaqr.Data.Repositories.Zook;
+using AlSaqr.Data.Repositories.Zook.Impl;
 using AlSaqr.Domain.Common;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
@@ -43,6 +45,7 @@ builder.Services.AddScoped<IAttendeeRepository, AttendeeRepository>();
 builder.Services.AddScoped<IEventRepository, EventRepository>();
 builder.Services.AddScoped<IGroupRepository, GroupRepository>();
 builder.Services.AddScoped<ILocalGuidesRepository, LocalGuidesRepository>();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<ITopicRepository, TopicRepository>();
 
 

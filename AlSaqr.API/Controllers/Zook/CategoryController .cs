@@ -1,14 +1,9 @@
-using AlSaqr.Data;
 using AlSaqr.Data.Entities.Zook;
 using AlSaqr.Domain.Zook;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
-using Supabase.Postgrest;
+
 using Supabase.Postgrest.Interfaces;
-using System.Text.RegularExpressions;
-using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Products;
 using static Supabase.Postgrest.Constants;
 
 namespace AlSaqr.API.Controllers.Zook

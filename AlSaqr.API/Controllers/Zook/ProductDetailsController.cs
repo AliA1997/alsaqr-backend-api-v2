@@ -1,4 +1,5 @@
 using AlSaqr.Data.Helpers;
+using AlSaqr.Data.Repositories.Zook.Impl;
 using AlSaqr.Domain.Utils;
 using AlSaqr.Domain.Zook;
 using AlSaqr.Infrastructure;
@@ -19,11 +20,13 @@ namespace AlSaqr.API.Controllers.Zook
     public class ProductDetailsController : ControllerBase
     {
         private readonly Supabase.Client _supabase;
-
+        private readonly IProductRepository _productRepository;
         public ProductDetailsController(
-            Supabase.Client supabase)
+            Supabase.Client supabase,
+            IProductRepository productRepository)
         {
             _supabase = supabase;
+            _productRepository = productRepository;
         }
 
 
@@ -39,27 +42,11 @@ namespace AlSaqr.API.Controllers.Zook
                 [FromQuery] string longitude
             )
         {
-            ProductDto? product = null;
-            List<ProductDto>? productResult = new List<ProductDto>();
-            try
-            {
-                string functionName = "get_product_details";
-                IDictionary<string, object> functionParams = SupabaseHelper.DefineGetProductDetailsParams(
-                    productId: productId,
-                    latitude: latitude,
-                    longitude: longitude
-                );
-
-                productResult = JsonConvert.DeserializeObject<List<ProductDto>>(
-                    await SupabaseHelper.CallFunction(_supabase, functionName, functionParams)
-                );
-
-                product = productResult?.FirstOrDefault() ?? new ProductDto();
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            var product = await _productRepository.GetProductDetails(
+                                                    _supabase,
+                                                    productId,
+                                                    latitude,
+                                                    longitude);
 
             return Ok(new { product, success = true });
         }
@@ -77,26 +64,12 @@ namespace AlSaqr.API.Controllers.Zook
                 [FromQuery] string longitude
             )
         {
-            List<SimilarProductDto>? similarProducts = new List<SimilarProductDto>();
-            try
-            {
-                string functionName = "get_similar_products";
-                IDictionary<string, object> functionParams = SupabaseHelper.DefineGetProductDetailsParams(
-                    productId: productId,
-                    latitude: latitude,
-                    longitude: longitude
-                );
-
-                similarProducts = JsonConvert.DeserializeObject<List<SimilarProductDto>>(
-                    await SupabaseHelper.CallFunction(_supabase, functionName, functionParams)
-                );
-
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
-
+            var similarProducts = await _productRepository.GetSimilarProducts(
+                                                            _supabase,
+                                                            productId,
+                                                            latitude,
+                                                            longitude);
+ 
             return Ok(new { similarProducts, success = true });
         }
     }

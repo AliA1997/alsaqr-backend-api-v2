@@ -1,23 +1,12 @@
 ﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics.Metrics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace AlSaqr.Domain.Meetup
 {
-    public class LocalGuideDto
+    public class LocalGuideCityDto
     {
         [JsonProperty("id")]
         public int Id { get; set; }
-        [JsonProperty("userid")]
-        public string UserId { get; set; }
         [JsonProperty("name")]
-        public string Name { get; set; }
-
-        [JsonProperty("city")]
         public string City { get; set; }
 
         [JsonProperty("state_or_province")]
@@ -31,6 +20,20 @@ namespace AlSaqr.Domain.Meetup
 
         [JsonProperty("longitude")]
         public decimal Longitude { get; set; }
+    }
+    public class LocalGuideDto
+    {
+        [JsonProperty("id")]
+        public int Id { get; set; }
+        [JsonProperty("slug")]
+        public string? Slug { get; set; }
+        [JsonProperty("userid")]
+        public string UserId { get; set; }
+        [JsonProperty("name")]
+        public string Name { get; set; }
+
+        [JsonProperty("cities_hosted")]
+        public List<LocalGuideCityDto>? CitiesHosted { get; set; }
 
         [JsonProperty("registered_at")]
         public DateTime RegisteredAt { get; set; }

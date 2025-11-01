@@ -10,6 +10,7 @@ CREATE OR REPLACE FUNCTION get_my_events (
 )
 RETURNS TABLE(
     id bigint,
+    slug character varying,
     name character varying,
     description text,
     images json,
@@ -30,6 +31,7 @@ BEGIN
     events_with_distance AS (
         SELECT 
             ve.id,
+            ve.slug,
             ve.name,
             ve.description,
             ve.images,
@@ -55,6 +57,7 @@ BEGIN
     )
     SELECT 
         ewd.id,
+        ewd.slug,
         ewd.name,
         ewd.description,
         ewd.images,

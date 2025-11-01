@@ -1,6 +1,8 @@
+
 CREATE VIEW vw_events AS
 SELECT
   e.id,
+  e.slug,
   e.name,
   e.description,
   e.images,

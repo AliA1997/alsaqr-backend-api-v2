@@ -13,5 +13,15 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
             int itemsPerPage,
             string? searchTerm,
             double? maxDistanceKm);
+
+        Task<PaginatedResult<LocalGuideDto>> GetNearbyLocalGuidesForCurrentLocalGuide(
+            Supabase.Client client,
+            int localGuideId,
+            string latitude,
+            string longitude,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm,
+            double? maxDistanceKm);
     }
 }

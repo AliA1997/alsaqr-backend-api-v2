@@ -125,6 +125,35 @@ namespace AlSaqr.Data.Repositories.Meetup
             return new PaginatedResult<GroupDto>(groups ?? new List<GroupDto>(), pagination!);
         }
 
+        public async Task<List<SimilarGroupDto>> GetSimilarGroups(
+            Supabase.Client client,
+            int groupId,
+            string latitude,
+            string longitude)
+        {
+            var similarGroups = new List<SimilarGroupDto>();
+            var functionName = "get_similar_groups";
+            try
+            {
+                int totalItems;
+                IDictionary<string, object> functionParams = SupabaseHelper.DefineGetSimilarGroupsParams(
+                            groupId: groupId,
+                            latitude: latitude,
+                            longitude: longitude
+                );
+
+                similarGroups = JsonConvert.DeserializeObject<List<SimilarGroupDto>>(
+                    await SupabaseHelper.CallFunction(client, functionName, functionParams)
+                );
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+            return similarGroups;
+        }
+
         public async Task<Groups> CreateGroup(Supabase.Client client, CreateGroupForm form, string neo4jUserId, int organizerId, int cityId)
         {
             Groups? insertedGroup = null;

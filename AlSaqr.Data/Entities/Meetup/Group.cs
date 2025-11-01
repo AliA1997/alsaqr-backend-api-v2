@@ -8,6 +8,8 @@ namespace AlSaqr.Data.Entities.Meetup
     {
         [Column("id")]
         public int Id { get; set; }
+        [Column("slug")]
+        public string? Slug { get; set; }
 
         [Column("name")]
         public string? Name { get; set; }

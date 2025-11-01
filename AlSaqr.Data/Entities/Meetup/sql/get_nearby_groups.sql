@@ -1,4 +1,3 @@
-
 CREATE OR REPLACE FUNCTION get_nearby_groups(
     skip bigint,
     itemsPerPage bigint,
@@ -9,6 +8,7 @@ CREATE OR REPLACE FUNCTION get_nearby_groups(
 )
 RETURNS TABLE(
     id bigint,
+    slug character varying,
     name character varying,
     description text,
     images json,
@@ -27,6 +27,7 @@ BEGIN
     RETURN QUERY
     SELECT 
         vg.id,
+        vg.slug,
         vg.name, 
         vg.description,
         vg.images,
