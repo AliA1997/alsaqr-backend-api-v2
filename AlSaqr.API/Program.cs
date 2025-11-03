@@ -27,6 +27,8 @@ var password = neo4jSettings["Password"];
 var database = neo4jSettings["Database"];
 IConfiguration configuration = builder.Configuration;
 
+
+
 // Add services to the container.
 // Register IDriver as a singleton
 builder.Services.AddSingleton<IDriver>(sp =>
@@ -89,6 +91,23 @@ builder.Services.Configure<GraphDbConfig>(builder.Configuration.GetSection("Grap
 builder.Services.Configure<MongoDbConfig>(builder.Configuration.GetSection("MongoDB"));
 
 builder.Services.AddHealthChecks();
+
+
+// Read allowed origins from configuration
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? Array.Empty<string>();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowConfiguredOrigins", policy =>
+    {
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
 var app = builder.Build();
 
 app.MapHealthChecks("/healthz");
@@ -101,7 +120,7 @@ if (app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-
+app.UseCors("AllowConfiguredOrigins");
 app.UseAuthorization();
 
 app.MapControllers();
