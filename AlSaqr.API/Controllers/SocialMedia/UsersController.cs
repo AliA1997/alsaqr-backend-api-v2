@@ -353,7 +353,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 var userPostTags = await Neo4jHelpers.ReadAsync(
                     session,
                     @"
-                        MATCH(post: Post { userId: $userId })
+                        MATCH (post: Post { userId: $userId })
                         WITH post
                         ORDER BY post.createdAt DESC
                         UNWIND post.tags AS tag
@@ -523,7 +523,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 var users = await Neo4jHelpers.ReadAsync(
                     session,
                     @"
-                        MATCH(user: User { id: $userId}) RETURN user
+                        MATCH (user: User { id: $userId}) RETURN user
                     ",
                     new Dictionary<string, object>
                     {
@@ -547,24 +547,29 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 if (!string.IsNullOrEmpty(searchTerm))
                 {
                     selectQuery = @"
-                        MATCH (user:User)
-                        WHERE (user.username CONTAINS $searchTerm OR user.email CONTAINS $searchTerm) 
-                                AND (
-                                    ANY(scholar in user.favoriteIslamicScholars WHERE scholar IN $favoriteIslamicScholars) 
-                                    OR 
-                                    ANY(hobby in user.hobbies WHERE hobby IN $hobbies)
-                                    OR
-                                    ANY(quranReciter in user.favoriteQuranReciters WHERE quranReciter IN $favoriteQuranReciters)
-                                    OR
-                                    ANY(islamicStudyTopic in user.islamicStudyTopics WHERE islamicStudyTopic IN $islamicStudyTopics)
-                                    OR
-                                    user.preferredMadhab = $preferredMadhab
-                                )  AND  user.id <> $userId 
-                            OPTIONAL MATCH (follower:User)-[:FOLLOWED]->(user)
-                            OPTIONAL MATCH (user)-[:FOLLOW_USER]->(following:User)
-                            RETURN user,
-                                    COLLECT(DISTINCT follower) AS followers,
-                                    COLLECT(DISTINCT following) AS following
+                        MATCH (u:User)
+                        WHERE 
+                            WHERE (u.username CONTAINS $searchTerm OR u.email CONTAINS $searchTerm) 
+                            AND (
+                                ANY(s IN coalesce(u.favoriteIslamicScholars, []) WHERE s IN $favoriteIslamicScholars) OR
+                                ANY(h IN coalesce(u.hobbies, []) WHERE h IN $hobbies) OR
+                                ANY(r IN coalesce(u.favoriteQuranReciters, []) WHERE r IN $favoriteQuranReciters) OR
+                                ANY(t IN coalesce(u.islamicStudyTopics, []) WHERE t IN $islamicStudyTopics) OR
+                                u.preferredMadhab = $preferredMadhab
+                            )
+                            AND u.id <> $userId
+
+                        OPTIONAL MATCH (follower:User)-[:FOLLOWED]->(u)
+                        OPTIONAL MATCH (u)-[:FOLLOW_USER]->(following:User)
+
+                        WITH u, 
+                                COLLECT(DISTINCT follower) AS followers,
+                                COLLECT(DISTINCT following) AS following
+
+                        RETURN 
+                            u AS user,
+                            followers,
+                            following
                     ";
 
                     selectResult = await Neo4jHelpers.ReadAsync(
@@ -604,20 +609,28 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 else
                 {
                     selectQuery = @"
-                        MATCH (user:User)
+                        MATCH (u:User)
                         WHERE 
                             (
-                                ANY(scholar in user.favoriteIslamicScholars WHERE scholar IN $favoriteIslamicScholars) OR 
-                                ANY(hobby in user.hobbies WHERE hobby IN $hobbies) OR
-                                ANY(quranReciter in user.favoriteQuranReciters WHERE quranReciter IN $favoriteQuranReciters) OR
-                                ANY(islamicStudyTopic in user.islamicStudyTopics WHERE islamicStudyTopic IN $islamicStudyTopics) OR
-                                user.preferredMadhab = $preferredMadhab
-                            ) AND  user.id <> $userId 
-                        OPTIONAL MATCH (follower:User)-[:FOLLOWED]->(user)
-                        OPTIONAL MATCH (user)-[:FOLLOW_USER]->(following:User)
-                        RETURN user,
+                                ANY(s IN coalesce(u.favoriteIslamicScholars, []) WHERE s IN $favoriteIslamicScholars) OR
+                                ANY(h IN coalesce(u.hobbies, []) WHERE h IN $hobbies) OR
+                                ANY(r IN coalesce(u.favoriteQuranReciters, []) WHERE r IN $favoriteQuranReciters) OR
+                                ANY(t IN coalesce(u.islamicStudyTopics, []) WHERE t IN $islamicStudyTopics) OR
+                                u.preferredMadhab = $preferredMadhab
+                            )
+                            AND u.id <> $userId
+
+                        OPTIONAL MATCH (follower:User)-[:FOLLOWED]->(u)
+                        OPTIONAL MATCH (u)-[:FOLLOW_USER]->(following:User)
+
+                        WITH u, 
                                 COLLECT(DISTINCT follower) AS followers,
                                 COLLECT(DISTINCT following) AS following
+
+                        RETURN 
+                            u AS user,
+                            followers,
+                            following
                     ";
 
                     selectResult = await Neo4jHelpers.ReadAsync(
@@ -664,6 +677,10 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 };
 
                 usersToAdd = selectResult ?? new List<Dictionary<string, object>>();
+            }
+            catch(Exception ex)
+            {
+                throw ex;
             }
             finally
             {

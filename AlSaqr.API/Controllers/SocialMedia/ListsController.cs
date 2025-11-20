@@ -114,7 +114,10 @@ namespace AlSaqr.API.Controllers.SocialMedia
                     pagingResult = await Neo4jHelpers.ReadAsync(
                         session,
                         Neo4jHelpers.CommonCountCipher(selectQuery, "list"),
-                        new Dictionary<string, object> { },
+                        new Dictionary<string, object> 
+                        {
+                            { "userId", userId },
+                        },
                         new[] { "total" }
                     );
                 }

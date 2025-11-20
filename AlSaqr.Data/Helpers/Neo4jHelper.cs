@@ -158,6 +158,9 @@ namespace  AlSaqr.Data.Helpers
             }
             catch (Exception ex)
             {
+                Console.WriteLine("Neo4j Error: " + ex.Message);
+                Console.WriteLine("Inner: " + ex.InnerException?.Message);
+                Console.WriteLine("Stack: " + ex.StackTrace);
                 Console.WriteLine($"Error in ReadAsync (aliases: {string.Join(",", aliases ?? new List<string>())}): {ex}");
                 return new List<Dictionary<string, object>>();
             }

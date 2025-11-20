@@ -54,24 +54,24 @@ namespace AlSaqr.API.Controllers.SocialMedia
                         // Get all communities in the database
                         MATCH (community:Community)
 
-                        // Get founder for each community (regardless of user relationship)
                         OPTIONAL MATCH (community)-[:COMMUNITY_FOUNDER]->(founder:User)
+                        OPTIONAL MATCH (user)-[r]->
+                          (relatedCommunity:Community)
+                          WHERE relatedCommunity = community AND type(r) IN ['JOINED', 'INVITED', 'INVITE_REQUESTED', 'COMMUNITY_FOUNDER']
 
-                        // Determine the user's relationship to each community
                         WITH community, founder, user,
-                            CASE
-                              WHEN EXISTS((community)-[:INVITE_REQUESTED]->(user)) THEN 'INVITE_REQUESTED'
-                              WHEN EXISTS((community)-[:COMMUNITY_FOUNDER]->(user)) THEN 'FOUNDER'
-                              WHEN EXISTS((community)-[:INVITED]->(user)) THEN 'INVITED'
-                              WHEN EXISTS((user)-[:JOINED]->(community)) THEN 'JOINED'
-                              ELSE 'NONE'
-                            END AS relationshipType
+                             COLLECT(DISTINCT type(r)) AS rels
 
-                        // Return all communities with their relationship status
-                        RETURN DISTINCT
-                          community,
-                          founder,
-                          relationshipType
+                        WITH community, founder,
+                             CASE
+                               WHEN 'INVITE_REQUESTED' IN rels THEN 'INVITE_REQUESTED'
+                               WHEN 'COMMUNITY_FOUNDER' IN rels THEN 'FOUNDER'
+                               WHEN 'INVITED' IN rels THEN 'INVITED'
+                               WHEN 'JOINED' IN rels THEN 'JOINED'
+                               ELSE 'NONE'
+                             END AS relationshipType
+
+                        RETURN community, founder, relationshipType
                         ORDER BY relationshipType, community.name";
 
                     selectResult = await Neo4jHelpers.ReadAsync(
@@ -95,18 +95,22 @@ namespace AlSaqr.API.Controllers.SocialMedia
                             // Get all communities in the database
                             MATCH (community:Community)
 
-                            // Get founder for each community (regardless of user relationship)
                             OPTIONAL MATCH (community)-[:COMMUNITY_FOUNDER]->(founder:User)
+                            OPTIONAL MATCH (user)-[r]->
+                              (relatedCommunity:Community)
+                              WHERE relatedCommunity = community AND type(r) IN ['JOINED', 'INVITED', 'INVITE_REQUESTED', 'COMMUNITY_FOUNDER']
 
-                            // Determine the user's relationship to each community
                             WITH community, founder, user,
-                                CASE
-                                  WHEN EXISTS((community)-[:INVITE_REQUESTED]->(user)) THEN 'INVITE_REQUESTED'
-                                  WHEN EXISTS((community)-[:COMMUNITY_FOUNDER]->(user)) THEN 'FOUNDER'
-                                  WHEN EXISTS((community)-[:INVITED]->(user)) THEN 'INVITED'
-                                  WHEN EXISTS((user)-[:JOINED]->(community)) THEN 'JOINED'
-                                  ELSE 'NONE'
-                                END AS relationshipType
+                                 COLLECT(DISTINCT type(r)) AS rels
+
+                            WITH community, founder,
+                                 CASE
+                                   WHEN 'INVITE_REQUESTED' IN rels THEN 'INVITE_REQUESTED'
+                                   WHEN 'COMMUNITY_FOUNDER' IN rels THEN 'FOUNDER'
+                                   WHEN 'INVITED' IN rels THEN 'INVITED'
+                                   WHEN 'JOINED' IN rels THEN 'JOINED'
+                                   ELSE 'NONE'
+                                 END AS relationshipType
 
                             // Return all communities with their relationship status
                             RETURN COUNT(DISTINCT community) as total
@@ -127,21 +131,25 @@ namespace AlSaqr.API.Controllers.SocialMedia
                         // Get all communities in the database
                         MATCH (community:Community)
 
-                        // Get founder for each community (regardless of user relationship)
                         OPTIONAL MATCH (community)-[:COMMUNITY_FOUNDER]->(founder:User)
+                        OPTIONAL MATCH (user)-[r]->
+                            (relatedCommunity:Community)
+                            WHERE relatedCommunity = community AND type(r) IN ['JOINED', 'INVITED', 'INVITE_REQUESTED', 'COMMUNITY_FOUNDER']
 
-                        // Determine the user's relationship to each community
                         WITH community, founder, user,
-                            CASE
-                              WHEN EXISTS((community)-[:INVITE_REQUESTED]->(user)) THEN 'INVITE_REQUESTED'
-                              WHEN EXISTS((community)-[:COMMUNITY_FOUNDER]->(user)) THEN 'FOUNDER'
-                              WHEN EXISTS((community)-[:INVITED]->(user)) THEN 'INVITED'
-                              WHEN EXISTS((user)-[:JOINED]->(community)) THEN 'JOINED'
-                              ELSE 'NONE'
-                            END AS relationshipType
+                                COLLECT(DISTINCT type(r)) AS rels
+
+                        WITH community, founder,
+                                CASE
+                                WHEN 'INVITE_REQUESTED' IN rels THEN 'INVITE_REQUESTED'
+                                WHEN 'COMMUNITY_FOUNDER' IN rels THEN 'FOUNDER'
+                                WHEN 'INVITED' IN rels THEN 'INVITED'
+                                WHEN 'JOINED' IN rels THEN 'JOINED'
+                                ELSE 'NONE'
+                                END AS relationshipType
 
                         // Return all communities with their relationship status
-                        RETURN DISTINCT
+                        RETURN 
                           community,
                           founder,
                           relationshipType
@@ -167,21 +175,25 @@ namespace AlSaqr.API.Controllers.SocialMedia
                             // Get all communities in the database
                             MATCH (community:Community)
 
-                            // Get founder for each community (regardless of user relationship)
                             OPTIONAL MATCH (community)-[:COMMUNITY_FOUNDER]->(founder:User)
+                            OPTIONAL MATCH (user)-[r]->
+                              (relatedCommunity:Community)
+                              WHERE relatedCommunity = community AND type(r) IN ['JOINED', 'INVITED', 'INVITE_REQUESTED', 'COMMUNITY_FOUNDER']
 
-                            // Determine the user's relationship to each community
                             WITH community, founder, user,
-                                CASE
-                                  WHEN EXISTS((community)-[:INVITE_REQUESTED]->(user)) THEN 'INVITE_REQUESTED'
-                                  WHEN EXISTS((community)-[:COMMUNITY_FOUNDER]->(user)) THEN 'FOUNDER'
-                                  WHEN EXISTS((community)-[:INVITED]->(user)) THEN 'INVITED'
-                                  WHEN EXISTS((user)-[:JOINED]->(community)) THEN 'JOINED'
-                                  ELSE 'NONE'
-                                END AS relationshipType
+                                 COLLECT(DISTINCT type(r)) AS rels
+
+                            WITH community, founder,
+                                 CASE
+                                   WHEN 'INVITE_REQUESTED' IN rels THEN 'INVITE_REQUESTED'
+                                   WHEN 'COMMUNITY_FOUNDER' IN rels THEN 'FOUNDER'
+                                   WHEN 'INVITED' IN rels THEN 'INVITED'
+                                   WHEN 'JOINED' IN rels THEN 'JOINED'
+                                   ELSE 'NONE'
+                                 END AS relationshipType
 
                             // Return all communities with their relationship status
-                            RETURN COUNT(DISTINCT community) as total
+                            RETURN COUNT(community) as total
                         ",
                         new Dictionary<string, object> 
                         {
@@ -330,7 +342,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                         createdAt: datetime(),
                         updatedAt: null,
                         _rev: """",
-                        _type: """"community"""",
+                        _type: ""community"",
                         isPrivate: $isPrivate,
                         tags: $tags
                     })
