@@ -1,10 +1,11 @@
-﻿using AlSaqr.Domain.Utils;
+﻿using AlSaqr.Data.Helpers;
+using AlSaqr.Domain.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Neo4j.Driver;
 using System.Data.Entity.Core.Metadata.Edm;
 using static AlSaqr.Domain.Utils.Common;
-using AlSaqr.Data.Helpers;
+using static AlSaqr.Domain.Utils.Community;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {
@@ -418,6 +419,116 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 await session.CloseAsync();
             }
 
+        }
+
+        /// <summary>
+        /// Create a community discussion
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <param name="communityId"></param>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost("{userId}/{communityId}")]
+        public async Task<IActionResult> CreateCommunityDiscussion(
+            [FromRoute] string userId,
+            [FromRoute] string communityId,
+            [FromBody] AlSaqrUpsertRequest<CreateCommunityForm> request)
+        {
+            var data = request.Values;
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return BadRequest("User ID is required");
+            }
+
+            if (string.IsNullOrEmpty(communityId))
+            {
+                return BadRequest("Community ID is required");
+            }
+
+            await using var session = _driver.AsyncSession();
+
+            if (string.IsNullOrEmpty(data?.Name))
+            {
+                return BadRequest("Name of Community Discussion is required");
+            }
+
+            try
+            {
+                var communityDiscussionId = $"communityDiscussion_{Guid.NewGuid()}";
+
+                var createDiscussionQuery = @"
+                    MERGE (u:User {id: $userId})
+                    MERGE (cmty:Community {id: $communityId})
+                    CREATE (cmtyDisc:CommunityDiscussion {
+                        id: $id,
+                        userId: $userId,
+                        communityId: $communityId,
+                        name: $name,
+                        createdAt: datetime(),
+                        updatedAt: null,
+                        _rev: """",
+                        _type: ""community_discussion"",
+                        isPrivate: $isPrivate,
+                        tags: $tags
+                    })
+                    CREATE (u)-[:CREATED_DISCUSSION {timestamp: datetime()}]->(cmtyDisc)
+                    CREATE (cmty)-[:DISCUSSION_POSTED {timestamp: datetime()}]->(cmtyDisc)
+                    CREATE (cmtyDisc)-[:POSTED_DISCUSSION_ON {timestamp: datetime()}]->(cmty)
+                ";
+
+                await Neo4jHelpers.WriteAsync(
+                    session,
+                    createDiscussionQuery,
+                    new Dictionary<string, object>
+                    {
+                { "id", communityDiscussionId },
+                { "userId", userId },
+                { "communityId", communityId },
+                { "name", data.Name },
+                { "isPrivate", data.IsPrivate?.ToLower() == "private" },
+                { "tags", data.Tags ?? new string[0] }
+                    }
+                );
+
+                // Second write: invited users
+                if (data.UsersAdded != null && data.UsersAdded.Length > 0)
+                {
+                    var inviteUsersQuery = @"
+                       UNWIND $usersAdded AS usersAddedId
+                        MATCH (cmtyDisc:CommunityDiscussion {id: $communityDiscussionId}),
+                              (cmty:Community {id: $communityId}),
+                              (user:User {id: usersAddedId})
+                        MERGE (cmty)-[cr:INVITED]->(user)
+                        MERGE (cmtyDisc)-[r:INVITED_TO_DISCUSSION]->(user)
+                        SET r.createdAt = datetime()
+                        SET cr.createdAt = datetime()
+                        RETURN count(r) AS relationshipsCreated
+                    ";
+
+                    await Neo4jHelpers.WriteAsync(
+                        session,
+                        inviteUsersQuery,
+                        new Dictionary<string, object>
+                        {
+                            { "communityDiscussionId", communityDiscussionId },
+                            { "communityId", communityId },
+                            { "usersAdded", data.UsersAdded }
+                        }
+                    );
+                }
+
+                return Ok(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error creating community discussion: {ex.Message}");
+                return StatusCode(500, new { message = "Add community discussion error!", success = false });
+            }
+            finally
+            {
+                await session.CloseAsync();
+            }
         }
 
         /// <summary>
