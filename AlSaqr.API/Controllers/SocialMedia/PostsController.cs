@@ -2,6 +2,7 @@ using AlSaqr.Data.Helpers;
 using AlSaqr.Domain.Common;
 using AlSaqr.Domain.Utils;
 using AlSaqr.Infrastructure;
+using AlSaqr.Infrastructure.SocialMediaCache;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using Neo4j.Driver;
@@ -18,12 +19,18 @@ namespace AlSaqr.API.Controllers.SocialMedia
         private readonly ILogger<PostsController> _logger;
         private readonly IDriver _driver;
         private readonly IUserCacheService _userCacheService;
+        private readonly ISocialMediaCacheService _socialMediaCacheService;
 
-        public PostsController(ILogger<PostsController> logger, IDriver driver, IUserCacheService userCacheService)
+        public PostsController(
+            ILogger<PostsController> logger, 
+            IDriver driver, 
+            IUserCacheService userCacheService,
+            ISocialMediaCacheService socialMediaCacheService)
         {
             _logger = logger;
             _driver = driver;
             _userCacheService = userCacheService;
+            _socialMediaCacheService = socialMediaCacheService;
         }
 
         [HttpGet]
@@ -36,6 +43,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
             await using var session = _driver.AsyncSession();
             var posts = new List<Dictionary<string, object>>();
             Pagination? pagination = null;
+
+            if(_socialMediaCacheService.CheckIfInitialPostsCanBeRetrieved(currentPage))
+                return Ok(_socialMediaCacheService.GetInitialPosts());
 
             try
             {
@@ -138,7 +148,10 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 await session.CloseAsync();
             }
 
-            return Ok(new PaginatedResult<Dictionary<string, object>>(posts, pagination!));
+            var result = new PaginatedResult<Dictionary<string, object>>(posts, pagination!);
+            _socialMediaCacheService.SetInitialPosts(result);
+
+            return Ok(result);
         }
 
         /// <summary>
@@ -196,6 +209,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
                         { "tags", data.Tags ?? new string[0] }
                     }
                 );
+
+                _socialMediaCacheService.ClearInitialPosts();
 
                 return Ok(new { success = true });
             }

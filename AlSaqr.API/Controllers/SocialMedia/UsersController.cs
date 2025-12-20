@@ -5,6 +5,7 @@ using Neo4j.Driver;
 using Newtonsoft.Json;
 using static AlSaqr.Domain.Utils.Common;
 using AlSaqr.Data.Helpers;
+using AlSaqr.Infrastructure.SocialMediaCache;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {
@@ -15,12 +16,16 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
         private readonly ILogger<UsersController> _logger;
         private readonly IDriver _driver;
+        private readonly ISocialMediaCacheService _socialMediaCacheService;
 
-
-        public UsersController(ILogger<UsersController> logger, IDriver driver)
+        public UsersController(
+            ILogger<UsersController> logger, 
+            IDriver driver,
+            ISocialMediaCacheService socialMediaCacheService)
         {
             _logger = logger;
             _driver = driver;
+            _socialMediaCacheService = socialMediaCacheService;
         }
 
 
@@ -518,6 +523,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
             var usersToAdd = new List<Dictionary<string, object>>();
             Pagination? pagination = null;
 
+            if (_socialMediaCacheService.CheckIfInitialUsersToAddCanBeRetrieved(currentPage, userId))
+                return Ok(_socialMediaCacheService.GetInitialUsersToAdd(userId));
+
             try
             {
                 var users = await Neo4jHelpers.ReadAsync(
@@ -687,7 +695,11 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 await session.CloseAsync();
             }
 
-            return Ok(new PaginatedResult<Dictionary<string, object>>(usersToAdd, pagination!));
+            var result = new PaginatedResult<Dictionary<string, object>>(usersToAdd, pagination!);
+
+            _socialMediaCacheService.SetUsersToAdd(result, userId);
+
+            return Ok(result);
         }
 
         /// <summary>

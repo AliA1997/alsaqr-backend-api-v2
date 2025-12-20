@@ -1,9 +1,10 @@
-﻿using AlSaqr.Domain.Utils;
+﻿using AlSaqr.Data.Helpers;
+using AlSaqr.Domain.Utils;
+using AlSaqr.Infrastructure.SocialMediaCache;
 using Microsoft.AspNetCore.Mvc;
 using Neo4j.Driver;
 using static AlSaqr.Domain.Utils.Common;
 using static AlSaqr.Domain.Utils.Community;
-using AlSaqr.Data.Helpers;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {
@@ -14,12 +15,16 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
         private readonly ILogger<ListsController> _logger;
         private readonly IDriver _driver;
+        private readonly ISocialMediaCacheService _socialMediaCacheService;
 
-
-        public ListsController(ILogger<ListsController> logger, IDriver driver)
+        public ListsController(
+            ILogger<ListsController> logger, 
+            IDriver driver, 
+            ISocialMediaCacheService socialMediaCacheService)
         {
             _logger = logger;
             _driver = driver;
+            _socialMediaCacheService = socialMediaCacheService;
         }
 
         /// <summary>
@@ -41,6 +46,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
             await using var session = _driver.AsyncSession();
             var lists = new List<Dictionary<string, object>>();
             Pagination? pagination = null;
+
+            if (_socialMediaCacheService.CheckIfInitialListsCanBeRetrieved(currentPage, userId))
+                return Ok(_socialMediaCacheService.GetInitialLists(userId));
 
             try
             {
@@ -139,7 +147,10 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 await session.CloseAsync();
             }
 
-            return Ok(new PaginatedResult<Dictionary<string, object>>(lists, pagination!));
+            var result = new PaginatedResult<Dictionary<string, object>>(lists, pagination!);
+            _socialMediaCacheService.SetInitialLists(result, userId);
+
+            return Ok(result);
         }
 
         /// <summary>
@@ -266,6 +277,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
                         }
                     );
                 }
+
+                _socialMediaCacheService.ClearInitialLists(userId);
 
                 return Ok(new { success = true });
             }

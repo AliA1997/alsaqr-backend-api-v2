@@ -4,6 +4,7 @@ using Neo4j.Driver;
 using static AlSaqr.Domain.Utils.Common;
 using static AlSaqr.Domain.Utils.Community;
 using AlSaqr.Data.Helpers;
+using AlSaqr.Infrastructure.SocialMediaCache;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {
@@ -14,11 +15,16 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
         private readonly ILogger<CommunitiesController> _logger;
         private readonly IDriver _driver;
+        private readonly ISocialMediaCacheService _socialMediaCacheService;
 
-        public CommunitiesController(ILogger<CommunitiesController> logger, IDriver driver)
+        public CommunitiesController(
+            ILogger<CommunitiesController> logger, 
+            IDriver driver,
+            ISocialMediaCacheService socialMediaCacheService)
         {
             _logger = logger;
             _driver = driver;
+            _socialMediaCacheService = socialMediaCacheService;
         }
 
         /// <summary>
@@ -30,14 +36,18 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <returns></returns>
         [HttpGet("{userId}")]
         public async Task<IActionResult> GetCommunities(
+                string userId,
                 [FromQuery] int currentPage = 1,
                 [FromQuery] int itemsPerPage = 10,
                 [FromQuery] string? searchTerm = null
             )
         {
             await using var session = _driver.AsyncSession();
-            var posts = new List<Dictionary<string, object>>();
+            var communities = new List<Dictionary<string, object>>();
             Pagination? pagination = null;
+
+            if (_socialMediaCacheService.CheckIfInitialCommunitiesCanBeRetrieved(currentPage, userId))
+                return Ok(_socialMediaCacheService.GetInitialCommunities(userId));
 
             try
             {
@@ -213,14 +223,18 @@ namespace AlSaqr.API.Controllers.SocialMedia
                     TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
                 };
 
-                posts = selectResult ?? new List<Dictionary<string, object>>();
+                communities = selectResult ?? new List<Dictionary<string, object>>();
             }
             finally
             {
                 await session.CloseAsync();
             }
 
-            return Ok(new PaginatedResult<Dictionary<string, object>>(posts, pagination!));
+            var result = new PaginatedResult<Dictionary<string, object>>(communities, pagination!);
+            _socialMediaCacheService.SetInitialCommunities(result, userId);
+
+
+            return Ok(result);
         }
 
         /// <summary>
@@ -384,6 +398,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
                         }
                     );
                 }
+
+                _socialMediaCacheService.ClearInitialCommunities(userId);
 
                 return Ok(new { success = true });
             }

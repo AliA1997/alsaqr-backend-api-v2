@@ -7,6 +7,7 @@ using AlSaqr.Data.Repositories.Zook;
 using AlSaqr.Data.Repositories.Zook.Impl;
 using AlSaqr.Domain.Common;
 using AlSaqr.Infrastructure;
+using AlSaqr.Infrastructure.SocialMediaCache;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -26,8 +27,6 @@ var username = neo4jSettings["Username"];
 var password = neo4jSettings["Password"];
 var database = neo4jSettings["Database"];
 IConfiguration configuration = builder.Configuration;
-
-
 
 // Add services to the container.
 // Register IDriver as a singleton
@@ -62,6 +61,9 @@ builder.Services.AddSingleton<NewsApiClient>(o =>
     return new NewsApiClient(apiKey);
 });
 builder.Services.AddSingleton<IUserCacheService, UserCacheService>(_ => UserCacheService.Instance);
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<ISocialMediaCacheService, SocialMediaCacheService>();
+
 
 // Add Identity (optional but recommended)
 builder.Services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase("AlSaqr"));
