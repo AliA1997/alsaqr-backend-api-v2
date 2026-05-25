@@ -42,7 +42,7 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <returns></returns>
         [HttpGet("{localGuideId}")]
         public async Task<IActionResult> GetLocalGuideDetails(
-                int localGuideId
+                Guid localGuideId
             )
         {
             await using var session = _driver.AsyncSession();
@@ -52,7 +52,7 @@ namespace AlSaqr.API.Controllers.Meetup
             try
             {
                 selectLocalGuideResult = _supabase.From<VwLocalGuides>()
-                                            .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, localGuideId)
+                                            .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, localGuideId.ToString())
                                             .Limit(1);
 
                 var localGuide = (await selectLocalGuideResult.Get()).Model;
@@ -76,7 +76,7 @@ namespace AlSaqr.API.Controllers.Meetup
                     Name = localGuide.Name,
                     CitiesHosted = localGuide.CitiesHosted,
                     RegisteredAt = localGuide.RegisteredAt,
-                    UserInfo = userInfoResult.Count() > 0 ? userInfoResult.First()["user"] : null
+                    UserInfo = userInfoResult?.Count() > 0 ? userInfoResult.First()["user"] : null
                 };
             }
             catch (Exception ex)
@@ -97,7 +97,7 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <returns></returns>
         [HttpGet("{localGuideId}/nearby")]
         public async Task<IActionResult> GetNearbyLocalGuidesForCurrentLocalGuide(
-                int localGuideId,
+                Guid localGuideId,
                 [FromQuery] string latitude,
                 [FromQuery] string longitude
             )

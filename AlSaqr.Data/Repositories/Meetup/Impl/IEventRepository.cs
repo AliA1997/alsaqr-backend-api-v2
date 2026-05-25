@@ -1,7 +1,6 @@
 ﻿using AlSaqr.Data.Entities.Meetup;
 using AlSaqr.Domain.Meetup;
 using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Events;
 
 namespace AlSaqr.Data.Repositories.Meetup.Impl
 {

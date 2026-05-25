@@ -7,7 +7,6 @@ using Newtonsoft.Json;
 using Supabase.Postgrest;
 using System.Text.RegularExpressions;
 using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Products;
 using static Supabase.Postgrest.Constants;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
@@ -22,7 +21,7 @@ namespace AlSaqr.Data.Repositories.Zook
 
         public async Task<ProductDto> GetProductDetails(
             Supabase.Client client,
-            int productId,
+            Guid productId,
             string latitude,
             string longitude
             ) 
@@ -54,7 +53,7 @@ namespace AlSaqr.Data.Repositories.Zook
 
         public async Task<List<SimilarProductDto>> GetSimilarProducts(
             Supabase.Client client,
-            int productId,
+            Guid productId,
             string latitude,
             string longitude)
         {
@@ -132,7 +131,7 @@ namespace AlSaqr.Data.Repositories.Zook
 
         public async Task<PaginatedResult<ProductDto>> NearbyProductsByCategory(
             Supabase.Client client,
-            int categoryId,
+            Guid categoryId,
             string latitude,
             string longitude,
             int currentPage,
@@ -157,7 +156,7 @@ namespace AlSaqr.Data.Repositories.Zook
                         skip: skip,
                         currentPage: currentPage,
                         itemsPerPage: itemsPerPage,
-                        maxDistanceKm: null,
+                        maxDistanceKm: 100,
                         searchTerm: searchTerm
                 );
 
@@ -185,26 +184,26 @@ namespace AlSaqr.Data.Repositories.Zook
     
         public async Task<Product> CreateProduct(
             Supabase.Client client,
-            string userId,
+            Guid userId,
             CreateProductForm form)
         {
-            var recentInsertedId = await client.From<Product>().Count(CountType.Estimated);
+            //var recentInsertedId = await client.From<Product>().Count(CountType.Estimated);
             string productSlug = Regex.Replace(input: form.Title, pattern: @"[^a-zA-Z0-9]", replacement: "_").ToLower();
             var model = new Product()
             {
-                Id = recentInsertedId + 1,
+                Id = Guid.NewGuid(),
                 Title = form.Title,
                 Description = form.Description,
                 Price = form.Price,
                 Slug = productSlug,
                 Attributes = form.Attributes ?? new Dictionary<string, object>() { },
-                ProductCategoryId = (int)form.ProductCategoryId,
+                ProductCategoryId = form.ProductCategoryId == null ? Guid.Empty : (Guid)form.ProductCategoryId,
                 Images = form.Images != null ? form.Images : new string[] { },
                 Latitude = form.Latitude,
                 Longitude = form.Longitude,
                 Country = form.Country,
                 Tags = form.Tags ?? new string[] { },
-                Neo4jUserId = userId,
+                UserId = userId,
                 CreatedAt = DateTime.UtcNow
             };
 

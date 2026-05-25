@@ -13,7 +13,7 @@ namespace AlSaqr.Data.Entities.Zook
     public class ProductCategory : BaseModel
     {
         [PrimaryKey("id", false)]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
 
         [Column("name")]
         public string? Name { get; set; }

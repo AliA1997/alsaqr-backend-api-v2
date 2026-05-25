@@ -38,14 +38,14 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <param name="eventId"></param>
         /// <returns></returns>
         [HttpGet("{eventId}")]
-        public async Task<IActionResult> GetEventDetails(int eventId)
+        public async Task<IActionResult> GetEventDetails(Guid eventId)
         {
             EventDto? eventDetails = null;
             IPostgrestTable<VwEvent>? selectEventResult = null;
             try
             {
                 selectEventResult = _supabase.From<VwEvent>()
-                                        .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, eventId)
+                                        .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, eventId.ToString())
                                         .Limit(10);
 
                 eventDetails = (await selectEventResult.Get()).Models.Select(sr => new EventDto()
@@ -77,7 +77,7 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <returns></returns>
         [HttpGet("{eventId}/nearby")]
         public async Task<IActionResult> GetNearbyEventByCurrentEvent(
-            int eventId,
+            Guid eventId,
             [FromQuery] string latitude,
             [FromQuery] string longitude)
         {

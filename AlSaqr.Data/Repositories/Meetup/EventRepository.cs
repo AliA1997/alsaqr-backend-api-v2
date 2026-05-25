@@ -10,7 +10,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Events;
 using static Supabase.Postgrest.Constants;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
@@ -43,7 +42,7 @@ namespace AlSaqr.Data.Repositories.Meetup
                             skip: skip,
                             currentPage: currentPage,
                             itemsPerPage: itemsPerPage,
-                            maxDistanceKm: null,
+                            maxDistanceKm: maxDistanceKm,
                             searchTerm: searchTerm
                 );
 
@@ -174,14 +173,14 @@ namespace AlSaqr.Data.Repositories.Meetup
             CreateEventForm form)
         {
 
-            var recentInsertedId = await client.From<Event>().Count(CountType.Estimated);
+            //var recentInsertedId = await client.From<Event>().Count(CountType.Estimated);
 
             var model = new Event()
             {
-                Id = recentInsertedId + 1,
+                Id = Guid.NewGuid(),
                 Name = form.Name,
                 Description = form.Description,
-                Images = form.Images ?? new Dictionary<string, object>[] { },
+                Images = form.Images ?? new string[] { },
                 GroupId = form.GroupId,
                 IsOnline = form.IsOnline,
                 TimesOccurred = 0,

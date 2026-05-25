@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace  AlSaqr.Domain.Utils
+namespace  AlSaqr.Domain.SocialMedia
 {
     public static class Explore
     {

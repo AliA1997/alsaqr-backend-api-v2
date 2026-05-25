@@ -1,7 +1,6 @@
 ﻿using AlSaqr.Data.Entities.Meetup;
 using AlSaqr.Domain.Meetup;
 using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Groups;
 
 namespace AlSaqr.Data.Repositories.Meetup.Impl
 {
@@ -28,10 +27,10 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
 
         Task<List<SimilarGroupDto>> GetSimilarGroups(
             Supabase.Client client,
-            int groupId,
+            Guid groupId,
             string latitude,
             string longitude);
 
-        Task<Groups> CreateGroup(Supabase.Client client, CreateGroupForm form, string neo4jUserId, int organizerId, int cityId);
+        Task<Groups> CreateGroup(Supabase.Client client, CreateGroupForm form, Guid userId, Guid organizerId, Guid cityId);
     }
 }

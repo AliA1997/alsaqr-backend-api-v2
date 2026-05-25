@@ -15,11 +15,11 @@ namespace AlSaqr.Data.Repositories.Meetup
                 topic = (await client.From<Topics>().Filter("name", Operator.Equals, name).Get()).Model;
                 if (topic == null)
                 {
-                    var recentlyInsertedTopicId = await client.From<Topics>().Count(CountType.Estimated);
+                    //var recentlyInsertedTopicId = await client.From<Topics>().Count(CountType.Estimated);
                     topic = (
                         await client.From<Topics>().Upsert(new Topics()
                         {
-                            Id = recentlyInsertedTopicId + 1,
+                            Id = Guid.NewGuid(),
                             Name = name,
                             CreatedAt = DateTime.UtcNow
                         }, new QueryOptions() { Returning = QueryOptions.ReturnType.Representation })).Model;
@@ -33,17 +33,17 @@ namespace AlSaqr.Data.Repositories.Meetup
 
             return topic!;
         }
-        public async Task InsertGroupTopics(Supabase.Client client, int groupId, List<IDictionary<string, object>> groupTopics)
+        public async Task InsertGroupTopics(Supabase.Client client, Guid groupId, List<IDictionary<string, object>> groupTopics)
         {
             foreach (var groupTopic in groupTopics)
             {
                 var topic = await InsertOrRetrieveTopic(client, groupTopic["name"].ToString());
-                var recentInsertedGroupTopic = await client.From<GroupTopics>().Count(CountType.Estimated);
+                //var recentInsertedGroupTopic = await client.From<GroupTopics>().Count(CountType.Estimated);
 
                 await client.From<GroupTopics>().Upsert(
                     new GroupTopics()
                     {
-                        Id = recentInsertedGroupTopic + 1,
+                        Id = Guid.NewGuid(),
                         GroupId = groupId,
                         TopicId = topic.Id,
                         CreatedAt = DateTime.UtcNow

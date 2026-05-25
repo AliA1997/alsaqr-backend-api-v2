@@ -1,7 +1,6 @@
 ﻿using AlSaqr.Data.Entities.Zook;
 using AlSaqr.Domain.Zook;
 using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Products;
 
 namespace AlSaqr.Data.Repositories.Zook.Impl
 {
@@ -9,13 +8,13 @@ namespace AlSaqr.Data.Repositories.Zook.Impl
     {
         Task<ProductDto> GetProductDetails(
             Supabase.Client client,
-            int productId,
+            Guid productId,
             string latitude,
             string longitude);
 
         Task<List<SimilarProductDto>> GetSimilarProducts(
             Supabase.Client client,
-            int productId,
+            Guid productId,
             string latitude,
             string longitude);
 
@@ -30,7 +29,7 @@ namespace AlSaqr.Data.Repositories.Zook.Impl
 
         Task<PaginatedResult<ProductDto>> NearbyProductsByCategory(
             Supabase.Client client,
-            int categoryId,
+            Guid categoryId,
             string latitude,
             string longitude,
             int currentPage,
@@ -39,7 +38,7 @@ namespace AlSaqr.Data.Repositories.Zook.Impl
 
         Task<Product> CreateProduct(
             Supabase.Client client,
-            string userId,
+            Guid userId,
             CreateProductForm form);
     }
 }

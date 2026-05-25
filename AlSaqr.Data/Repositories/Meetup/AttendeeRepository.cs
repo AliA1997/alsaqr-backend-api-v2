@@ -10,21 +10,21 @@ namespace AlSaqr.Data.Repositories.Meetup
     {
         public AttendeeRepository() { }
 
-        public async Task<Attendee> InsertOrRetrieveAttendee(Supabase.Client client, string name, string neo4jUserId)
+        public async Task<Attendee> InsertOrRetrieveAttendee(Supabase.Client client, string name, Guid userId)
         {
             Attendee? attendee = null;
             try
             {
-                attendee = (await client.From<Attendee>().Filter("neo4j_user_id", Operator.Equals, neo4jUserId).Get()).Model;
+                attendee = (await client.From<Attendee>().Filter("user_id", Operator.Equals, userId.ToString()).Get()).Model;
                 if (attendee == null)
                 {
-                    var recentlyInsertedAttendeeId = await client.From<Attendee>().Count(CountType.Estimated);
+                    //var recentlyInsertedAttendeeId = await client.From<Attendee>().Count(CountType.Estimated);
                     attendee = (
                         await client.From<Attendee>().Upsert(new Attendee()
                         {
-                            Id = recentlyInsertedAttendeeId + 1,
+                            Id = Guid.NewGuid(),
                             Name = name,
-                            Neo4jUserId = neo4jUserId,
+                            UserId = userId,
                             CreatedAt = DateTime.UtcNow
                         }, new QueryOptions() { Returning = QueryOptions.ReturnType.Representation })).Model;
 
@@ -38,17 +38,17 @@ namespace AlSaqr.Data.Repositories.Meetup
 
         }
 
-        public async Task InsertGroupAttendees(Supabase.Client client, int groupId, List<IDictionary<string, object>> groupAttendees)
+        public async Task InsertGroupAttendees(Supabase.Client client, Guid groupId, List<IDictionary<string, object>> groupAttendees)
         {
             foreach(var groupAttendee in groupAttendees)
             {
-                var attendee = await InsertOrRetrieveAttendee(client, groupAttendee["name"].ToString(), groupAttendee["id"].ToString());
-                var recentInsertedGroupAttendee = await client.From<GroupAttendees>().Count(CountType.Estimated);
+                var attendee = await InsertOrRetrieveAttendee(client, groupAttendee["name"].ToString(), Guid.Parse(groupAttendee["id"].ToString()));
+                //var recentInsertedGroupAttendee = await client.From<GroupAttendees>().Count(CountType.Estimated);
 
                 await client.From<GroupAttendees>().Upsert(
                     new GroupAttendees()
                     {
-                        Id = recentInsertedGroupAttendee + 1,
+                        Id = Guid.NewGuid(),
                         GroupId = groupId,
                         AttendeeId = attendee.Id,
                         IsGroupOrganizer = false,

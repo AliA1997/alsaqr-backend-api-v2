@@ -7,7 +7,7 @@ namespace AlSaqr.Data.Entities.Meetup
     public class City : BaseModel
     {
         [PrimaryKey("id")]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
 
         [Column("name")]
         public string? Name { get; set; }

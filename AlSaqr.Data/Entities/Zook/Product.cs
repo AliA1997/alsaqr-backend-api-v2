@@ -13,7 +13,7 @@ namespace AlSaqr.Data.Entities.Zook
     public class Product : BaseModel
     {
         [PrimaryKey("id", false)]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
 
         [Column("title")]
         public string? Title { get; set; }
@@ -38,7 +38,7 @@ namespace AlSaqr.Data.Entities.Zook
 
 
         [Column("product_category_id")]
-        public long ProductCategoryId { get; set; }
+        public Guid ProductCategoryId { get; set; }
 
         [Column("latitude")]
         public double? Latitude { get; set; }
@@ -48,8 +48,8 @@ namespace AlSaqr.Data.Entities.Zook
         [Column("country")]
         public string? Country { get; set; }
 
-        [Column("neo4j_user_id")]
-        public string? Neo4jUserId { get; set; }
+        [Column("user_id")]
+        public Guid? UserId { get; set; }
 
         [Column("created_at")]
         public DateTime? CreatedAt { get; set; }

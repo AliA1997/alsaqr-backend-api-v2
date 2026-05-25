@@ -36,9 +36,10 @@ builder.Services.AddSingleton<IDriver>(sp =>
 
 var supabaseUrl = supabaseSettings["Url"];
 var supabaseKey = supabaseSettings["Key"];
+var supabaseSchema = supabaseSettings["Schema"];
 builder.Services.AddSingleton<Supabase.Client>(sp =>
 {
-    var options = new Supabase.SupabaseOptions { AutoConnectRealtime = true };
+    var options = new Supabase.SupabaseOptions { AutoConnectRealtime = true, Schema = supabaseSchema };
     return new Supabase.Client(supabaseUrl, supabaseKey, options);
 });
 builder.Services.AddScoped<ICityRepository, CityRepository>();

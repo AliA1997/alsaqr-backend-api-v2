@@ -40,7 +40,7 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <param name="groupId"></param>
         /// <returns></returns>
         [HttpGet("{groupId}")]
-        public async Task<IActionResult> GetGroupDetails(int groupId)
+        public async Task<IActionResult> GetGroupDetails(Guid groupId)
         {
             var events = new List<EventDto>();
             GroupDto? groupDetails = null;
@@ -49,10 +49,10 @@ namespace AlSaqr.API.Controllers.Meetup
             try
             {
                 selectEventResult = _supabase.From<VwEvent>()
-                                        .Filter("group_id", Supabase.Postgrest.Constants.Operator.Equals, groupId)
+                                        .Filter("group_id", Supabase.Postgrest.Constants.Operator.Equals, groupId.ToString())
                                         .Limit(10);
                 selectGroupResult = _supabase.From<VwGroup>()
-                                        .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, groupId)
+                                        .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, groupId.ToString())
                                         .Limit(1);
 
                 events = (await selectEventResult.Get()).Models.Select(sr => new EventDto()
@@ -91,7 +91,7 @@ namespace AlSaqr.API.Controllers.Meetup
 
         [HttpGet("{groupId}/similar")]
         public async Task<IActionResult> GetSimilarGroups(
-            int groupId,
+            Guid groupId,
             [FromQuery] string latitude,
             [FromQuery] string longitude)
         {

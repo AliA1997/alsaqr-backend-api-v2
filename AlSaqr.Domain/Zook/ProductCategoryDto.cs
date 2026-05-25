@@ -8,7 +8,7 @@ namespace AlSaqr.Domain.Zook
 {
     public class ProductCategoryDto
     {
-        public long Id { get; set; }
+        public Guid Id { get; set; }
         public string Name { get; set; }
 
     }

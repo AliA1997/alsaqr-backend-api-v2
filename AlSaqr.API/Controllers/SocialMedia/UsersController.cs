@@ -1,11 +1,11 @@
-﻿using AlSaqr.Domain.Utils;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using Neo4j.Driver;
 using Newtonsoft.Json;
 using static AlSaqr.Domain.Utils.Common;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Infrastructure.SocialMediaCache;
+using AlSaqr.Domain.SocialMedia;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {

@@ -47,7 +47,7 @@ namespace AlSaqr.API.Controllers.Zook
             )
         {
             var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (string.IsNullOrEmpty(loggedInUser?.Id))
+            if (string.IsNullOrEmpty(loggedInUser?.Id?.ToString()))
                 return Unauthorized("Need to be logged in to see your product being sold.");
 
             var products = new List<ProductDto>();
@@ -60,7 +60,7 @@ namespace AlSaqr.API.Controllers.Zook
                 IDictionary<string, object> functionParams = SupabaseHelper.DefineGetSellingProductsParams(
                             skip: skip,
                             itemsPerPage: itemsPerPage,
-                            userId: loggedInUser?.Id ?? ""
+                            userId: loggedInUser?.Id?.ToString() ?? ""
                 );
 
                 products = JsonConvert.DeserializeObject<List<ProductDto>>(

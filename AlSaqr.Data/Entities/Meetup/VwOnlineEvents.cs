@@ -7,7 +7,7 @@ namespace AlSaqr.Data.Entities.Meetup
     public class VwOnlineEvent : BaseModel
     {
         [PrimaryKey("id", false)]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         [Column("slug")]
         public string? Slug { get; set; }
 
@@ -18,10 +18,10 @@ namespace AlSaqr.Data.Entities.Meetup
         public string? Description { get; set; }
 
         [Column("images")]
-        public IDictionary<string, object>[] Images { get; set; }
+        public string[] Images { get; set; }
 
         [Column("group_id")]
-        public int GroupId { get; set; }
+        public Guid GroupId { get; set; }
 
         [Column("group_name")]
         public string? GroupName { get; set; }

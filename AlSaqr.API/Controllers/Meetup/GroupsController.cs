@@ -1,11 +1,11 @@
 ﻿using AlSaqr.Data.Entities.Meetup;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Meetup.Impl;
+using AlSaqr.Domain.Meetup;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Neo4j.Driver;
 using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Groups;
 using static Supabase.Postgrest.Constants;
 
 namespace AlSaqr.API.Controllers.Meetup
@@ -98,7 +98,7 @@ namespace AlSaqr.API.Controllers.Meetup
         {
             var loggedInUser = _userCacheService.GetLoggedInUser();
 
-            if (loggedInUser == null || string.IsNullOrEmpty(loggedInUser.Id))
+            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
                 return Unauthorized("Need to be logged in to see your events or groups.");
 
             var result = await _groupRepository.GetMyGroups(
@@ -107,7 +107,7 @@ namespace AlSaqr.API.Controllers.Meetup
                 longitude,
                 currentPage,
                 itemsPerPage,
-                loggedInUser.Id!,
+                loggedInUser.Id.ToString(),
                 searchTerm,
                 maxDistanceKm);
 
@@ -144,12 +144,12 @@ namespace AlSaqr.API.Controllers.Meetup
 
                 var city = await _cityRepository.InsertOrRetrieveCity(_supabase, data.HqCity, data.HqStateOrProvince, data.HqCountry, data.HqLatitude, data.HqLongitude);
 
-                var organizerAttendee = await _attendeeRepository.InsertOrRetrieveAttendee(_supabase, $"{loggedInUser.FirstName + " " + loggedInUser.LastName}", loggedInUser.Id!);
+                var organizerAttendee = await _attendeeRepository.InsertOrRetrieveAttendee(_supabase, $"{loggedInUser.FirstName + " " + loggedInUser.LastName}", loggedInUser.Id ?? Guid.Empty);
 
                 var recentInsertedId = await _supabase.From<Groups>().Count(CountType.Estimated);
                 var recentInsertedGroupAttendee = await _supabase.From<GroupAttendees>().Count(CountType.Estimated);
 
-                var insertedGroup = await _groupRepository.CreateGroup(_supabase, data, loggedInUser.Id, organizerAttendee.Id, city.Id);
+                var insertedGroup = await _groupRepository.CreateGroup(_supabase, data, loggedInUser.Id ?? Guid.Empty, organizerAttendee.Id, city.Id);
 
                 await _attendeeRepository.InsertGroupAttendees(_supabase, insertedGroup.Id!, (data.Attendees ?? new Dictionary<string, object>[] { }).ToList());
 
@@ -176,9 +176,9 @@ namespace AlSaqr.API.Controllers.Meetup
                     ",
                     new Dictionary<string, object>()
                     {
-                      { "userId", loggedInUser.Id  ?? "" },
+                      { "userId", loggedInUser.Id?.ToString()  ?? "" },
                       { "groupName", insertedGroup?.Name ?? "" },
-                      { "groupId", insertedGroup?.Id ?? -1 }
+                      { "groupId", insertedGroup?.Id ?? Guid.Empty }
                     }
                  );
 

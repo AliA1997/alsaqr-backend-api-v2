@@ -1,13 +1,13 @@
 using AlSaqr.Data.Entities.Zook;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Zook.Impl;
+using AlSaqr.Domain.Zook;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Neo4j.Driver;
 using Supabase.Postgrest;
 using System.Text.RegularExpressions;
 using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Products;
 using static Supabase.Postgrest.Constants;
 
 namespace AlSaqr.API.Controllers.Zook
@@ -81,7 +81,7 @@ namespace AlSaqr.API.Controllers.Zook
         /// <returns></returns>
         [HttpGet("{categoryId}")]
         public async Task<IActionResult> GetNearbyProductsByCategory(
-                int categoryId,
+                Guid categoryId,
                 [FromQuery] string latitude,
                 [FromQuery] string longitude,
                 [FromQuery] int currentPage = 1,
@@ -130,7 +130,7 @@ namespace AlSaqr.API.Controllers.Zook
 
                 var insertedProduct = await _productRepository.CreateProduct(
                                                                 _supabase,
-                                                                loggedInUser.Id!,
+                                                                (loggedInUser.Id ?? Guid.Empty),
                                                                 data);
 
 
@@ -155,10 +155,10 @@ namespace AlSaqr.API.Controllers.Zook
                     ",
                     new Dictionary<string, object>()
                     {
-                      { "userId", loggedInUser.Id  ?? "" },
+                      { "userId", loggedInUser.Id?.ToString()  ?? "" },
                       { "productTitle", insertedProduct?.Title ?? "" },
-                      { "productCategoryId", insertedProduct?.ProductCategoryId ?? -1 },
-                      { "productId", insertedProduct?.Id ?? -1 },
+                      { "productCategoryId", (insertedProduct?.ProductCategoryId ?? Guid.Empty).ToString() },
+                      { "productId", (insertedProduct?.Id ?? Guid.Empty).ToString() },
                     }
                  );
 
@@ -208,7 +208,7 @@ namespace AlSaqr.API.Controllers.Zook
                 bool updateTitle = data.FieldsToUpdate.Contains("title");
                 string productSlug = productToUpdate.Slug;
 
-                if (productToUpdate.Neo4jUserId != loggedInUser.Id)
+                if (productToUpdate.UserId.ToString() != loggedInUser.Id.ToString())
                     return Unauthorized();
 
                 if(updateTitle)
@@ -223,7 +223,7 @@ namespace AlSaqr.API.Controllers.Zook
                     Price = data.FieldsToUpdate.Contains("price") ? data.Price : productToUpdate.Price,
                     Slug = productSlug,
                     Attributes = data.FieldsToUpdate.Contains("attributes") ? data.Attributes ?? new Dictionary<string, object>() { } : productToUpdate.Attributes,
-                    ProductCategoryId = data.FieldsToUpdate.Contains("product_category_id") ? (int)data.ProductCategoryId : productToUpdate.ProductCategoryId,
+                    ProductCategoryId = data.FieldsToUpdate.Contains("product_category_id") ? (Guid)data.ProductCategoryId : productToUpdate.ProductCategoryId,
                     Images = data.FieldsToUpdate.Contains("images") ? data.Images != null ? data.Images : new string[] { } : productToUpdate.Images,
                     Latitude = data.FieldsToUpdate.Contains("latitude") ? data.Latitude : productToUpdate.Latitude,
                     Longitude = data.FieldsToUpdate.Contains("longitude") ? data.Longitude : productToUpdate.Longitude,
@@ -258,10 +258,10 @@ namespace AlSaqr.API.Controllers.Zook
                     ",
                     new Dictionary<string, object>()
                     {
-                      { "userId", loggedInUser.Id  ?? "" },
+                      { "userId", loggedInUser.Id?.ToString()  ?? "" },
                       { "productTitle", updatedProduct?.Title ?? "" },
-                      { "productCategoryId", updatedProduct?.ProductCategoryId ?? -1 },
-                      { "productId", updatedProduct?.Id ?? -1 },
+                      { "productCategoryId", (updatedProduct?.ProductCategoryId ?? Guid.Empty).ToString() },
+                      { "productId", (updatedProduct?.Id ?? Guid.Empty).ToString() },
                     }
                  );
 
@@ -300,7 +300,7 @@ namespace AlSaqr.API.Controllers.Zook
 
                 var productToDelete = (await _supabase.From<Product>().Filter("id", Operator.Equals, productId).Get()).Model;
 
-                if (productToDelete.Neo4jUserId != loggedInUser.Id)
+                if (productToDelete == null || productToDelete?.UserId.ToString() != loggedInUser.Id.ToString())
                     return Unauthorized();
 
                 await productToDelete.Delete<Product>(cancellationToken);
@@ -326,9 +326,9 @@ namespace AlSaqr.API.Controllers.Zook
                     ",
                     new Dictionary<string, object>()
                     {
-                      { "userId", loggedInUser.Id  ?? "" },
+                      { "userId", loggedInUser.Id?.ToString()  ?? "" },
                       { "productTitle", productToDelete?.Title ?? "" },
-                      { "productId", productToDelete?.Id ?? -1 },
+                      { "productId", (productToDelete?.Id ?? Guid.Empty).ToString() },
                     }
                  );
 

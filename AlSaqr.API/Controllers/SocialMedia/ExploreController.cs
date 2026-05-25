@@ -1,5 +1,4 @@
-﻿using AlSaqr.Domain.Utils;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Neo4j.Driver;
 using NewsAPI;
 using NewsAPI.Constants;
@@ -8,6 +7,7 @@ using System.Diagnostics;
 using System.Text.Json.Serialization;
 using AlSaqr.Data;
 using static AlSaqr.Domain.Utils.Common;
+using AlSaqr.Domain.SocialMedia;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {

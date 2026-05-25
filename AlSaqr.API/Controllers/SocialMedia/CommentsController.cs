@@ -1,6 +1,6 @@
 using AlSaqr.Data.Helpers;
 using AlSaqr.Domain.Common;
-using AlSaqr.Domain.Utils;
+using AlSaqr.Domain.SocialMedia;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
@@ -179,7 +179,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                     new Dictionary<string, object>()
                     {
                         { "id", data.Id },
-                        { "userId", loggedInUser.Id  ?? "" },
+                        { "userId", loggedInUser.Id.ToString()  ?? "" },
                         { "postId", data.PostId },
                         { "text", data.Text },
                         { "image", data.Image ?? "" }
@@ -211,7 +211,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                     ",
                     new Dictionary<string, object>()
                     {
-                      { "userId", loggedInUser.Id  ?? "" },
+                      { "userId", loggedInUser.Id?.ToString()  ?? "" },
                       { "postId", data.PostId },
                     }
                  );

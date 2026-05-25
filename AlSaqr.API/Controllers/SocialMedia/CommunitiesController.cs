@@ -1,8 +1,7 @@
-﻿using AlSaqr.Domain.Utils;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Neo4j.Driver;
 using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Community;
+using static AlSaqr.Domain.SocialMedia.Community;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Infrastructure.SocialMediaCache;
 

@@ -7,16 +7,17 @@ namespace AlSaqr.Domain.Meetup
     public class LocalGuideDetailsDto
     {
         [JsonProperty("id")]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         [JsonProperty("slug")]
         public string? Slug { get; set; }
         [JsonProperty("userid")]
-        public string UserId { get; set; }
+        public Guid UserId { get; set; }
         [JsonProperty("name")]
         public string Name { get; set; }
 
         [JsonProperty("cities_hosted")]
-        public List<LocalGuideCityDto> CitiesHosted { get; set; }
+        //public string? CitiesHosted { get; set; }
+        public IDictionary<string, object>[]? CitiesHosted { get; set; }
 
         [JsonProperty("registered_at")]
         public DateTime RegisteredAt { get; set; }

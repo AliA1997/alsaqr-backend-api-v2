@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static AlSaqr.Domain.Utils.Groups;
+﻿using AlSaqr.Domain.Meetup;
 
 namespace AlSaqr.Services.Meetup.Impl
 {

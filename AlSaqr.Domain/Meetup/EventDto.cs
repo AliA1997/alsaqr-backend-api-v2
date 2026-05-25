@@ -6,7 +6,7 @@ namespace AlSaqr.Domain.Meetup
     public class EventDto
     {
         [JsonProperty("id")]
-        public long? Id { get; set; }
+        public Guid? Id { get; set; }
         [JsonProperty("slug")]
         public string? Slug { get; set; }
         [JsonProperty("name")]
@@ -14,9 +14,9 @@ namespace AlSaqr.Domain.Meetup
         [JsonProperty("description")]
         public string? Description { get; set; }
         [JsonProperty("images")]
-        public IDictionary<string, object>[]? Images { get; set; }
+        public string[]? Images { get; set; }
         [JsonProperty("group_id")]
-        public long? GroupId { get; set; }
+        public Guid? GroupId { get; set; }
         [JsonProperty("group_name")]
         public string? GroupName { get; set; }
 

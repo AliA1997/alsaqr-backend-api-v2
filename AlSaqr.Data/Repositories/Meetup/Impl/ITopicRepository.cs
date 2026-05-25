@@ -10,6 +10,6 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
     public interface ITopicRepository
     {
         Task<Topics> InsertOrRetrieveTopic(Supabase.Client client, string name);
-        Task InsertGroupTopics(Supabase.Client client, int groupId, List<IDictionary<string, object>> groupTopics);
+        Task InsertGroupTopics(Supabase.Client client, Guid groupId, List<IDictionary<string, object>> groupTopics);
     }
 }

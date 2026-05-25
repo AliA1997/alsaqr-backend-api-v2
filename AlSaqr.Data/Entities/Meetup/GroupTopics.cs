@@ -8,11 +8,11 @@ namespace AlSaqr.Data.Entities.Meetup
     public class GroupTopics: BaseModel
     {
         [Column("id")]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         [Column("group_id")]
-        public int GroupId { get; set; }
+        public Guid GroupId { get; set; }
         [Column("topic_id")]
-        public int TopicId { get; set; }
+        public Guid TopicId { get; set; }
         [Column("created_at")]
         public DateTime CreatedAt { get; set; }
     }

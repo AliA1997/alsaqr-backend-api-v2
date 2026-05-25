@@ -1,11 +1,11 @@
 ﻿using AlSaqr.Data.Entities.Meetup;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Meetup.Impl;
+using AlSaqr.Domain.Meetup;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Neo4j.Driver;
 using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Events;
 
 namespace AlSaqr.API.Controllers.Meetup
 {
@@ -126,12 +126,12 @@ namespace AlSaqr.API.Controllers.Meetup
         {
             var loggedInUser = _userCacheService.GetLoggedInUser();
 
-            if (loggedInUser == null || string.IsNullOrEmpty(loggedInUser.Id))
+            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
                 return Unauthorized("Need to be logged in to see your events or groups.");
 
             var result = await _eventRepository.GetMyEvents(
                 _supabase,
-                loggedInUser.Id!,
+                loggedInUser.Id.ToString(),
                 latitude,
                 longitude,
                 currentPage,
@@ -173,7 +173,7 @@ namespace AlSaqr.API.Controllers.Meetup
 
                 var insertedEvent = await _eventRepository.CreateEvent(_supabase, data);
 
-                await _cityRepository.InsertCityEvent(_supabase, city.Id, insertedEvent.Id);
+                //await _cityRepository.InsertCityEvent(_supabase, city.Id, insertedEvent.Id);
 
                 await Neo4jHelpers.WriteAsync(
                     session,
@@ -196,9 +196,9 @@ namespace AlSaqr.API.Controllers.Meetup
                     ",
                     new Dictionary<string, object>()
                     {
-                      { "userId", loggedInUser.Id  ?? "" },
+                      { "userId", loggedInUser.Id?.ToString()  ?? "" },
                       { "eventName", insertedEvent?.Name ?? "" },
-                      { "eventId", insertedEvent?.Id ?? -1 },
+                      { "eventId", Guid.NewGuid() },
                       { "hostedCity", city?.Name ?? "" },
                     }
                  );

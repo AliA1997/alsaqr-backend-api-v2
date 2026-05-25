@@ -8,16 +8,17 @@ namespace AlSaqr.Data.Entities.Meetup
     public class VwLocalGuides : BaseModel
     {
         [Column("id")]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         [Column("slug")]
         public string? Slug { get; set; }
         [Column("userid")]
-        public string UserId { get; set; }
+        public Guid UserId { get; set; }
         [Column("name")]
         public string Name { get; set; }
 
         [Column("cities_hosted")]
-        public List<LocalGuideCityDto> CitiesHosted { get; set; }
+        //public string? CitiesHosted { get; set; }
+        public IDictionary<string, object>[]? CitiesHosted { get; set; }
         
         [Column("registered_at")]
         public DateTime RegisteredAt { get; set; }

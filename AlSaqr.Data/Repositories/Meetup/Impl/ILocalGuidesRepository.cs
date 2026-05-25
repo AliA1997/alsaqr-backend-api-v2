@@ -16,7 +16,7 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
 
         Task<PaginatedResult<LocalGuideDto>> GetNearbyLocalGuidesForCurrentLocalGuide(
             Supabase.Client client,
-            int localGuideId,
+            Guid localGuideId,
             string latitude,
             string longitude,
             int currentPage,

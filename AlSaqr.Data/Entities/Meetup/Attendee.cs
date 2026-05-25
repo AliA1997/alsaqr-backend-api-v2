@@ -7,11 +7,11 @@ namespace AlSaqr.Data.Entities.Meetup
     public class Attendee: BaseModel
     {
         [PrimaryKey("id")]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         [Column("name")]
         public string? Name { get; set; }
-        [Column("neo4j_user_id")]
-        public string? Neo4jUserId { get; set; }
+        [Column("user_id")]
+        public Guid? UserId { get; set; }
         [Column("created_at")]
         public DateTime CreatedAt { get; set; }
     }

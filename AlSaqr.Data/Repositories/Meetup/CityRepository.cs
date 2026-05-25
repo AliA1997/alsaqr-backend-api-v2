@@ -25,11 +25,11 @@ namespace AlSaqr.Data.Repositories.Meetup
                 city = (await client.From<City>().Filter("name", Operator.Equals, cityName).Get()).Model;
                 if (city == null)
                 {
-                    var recentlyInsertedCityId = await client.From<City>().Count(CountType.Estimated);
+                    //var recentlyInsertedCityId = await client.From<City>().Count(CountType.Estimated);
                     city = (
                         await client.From<City>().Upsert(new City()
                         {
-                            Id = recentlyInsertedCityId + 1,
+                            Id = Guid.NewGuid(),
                             Name = cityName,
                             StateOrProvince = stateOrProvince,
                             Country = country,
@@ -46,9 +46,9 @@ namespace AlSaqr.Data.Repositories.Meetup
             return city!;
         }
 
-        public async Task InsertCityEvent(Supabase.Client client, int cityId, int eventId)
+        public async Task InsertCityEvent(Supabase.Client client, Guid cityId, Guid eventId)
         {
-            var recentInsertedEventCityId = await client.From<EventCities>().Count(CountType.Estimated);
+            //var recentInsertedEventCityId = await client.From<EventCities>().Count(CountType.Estimated);
             var andFilters = new List<IPostgrestQueryFilter>()
             {
                  new QueryFilter("event_id", Operator.Equals, eventId)
@@ -59,7 +59,7 @@ namespace AlSaqr.Data.Repositories.Meetup
                 await client.From<EventCities>().Upsert(
                     new EventCities()
                     {
-                        Id = recentInsertedEventCityId + 1,
+                        Id = Guid.NewGuid(),
                         CityId = cityId,
                         EventId = eventId,
                         CreatedAt = DateTime.UtcNow

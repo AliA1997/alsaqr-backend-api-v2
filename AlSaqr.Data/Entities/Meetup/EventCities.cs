@@ -7,11 +7,11 @@ namespace AlSaqr.Data.Entities.Meetup
     public class EventCities : BaseModel
     {
         [Column("id")]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         [Column("city_id")]
-        public int CityId { get; set; }
+        public Guid CityId { get; set; }
         [Column("event_id")]
-        public int EventId { get; set; }
+        public Guid EventId { get; set; }
         [Column("created_at")]
         public DateTime CreatedAt { get; set; }
     }

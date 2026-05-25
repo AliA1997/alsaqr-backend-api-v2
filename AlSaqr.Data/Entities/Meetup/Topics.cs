@@ -12,7 +12,7 @@ namespace AlSaqr.Data.Entities.Meetup
     public class Topics: BaseModel
     {
         [PrimaryKey("id")]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         [Column("name")]
         public string? Name { get; set; }
         [Column("created_at")]

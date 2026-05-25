@@ -10,9 +10,9 @@ namespace AlSaqr.Domain.Zook
     public class ProductDto
     {
         [JsonProperty("id")]
-        public long? Id { get; set; }
+        public Guid Id { get; set; }
         [JsonProperty("user_id")]
-        public string? UserId { get; set; }
+        public Guid UserId { get; set; }
         [JsonProperty("title")]
         public string? Title { get; set; }
         [JsonProperty("description")]
@@ -38,7 +38,7 @@ namespace AlSaqr.Domain.Zook
         [JsonProperty("tags")]
         public string[]? Tags { get; set; }
         [JsonProperty("product_category_id")]
-        public long ProductCategoryId { get; set; }
+        public Guid? ProductCategoryId { get; set; }
         [JsonProperty("category")]
         public string Category { get; set; }
     }

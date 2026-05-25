@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Neo4j.Driver;
 using Newtonsoft.Json;
-using static AlSaqr.Domain.Utils.User;
+using static AlSaqr.Domain.SocialMedia.User;
 
 namespace  AlSaqr.Data.Helpers
 {

@@ -7,7 +7,7 @@ namespace AlSaqr.Data.Entities.Meetup
     public class Event : BaseModel
     {
         [PrimaryKey("id")]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         [Column("slug")]
         public string? Slug { get; set; }
 
@@ -16,9 +16,9 @@ namespace AlSaqr.Data.Entities.Meetup
         [Column("description")]
         public string? Description { get; set; }
         [Column("images")]
-        public IDictionary<string, object>[] Images { get; set; }
+        public string[]? Images { get; set; }
         [Column("group_id")]
-        public int? GroupId { get; set; }
+        public Guid? GroupId { get; set; }
         [Column("is_online")]
         public bool IsOnline { get; set; }
         [Column("last_occurred_at")]

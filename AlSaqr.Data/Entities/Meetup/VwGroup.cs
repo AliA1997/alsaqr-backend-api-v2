@@ -7,17 +7,17 @@ namespace AlSaqr.Data.Entities.Meetup
     public class VwGroup : BaseModel
     {
         [PrimaryKey("id", false)]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         [Column("slug")]
         public string? Slug { get; set; }
         [Column("name")]
         public string? Name { get; set; }
 
         [Column("images")]
-        public IDictionary<string, object>[] Images { get; set; }
+        public string[] Images { get; set; }
 
         [Column("hq_city_id")]
-        public int HqCityId { get; set; }
+        public Guid HqCityId { get; set; }
         
         [Column("hq_city")]
         public string? HqCity { get; set; }

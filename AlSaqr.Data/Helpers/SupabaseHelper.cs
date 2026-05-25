@@ -1,6 +1,6 @@
 ﻿using Supabase.Interfaces;
 using Supabase.Postgrest.Interfaces;
-using static AlSaqr.Domain.Utils.User;
+using static AlSaqr.Domain.SocialMedia.User;
 
 namespace AlSaqr.Data.Helpers
 {
@@ -8,7 +8,7 @@ namespace AlSaqr.Data.Helpers
     {
 
          public static IDictionary<string, object> DefineGetSimilarGroupsParams(
-            int groupId,
+            Guid groupId,
             string latitude,
             string longitude
         )
@@ -26,7 +26,7 @@ namespace AlSaqr.Data.Helpers
         }
 
         public static IDictionary<string, object> DefineGetLocalGuideForCurrentLocalGuideParams(
-            int localGuideId,
+            Guid localGuideId,
             string latitude,
             string longitude,
             int skip,
@@ -239,7 +239,7 @@ namespace AlSaqr.Data.Helpers
         }
 
         public static IDictionary<string, object> DefineGetProductDetailsParams(
-            int productId,
+            Guid productId,
             string latitude,
             string longitude)
         {
@@ -295,7 +295,7 @@ namespace AlSaqr.Data.Helpers
         public static IDictionary<string, object> DefineGetProductByCategoryParams(
             string latitude,
             string longitude,
-            int productCategoryId,
+            Guid productCategoryId,
             int skip,
             int currentPage,
             int itemsPerPage,
@@ -315,8 +315,7 @@ namespace AlSaqr.Data.Helpers
                     { "target_lat", latitudeParsed },
                     { "target_lon", longitudeParsed },
                     { "target_category_id", productCategoryId },
-                    { "max_distance_km", maxDistanceKm },
-                    { "search_term", searchTerm }
+                    { "max_distance_km", maxDistanceKm }
                 };
             }
             else
@@ -328,8 +327,7 @@ namespace AlSaqr.Data.Helpers
                     { "target_lat", latitudeParsed },
                     { "target_lon", longitudeParsed },
                     { "target_category_id", productCategoryId },
-                    { "max_distance_km", maxDistanceKm },
-                    { "search_term", maxDistanceKm }
+                    { "max_distance_km", maxDistanceKm }
                 };
             }
         }

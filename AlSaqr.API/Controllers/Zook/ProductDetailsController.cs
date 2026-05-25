@@ -10,7 +10,6 @@ using Supabase.Postgrest;
 using Supabase.Postgrest.Interfaces;
 using System.Text.RegularExpressions;
 using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Products;
 using static Supabase.Postgrest.Constants;
 
 namespace AlSaqr.API.Controllers.Zook
@@ -37,7 +36,7 @@ namespace AlSaqr.API.Controllers.Zook
         /// <returns></returns>
         [HttpGet("{productId}")]
         public async Task<IActionResult> GetProductDetails(
-                int productId,
+                Guid productId,
                 [FromQuery] string latitude,
                 [FromQuery] string longitude
             )
@@ -59,7 +58,7 @@ namespace AlSaqr.API.Controllers.Zook
         /// <returns></returns>
         [HttpGet("{productId}/marquee")]
         public async Task<IActionResult> GetSimilarProductsForMarquee(
-                int productId,
+                Guid productId,
                 [FromQuery] string latitude,
                 [FromQuery] string longitude
             )

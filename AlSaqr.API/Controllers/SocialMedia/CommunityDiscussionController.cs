@@ -1,11 +1,11 @@
 ﻿using AlSaqr.Data.Helpers;
-using AlSaqr.Domain.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Neo4j.Driver;
 using System.Data.Entity.Core.Metadata.Edm;
 using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Community;
+using static AlSaqr.Domain.SocialMedia.Community;
+using AlSaqr.Domain.SocialMedia;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {

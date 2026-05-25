@@ -1,6 +1,6 @@
 ﻿using AlSaqr.Domain.Zook;
 using Microsoft.Extensions.Caching.Memory;
-using static AlSaqr.Domain.Utils.Session;
+using static AlSaqr.Domain.SocialMedia.Session;
 
 namespace AlSaqr.Infrastructure
 {
@@ -8,8 +8,8 @@ namespace AlSaqr.Infrastructure
     {
         void SetLoggedInUser(SessionUser user);
         SessionUser? GetLoggedInUser();
-        void SetProductCategory(long productCategoryId, ProductCategoryDto productCategory);
-        ProductCategoryDto? GetProductCategory(long productCategoryId);
+        void SetProductCategory(Guid productCategoryId, ProductCategoryDto productCategory);
+        ProductCategoryDto? GetProductCategory(Guid productCategoryId);
         void RemoveLoggedInUser(string userId);
     }
 
@@ -35,7 +35,7 @@ namespace AlSaqr.Infrastructure
             AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(2)
         };
 
-        public void SetProductCategory(long productCategoryId, ProductCategoryDto productCategory)
+        public void SetProductCategory(Guid productCategoryId, ProductCategoryDto productCategory)
         {
             if (productCategory == null)
                 return;
@@ -51,7 +51,7 @@ namespace AlSaqr.Infrastructure
             _cache.Set("loggedInUser", user, CacheOptions);
         }
 
-        public ProductCategoryDto? GetProductCategory(long productCategoryId)
+        public ProductCategoryDto? GetProductCategory(Guid productCategoryId)
         {
             _cache.TryGetValue($"category-{productCategoryId.ToString()}", out ProductCategoryDto? productCategory);
             return productCategory;

@@ -7,7 +7,7 @@ namespace AlSaqr.Data.Entities.Meetup
     public class Groups : BaseModel
     {
         [Column("id")]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         [Column("slug")]
         public string? Slug { get; set; }
 
@@ -16,10 +16,10 @@ namespace AlSaqr.Data.Entities.Meetup
         [Column("description")]
         public string? Description { get; set; }
         [Column("images")]
-        public IDictionary<string, object>[] Images { get; set; }
+        public string[] Images { get; set; }
         [Column("created_at")]
         public DateTime CreatedAt { get; set; }
         [Column("hq_city_id")]
-        public int? HqCityId { get; set; }
+        public Guid? HqCityId { get; set; }
     }
 }

@@ -12,11 +12,11 @@ namespace AlSaqr.Data.Entities.Meetup
     public class GroupAttendees: BaseModel
     {
         [Column("id")]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         [Column("group_id")]
-        public int GroupId { get; set; }
+        public Guid GroupId { get; set; }
         [Column("attendee_id")]
-        public int AttendeeId { get; set; }
+        public Guid AttendeeId { get; set; }
         [Column("is_group_organizer")]
         public bool IsGroupOrganizer { get; set; }
         [Column("created_at")]

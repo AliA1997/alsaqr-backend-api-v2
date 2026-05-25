@@ -1,4 +1,4 @@
-﻿namespace  AlSaqr.Domain.Utils
+﻿namespace  AlSaqr.Domain.SocialMedia
 {
     public static class List
     {

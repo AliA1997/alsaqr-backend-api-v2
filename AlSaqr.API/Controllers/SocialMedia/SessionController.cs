@@ -9,7 +9,7 @@ using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Data.Entity.Core.Metadata.Edm;
 using System.Runtime.ConstrainedExecution;
-using static AlSaqr.Domain.Utils.Session;
+using static AlSaqr.Domain.SocialMedia.Session;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace AlSaqr.API.Controllers.SocialMedia

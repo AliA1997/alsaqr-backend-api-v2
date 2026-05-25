@@ -5,7 +5,7 @@ namespace AlSaqr.Domain.Meetup
     public class LocalGuideCityDto
     {
         [JsonProperty("id")]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         [JsonProperty("name")]
         public string City { get; set; }
 
@@ -24,11 +24,11 @@ namespace AlSaqr.Domain.Meetup
     public class LocalGuideDto
     {
         [JsonProperty("id")]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         [JsonProperty("slug")]
         public string? Slug { get; set; }
         [JsonProperty("userid")]
-        public string UserId { get; set; }
+        public Guid UserId { get; set; }
         [JsonProperty("name")]
         public string Name { get; set; }
 

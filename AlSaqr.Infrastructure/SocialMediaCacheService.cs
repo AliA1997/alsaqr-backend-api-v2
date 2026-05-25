@@ -1,7 +1,7 @@
 ﻿using AlSaqr.Domain.Zook;
 using Microsoft.Extensions.Caching.Memory;
 using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Session;
+using static AlSaqr.Domain.SocialMedia.Session;
 
 namespace AlSaqr.Infrastructure.SocialMediaCache
 {

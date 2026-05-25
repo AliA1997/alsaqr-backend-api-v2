@@ -11,7 +11,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.Utils.Groups;
 using static Supabase.Postgrest.Constants;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
@@ -47,7 +46,7 @@ namespace AlSaqr.Data.Repositories.Meetup
                             skip: skip,
                             currentPage: currentPage,
                             itemsPerPage: itemsPerPage,
-                            maxDistanceKm: null,
+                            maxDistanceKm: maxDistanceKm,
                             searchTerm: searchTerm
                 );
 
@@ -127,7 +126,7 @@ namespace AlSaqr.Data.Repositories.Meetup
 
         public async Task<List<SimilarGroupDto>> GetSimilarGroups(
             Supabase.Client client,
-            int groupId,
+            Guid groupId,
             string latitude,
             string longitude)
         {
@@ -154,21 +153,21 @@ namespace AlSaqr.Data.Repositories.Meetup
             return similarGroups;
         }
 
-        public async Task<Groups> CreateGroup(Supabase.Client client, CreateGroupForm form, string neo4jUserId, int organizerId, int cityId)
+        public async Task<Groups> CreateGroup(Supabase.Client client, CreateGroupForm form, Guid userId, Guid organizerId, Guid cityId)
         {
             Groups? insertedGroup = null;
             try
             {
 
-                var recentInsertedId = await client.From<Groups>().Count(CountType.Estimated);
-                var recentInsertedGroupAttendee = await client.From<GroupAttendees>().Count(CountType.Estimated);
+                //var recentInsertedId = await client.From<Groups>().Count(CountType.Estimated);
+                //var recentInsertedGroupAttendee = await client.From<GroupAttendees>().Count(CountType.Estimated);
 
                 var model = new Groups()
                 {
-                    Id = recentInsertedId + 1,
+                    Id = Guid.NewGuid(),
                     Name = form.Name,
                     Description = form.Description,
-                    Images = form.Images ?? new Dictionary<string, object>[] { },
+                    Images = form.Images ?? new string[] { },
                     HqCityId = cityId,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -182,7 +181,7 @@ namespace AlSaqr.Data.Repositories.Meetup
                 await client.From<GroupAttendees>().Upsert(
                     new GroupAttendees()
                     {
-                        Id = recentInsertedGroupAttendee + 1,
+                        Id = Guid.NewGuid(),
                         GroupId = insertedGroup.Id,
                         AttendeeId = organizerId,
                         IsGroupOrganizer = true,

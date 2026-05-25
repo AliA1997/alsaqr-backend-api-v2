@@ -7,13 +7,13 @@ namespace AlSaqr.Data.Entities.Meetup
     public class LocalGuidesCities: BaseModel
     {
         [PrimaryKey("id")]
-        public int Id { get; set; }
+        public Guid Id { get; set; }
 
         [Column("local_guides_id")]
-        public int LocalGuidesId { get; set; }
+        public Guid LocalGuidesId { get; set; }
 
         [Column("city_id")]
-        public int CityId { get; set; }
+        public Guid CityId { get; set; }
 
         [Column("created_at")]
         public DateTime CreatedAt { get; set; }

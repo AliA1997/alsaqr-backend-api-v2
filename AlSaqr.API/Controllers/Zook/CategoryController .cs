@@ -34,7 +34,7 @@ namespace AlSaqr.API.Controllers.Zook
         /// <param name="categoryId"></param>
         /// <returns></returns>
         [HttpGet("{categoryId}")]
-        public async Task<IActionResult> GetCategory(int categoryId)
+        public async Task<IActionResult> GetCategory(Guid categoryId)
         {
             var cachedProductCategory = _userCacheService.GetProductCategory(categoryId);
             ProductCategoryDto? productCategory = null;
@@ -44,7 +44,7 @@ namespace AlSaqr.API.Controllers.Zook
                 IPostgrestTable<ProductCategory>? selectResult = null;
 
                 selectResult = _supabase.From<ProductCategory>()
-                                        .Filter("id", Operator.Equals, categoryId);
+                                        .Filter("id", Operator.Equals, categoryId.ToString());
 
                 if (cachedProductCategory == null)
                     productCategory = (await selectResult.Get()).Models.Select(pc => new ProductCategoryDto

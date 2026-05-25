@@ -5,7 +5,7 @@ namespace AlSaqr.Domain.Meetup
     public class GroupDto
     {
         [JsonProperty("id")]
-        public long? Id { get; set; }
+        public Guid Id { get; set; }
         [JsonProperty("slug")]
         public string? Slug { get; set; }
         [JsonProperty("name")]
@@ -13,9 +13,9 @@ namespace AlSaqr.Domain.Meetup
         [JsonProperty("description")]
         public string? Description { get; set; }
         [JsonProperty("images")]
-        public IDictionary<string, object>[]? Images { get; set; }
+        public string[]? Images { get; set; }
         [JsonProperty("hq_city_id")]
-        public long? CityId { get; set; }
+        public Guid? CityId { get; set; }
         [JsonProperty("hq_city")]
         public string? City { get; set; }
         [JsonProperty("hq_country")]
@@ -26,10 +26,10 @@ namespace AlSaqr.Domain.Meetup
         [JsonProperty("attendees")]
         public IDictionary<string, object>[]? Attendees { get; set; }
 
-        [JsonProperty("longitude")]
+        [JsonProperty("hq_longitude")]
 
         public decimal? Longitude { get; set; }
-        [JsonProperty("latitude")]
+        [JsonProperty("hq_latitude")]
 
         public decimal? Latitude { get; set; }
         [JsonProperty("distance_km")]

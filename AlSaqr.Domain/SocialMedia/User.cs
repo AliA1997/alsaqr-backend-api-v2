@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System.Text.Json.Serialization;
 
-namespace  AlSaqr.Domain.Utils
+namespace  AlSaqr.Domain.SocialMedia
 {
     public static class User
     {
@@ -34,7 +34,7 @@ namespace  AlSaqr.Domain.Utils
         public class GetUserResponse
         {
             [JsonProperty("user")]
-            public AlSaqr.Domain.Common.User User { get; set; }
+            public Common.User User { get; set; }
             
         }
         public class UpdateUserDto

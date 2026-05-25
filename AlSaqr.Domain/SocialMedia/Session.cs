@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
- 
 
-namespace  AlSaqr.Domain.Utils
+
+namespace  AlSaqr.Domain.SocialMedia
 {
     public static class Session
     {
@@ -237,7 +237,7 @@ namespace  AlSaqr.Domain.Utils
         {
             public SessionUser(IDictionary<string, object> sessionData)
             {
-                this.Id = sessionData.ContainsKey("id") ? sessionData["id"].ToString() : "";
+                this.Id = sessionData.ContainsKey("id") ? Guid.Parse(sessionData["id"].ToString()) : Guid.Empty;
                 this.Username = sessionData.ContainsKey("username") ? sessionData["username"].ToString() : "";
                 this.CountryOfOrigin = sessionData.ContainsKey("countryOfOrigin") ? sessionData["countryOfOrigin"].ToString() : "";
                 this.FirstName = sessionData.ContainsKey("firstName") ? sessionData["firstName"].ToString() : "";
@@ -265,7 +265,7 @@ namespace  AlSaqr.Domain.Utils
                 this.IsCompleted = sessionData.TryGetValue("isCompleted", out object completed) ? (bool)completed : false;
                 this.CreatedAt = sessionData.TryGetValue("createdAt", out dynamic createdAt) ? createdAt : null;
             }
-            public string? Id { get; set; }
+            public Guid? Id { get; set; }
             public dynamic? CreatedAt { get; set; }
             public object? UpdatedAt { get; set; }
             public string? Username { get; set; }
