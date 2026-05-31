@@ -51,7 +51,11 @@ builder.Services.AddScoped<ITopicRepository, TopicRepository>();
 
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<ICommentRepository, CommentRepository>();
+builder.Services.AddScoped<ICommunityRepository, CommunityRepository>();
+builder.Services.AddScoped<ICommunityMemberRepository, CommunityMemberRepository>();
 builder.Services.AddScoped<IPostRepository, PostRepository>();
+builder.Services.AddScoped<IPostStatusRepository, PostStatusRepository>();
 builder.Services.AddScoped<IUserFollowRepository, UserFollowRepository>();
 builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 

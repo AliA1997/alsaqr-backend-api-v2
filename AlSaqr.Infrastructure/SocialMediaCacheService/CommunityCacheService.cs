@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
+using static AlSaqr.Domain.SocialMedia.Community;
 using static AlSaqr.Domain.Utils.Common;
 
 namespace AlSaqr.Infrastructure.SocialMediaCache
@@ -7,23 +8,23 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
     {
         private const string communityKeyPrefix = "initialCommunities_";
 
-        public void ClearInitialCommunities(string userId)
+        public void ClearInitialCommunities(Guid userId)
         {
             _cache.Remove($"{communityKeyPrefix}{userId}");
         }
-        public void SetInitialCommunities(PaginatedResult<Dictionary<string, object>> userCommunitiesPagination, string userId)
+        public void SetInitialCommunities(PaginatedResult<CommunityDto> userCommunitiesPagination, Guid userId)
         {
             _cache.Set($"{communityKeyPrefix}{userId}", userCommunitiesPagination, ListsCacheOptions);
         }
-        public PaginatedResult<Dictionary<string, object>>? GetInitialCommunities(string userId)
+        public PaginatedResult<CommunityDto>? GetInitialCommunities(Guid userId)
         {
-            _cache.TryGetValue($"{communityKeyPrefix}{userId}", out PaginatedResult<Dictionary<string, object>>? userCommunitiesPaginatedResult);
+            _cache.TryGetValue($"{communityKeyPrefix}{userId}", out PaginatedResult<CommunityDto>? userCommunitiesPaginatedResult);
 
             return userCommunitiesPaginatedResult;
         }
-        public bool CheckIfInitialCommunitiesCanBeRetrieved(int currentPage, string userId)
+        public bool CheckIfInitialCommunitiesCanBeRetrieved(int currentPage, Guid userId)
         {
-            _cache.TryGetValue($"{communityKeyPrefix}{userId}", out PaginatedResult<Dictionary<string, object>>? userCommunitiesPaginatedResult);
+            _cache.TryGetValue($"{communityKeyPrefix}{userId}", out PaginatedResult<CommunityDto>? userCommunitiesPaginatedResult);
 
             return (userCommunitiesPaginatedResult != null && userCommunitiesPaginatedResult.Pagination.CurrentPage == currentPage);
         }

@@ -10,7 +10,6 @@ namespace  AlSaqr.Domain.SocialMedia
     {
         public class CreatePostDto
         {
-            public string Id { get; set; }
             public string Text { get; set; }
             public string? Image { get; set; }
             public string CreatedAt { get; set; }
@@ -20,7 +19,7 @@ namespace  AlSaqr.Domain.SocialMedia
             public bool BlockTweet { get; set; }
             public string[] Tags { get; set; }
             public string[]? Likes { get; set; }
-            public string? UserId { get; set; }
+            public Guid? UserId { get; set; }
         }
 
         public class CreateCommentDto
@@ -28,8 +27,8 @@ namespace  AlSaqr.Domain.SocialMedia
             public string Id { get; set; }
             public string Text { get; set; }
             public string? CommentToCommentOnId { get; set; }
-            public string PostId { get; set; }
-            public string UserId { get; set; }
+            public Guid PostId { get; set; }
+            public Guid UserId { get; set; }
             public string? Image { get; set; }
             public string? CreatedAt { get; set; }
             public string? UpdatedAt { get; set; }

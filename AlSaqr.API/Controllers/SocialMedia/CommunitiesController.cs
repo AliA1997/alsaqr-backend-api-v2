@@ -1,9 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
-using static AlSaqr.Domain.Utils.Common;
-using static AlSaqr.Domain.SocialMedia.Community;
-using AlSaqr.Data.Helpers;
+﻿using AlSaqr.Data.Helpers;
+using AlSaqr.Data.Repositories.SocialMedia;
+using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Infrastructure.SocialMediaCache;
+using Microsoft.AspNetCore.Mvc;
+using static AlSaqr.Domain.SocialMedia.Community;
+using static AlSaqr.Domain.Utils.Common;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {
@@ -13,16 +14,22 @@ namespace AlSaqr.API.Controllers.SocialMedia
     {
 
         private readonly ILogger<CommunitiesController> _logger;
-        private readonly IDriver _driver;
+        private readonly Supabase.Client _supabase;
+        private readonly ICommunityRepository _communityRepository;
+        private readonly ICommunityMemberRepository _communityMemberRepository;
         private readonly ISocialMediaCacheService _socialMediaCacheService;
 
         public CommunitiesController(
-            ILogger<CommunitiesController> logger, 
-            IDriver driver,
+            ILogger<CommunitiesController> logger,
+            Supabase.Client supabase,
+            ICommunityRepository communityRepository,
+            ICommunityMemberRepository communityMemberRepository,
             ISocialMediaCacheService socialMediaCacheService)
         {
             _logger = logger;
-            _driver = driver;
+            _supabase = supabase;
+            _communityRepository = communityRepository;
+            _communityMemberRepository = communityMemberRepository;
             _socialMediaCacheService = socialMediaCacheService;
         }
 
@@ -35,203 +42,18 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <returns></returns>
         [HttpGet("{userId}")]
         public async Task<IActionResult> GetCommunities(
-                string userId,
+                Guid userId,
                 [FromQuery] int currentPage = 1,
                 [FromQuery] int itemsPerPage = 10,
                 [FromQuery] string? searchTerm = null
             )
         {
-            await using var session = _driver.AsyncSession();
-            var communities = new List<Dictionary<string, object>>();
-            Pagination? pagination = null;
 
             if (_socialMediaCacheService.CheckIfInitialCommunitiesCanBeRetrieved(currentPage, userId))
                 return Ok(_socialMediaCacheService.GetInitialCommunities(userId));
 
-            try
-            {
-                string pagingQuery = "SKIP $skip LIMIT $itemsPerPage";
-                string selectQuery;
-
-                List<Dictionary<string, object>>? selectResult;
-                List<Dictionary<string, object>>? pagingResult;
-
-                if (!string.IsNullOrEmpty(searchTerm))
-                {
-                    selectQuery = @"
-                         MATCH (user:User {id: $userId})
-                        // Get all communities in the database
-                        MATCH (community:Community)
-
-                        OPTIONAL MATCH (community)-[:COMMUNITY_FOUNDER]->(founder:User)
-                        OPTIONAL MATCH (user)-[r]->
-                          (relatedCommunity:Community)
-                          WHERE relatedCommunity = community AND type(r) IN ['JOINED', 'INVITED', 'INVITE_REQUESTED', 'COMMUNITY_FOUNDER']
-
-                        WITH community, founder, user,
-                             COLLECT(DISTINCT type(r)) AS rels
-
-                        WITH community, founder,
-                             CASE
-                               WHEN 'INVITE_REQUESTED' IN rels THEN 'INVITE_REQUESTED'
-                               WHEN 'COMMUNITY_FOUNDER' IN rels THEN 'FOUNDER'
-                               WHEN 'INVITED' IN rels THEN 'INVITED'
-                               WHEN 'JOINED' IN rels THEN 'JOINED'
-                               ELSE 'NONE'
-                             END AS relationshipType
-
-                        RETURN community, founder, relationshipType
-                        ORDER BY relationshipType, community.name";
-
-                    selectResult = await Neo4jHelpers.ReadAsync(
-                        session,
-                        $"{selectQuery} {pagingQuery}",
-                        new Dictionary<string, object>
-                        {
-                            { "userId", "" },
-                            { "skip", (currentPage - 1) * itemsPerPage },
-                            { "itemsPerPage", itemsPerPage },
-                            { "searchTerm", searchTerm }
-                        },
-                        new[] { "community", "founder", "relationshipType" }
-                    );
-
-                    pagingResult = await Neo4jHelpers.ReadAsync(
-                        session,
-                        @"
-                            MATCH (user:User {id: $userId})
-
-                            // Get all communities in the database
-                            MATCH (community:Community)
-
-                            OPTIONAL MATCH (community)-[:COMMUNITY_FOUNDER]->(founder:User)
-                            OPTIONAL MATCH (user)-[r]->
-                              (relatedCommunity:Community)
-                              WHERE relatedCommunity = community AND type(r) IN ['JOINED', 'INVITED', 'INVITE_REQUESTED', 'COMMUNITY_FOUNDER']
-
-                            WITH community, founder, user,
-                                 COLLECT(DISTINCT type(r)) AS rels
-
-                            WITH community, founder,
-                                 CASE
-                                   WHEN 'INVITE_REQUESTED' IN rels THEN 'INVITE_REQUESTED'
-                                   WHEN 'COMMUNITY_FOUNDER' IN rels THEN 'FOUNDER'
-                                   WHEN 'INVITED' IN rels THEN 'INVITED'
-                                   WHEN 'JOINED' IN rels THEN 'JOINED'
-                                   ELSE 'NONE'
-                                 END AS relationshipType
-
-                            // Return all communities with their relationship status
-                            RETURN COUNT(DISTINCT community) as total
-                        ",
-                        new Dictionary<string, object>
-                        {
-                            { "userId", "" },
-                            { "searchTerm", searchTerm }
-                        },
-                        new[] { "total" }
-                    );
-                }
-                else
-                {
-                    selectQuery = @"
-                        MATCH (user:User {id: $userId})
-
-                        // Get all communities in the database
-                        MATCH (community:Community)
-
-                        OPTIONAL MATCH (community)-[:COMMUNITY_FOUNDER]->(founder:User)
-                        OPTIONAL MATCH (user)-[r]->
-                            (relatedCommunity:Community)
-                            WHERE relatedCommunity = community AND type(r) IN ['JOINED', 'INVITED', 'INVITE_REQUESTED', 'COMMUNITY_FOUNDER']
-
-                        WITH community, founder, user,
-                                COLLECT(DISTINCT type(r)) AS rels
-
-                        WITH community, founder,
-                                CASE
-                                WHEN 'INVITE_REQUESTED' IN rels THEN 'INVITE_REQUESTED'
-                                WHEN 'COMMUNITY_FOUNDER' IN rels THEN 'FOUNDER'
-                                WHEN 'INVITED' IN rels THEN 'INVITED'
-                                WHEN 'JOINED' IN rels THEN 'JOINED'
-                                ELSE 'NONE'
-                                END AS relationshipType
-
-                        // Return all communities with their relationship status
-                        RETURN 
-                          community,
-                          founder,
-                          relationshipType
-                        ORDER BY relationshipType, community.name";
-
-                    selectResult = await Neo4jHelpers.ReadAsync(
-                        session,
-                        $"{selectQuery} {pagingQuery}",
-                        new Dictionary<string, object>
-                        {
-                            { "userId", "" },
-                            { "skip", (currentPage - 1) * itemsPerPage },
-                            { "itemsPerPage", itemsPerPage }
-                        },
-                        new[] { "community", "founder", "relationshipType" }
-                    );
-
-                    pagingResult = await Neo4jHelpers.ReadAsync(
-                        session,
-                        @"
-                            MATCH (user:User {id: $userId})
-
-                            // Get all communities in the database
-                            MATCH (community:Community)
-
-                            OPTIONAL MATCH (community)-[:COMMUNITY_FOUNDER]->(founder:User)
-                            OPTIONAL MATCH (user)-[r]->
-                              (relatedCommunity:Community)
-                              WHERE relatedCommunity = community AND type(r) IN ['JOINED', 'INVITED', 'INVITE_REQUESTED', 'COMMUNITY_FOUNDER']
-
-                            WITH community, founder, user,
-                                 COLLECT(DISTINCT type(r)) AS rels
-
-                            WITH community, founder,
-                                 CASE
-                                   WHEN 'INVITE_REQUESTED' IN rels THEN 'INVITE_REQUESTED'
-                                   WHEN 'COMMUNITY_FOUNDER' IN rels THEN 'FOUNDER'
-                                   WHEN 'INVITED' IN rels THEN 'INVITED'
-                                   WHEN 'JOINED' IN rels THEN 'JOINED'
-                                   ELSE 'NONE'
-                                 END AS relationshipType
-
-                            // Return all communities with their relationship status
-                            RETURN COUNT(community) as total
-                        ",
-                        new Dictionary<string, object> 
-                        {
-                            { "userId", "" }
-                        },
-                        new[] { "total" }
-                    );
-                }
-
-                int totalItems = pagingResult?.FirstOrDefault()?["total"] is long total ? (int)total : 0;
-
-                pagination = new Pagination
-                {
-                    ItemsPerPage = itemsPerPage,
-                    CurrentPage = currentPage,
-                    TotalItems = totalItems,
-                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
-                };
-
-                communities = selectResult ?? new List<Dictionary<string, object>>();
-            }
-            finally
-            {
-                await session.CloseAsync();
-            }
-
-            var result = new PaginatedResult<Dictionary<string, object>>(communities, pagination!);
+            var result = await _communityRepository.GetCommunities(_supabase, searchTerm, currentPage, itemsPerPage);
             _socialMediaCacheService.SetInitialCommunities(result, userId);
-
 
             return Ok(result);
         }
@@ -242,79 +64,17 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="communityId"></param>
         /// <returns></returns>
         [HttpGet("{userId}/{communityId}")]
-        public async Task<IActionResult> GetCommunity(string communityId)
+        public async Task<IActionResult> GetCommunity(Guid communityId)
         {
             // Input validation
-            if (string.IsNullOrEmpty(communityId))
+            if (communityId == Guid.Empty)
             {
                 return BadRequest("Community ID is required");
             }
 
-            await using var session = _driver.AsyncSession();
+            var community = await _communityRepository.GetCommunity(_supabase, communityId);
 
-            try
-            {
-                string selectQuery = @"
-                      MATCH (community:Community {id: $communityId})
-
-                      // Get founder information and check if the specified user is the founder
-                      OPTIONAL MATCH (community)-[:COMMUNITY_FOUNDER]->(founder:User)
-                      WITH community, founder,
-                     EXISTS((community)-[:COMMUNITY_FOUNDER]->(:User {id: $userId})) AS isFounder
-
-                     // Get the invite requested users
-                     OPTIONAL MATCH (community)-[:INVITE_REQUESTED]->(inviteRequestedByUser:User)
-                      WITH community, founder, isFounder as isFounder, 
-                          COLLECT(DISTINCT inviteRequestedByUser) AS inviteRequestedUsers
-
-                      // Count invited users
-                      OPTIONAL MATCH (community)-[:INVITED]->(invitedUser:User)
-                      WITH community, founder, isFounder as isFounder, inviteRequestedUsers,
-                          COUNT(DISTINCT invitedUser) AS invitedCount
-
-                      // Count joined users
-                      OPTIONAL MATCH (joinedUser:User)-[:JOINED]->(community)
-                      WITH community, founder, isFounder as isFounder, inviteRequestedUsers, invitedCount,
-                          COUNT(DISTINCT joinedUser) AS joinedCount
-
-                      RETURN community,
-                        isFounder,
-                        founder,
-                        inviteRequestedUsers,
-                        invitedCount,
-                        joinedCount";
-
-                var selectResult = await Neo4jHelpers.ReadAsync(
-                    session,
-                    selectQuery,
-                    new Dictionary<string, object>()
-                    {
-                        { "userId", "" },
-                        {"communityId", communityId }
-                    },
-                    new[] {
-                        "community", "isFounder", "founder", "inviteRequestedUsers", "invitedCount", "joinedCount"
-                    }
-                );
-
-                var communityAdminInfo = selectResult?.FirstOrDefault();
-
-                if (communityAdminInfo == null)
-                {
-                    return NotFound(new { message = $"Community not found based on community id {communityId}", success = false });
-                }
-
-                return Ok(communityAdminInfo);
-            }
-            catch (Exception err)
-            {
-                _logger.LogError(err, "Fetch Post error!");
-                return StatusCode(500, new { message = "Fetch Post error!", success = false });
-            }
-            finally
-            {
-                await session.CloseAsync();
-            }
+            return Ok(community);
         }
 
         /// <summary>
@@ -325,93 +85,25 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <returns></returns>
         [HttpPost("{userId}")]
         public async Task<IActionResult> CreateCommunity(
-                [FromRoute] string userId,
+                [FromRoute] Guid userId,
                 [FromBody] AlSaqrUpsertRequest<CreateCommunityFormDto> request)
         {
             var data = request.Values;
-            if (string.IsNullOrEmpty(userId))
+            if (userId == Guid.Empty)
             {
                 return BadRequest("User ID is required");
             }
-
-            await using var session = _driver.AsyncSession();
 
             if (string.IsNullOrEmpty(data?.Name))
             {
                 return BadRequest("Name of Community is required");
             }
 
-            try
-            {
-                var communityId = $"community_{Guid.NewGuid()}";
-                var selectQuery = @"
-                    MERGE (u:User {id: $userId})
-                    CREATE (cmty:Community {
-                        id: $id,
-                        userId: $userId,
-                        name: $name,
-                        avatar: $avatar,
-                        bannerImage: null,
-                        createdAt: datetime(),
-                        updatedAt: null,
-                        _rev: """",
-                        _type: ""community"",
-                        isPrivate: $isPrivate,
-                        tags: $tags
-                    })
-                    CREATE (u)-[:CREATED_COMMUNITY {timestamp: datetime()}]->(cmty)
-                    CREATE (cmty)-[:COMMUNITY_FOUNDER {timestamp: datetime()}]->(u)
-                    ";
+            var result = await _communityRepository.CreateCommunity(_supabase, userId, data);
 
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    selectQuery,
-                    new Dictionary<string, object>()
-                    {
-                        { "id", communityId },
-                        {"userId", userId },
-                        { "name", data.Name },
-                        { "avatar", data.AvatarOrBannerImage },
-                        { "isPrivate", data.IsPrivate?.ToLower() == "private" },
-                        { "tags", data.Tags ?? new string[0] }
-                    }
-                );
+            _socialMediaCacheService.ClearInitialCommunities(userId);
 
-
-                // Second write operation: Add invited users
-                if (data.UsersAdded != null && data.UsersAdded.Length > 0)
-                {
-                    await Neo4jHelpers.WriteAsync(
-                        session,
-                        @"
-                        UNWIND $usersAdded AS usersAddedId
-                        MATCH (cmty: Community {id: $communityId}), (user:User {id: usersAddedId})
-                        MERGE (cmty)-[r:INVITED]->(user)
-                        SET r.createdAt = datetime()
-                        RETURN count(r) AS relationshipsCreated
-                        ",
-                        new Dictionary<string, object>()
-                        {
-                            { "communityId", communityId },
-                            { "usersAdded", data.UsersAdded }
-                        }
-                    );
-                }
-
-                _socialMediaCacheService.ClearInitialCommunities(userId);
-
-                return Ok(new { success = true });
-            }
-            catch (Exception err)
-            {
-                // Log the exception here
-                Console.WriteLine($"Error creating community: {err.Message}");
-                return StatusCode(500, new { message = "Add community error!", success = false });
-            }
-            finally
-            {
-                await session.CloseAsync();
-            }
+            return Ok(new { success = true });
         }
 
         /// <summary>
@@ -423,70 +115,58 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <returns></returns>
         [HttpPut("{userId}/{communityId}")]
         public async Task<IActionResult> UpdateCommunity(
-            string userId,
-            string communityId,
+            Guid userId,
+            Guid communityId,
             [FromBody] AlSaqrUpsertRequest<UpdateCommunityForm> request)
         {
             var data = request.Values;
 
-            if (userId == null)
+            if (userId == Guid.Empty)
             {
                 return BadRequest("User ID is required for updating your user.");
             }
-            if (communityId == null && data?.Id == null)
+            if (communityId == Guid.Empty)
             {
                 return BadRequest("Community ID is required for updating your user.");
             }
 
-            await using var session = _driver.AsyncSession();
+            await _communityRepository.UpdateCommunity(_supabase, userId, communityId, data);
 
-            try
-            {
-                await Neo4jHelpers.WriteAsync(
-                       session,
-                       @"
-                          MATCH(cmty: Community { id: $communityId })
-                          MATCH(u: User { id: $userId })
-                          WHERE EXISTS((cmty)- [:COMMUNITY_FOUNDER]->(u))
-                          SET cmty.name = $name,
-                              cmty.avatar = $avatar,
-                              cmty.tags = $tags,
-                              cmty.isPrivate = $isPrivate,
-                              cmty.updatedAt = timestamp()
-                      ",
-                    new Dictionary<string, object>()
-                    {
-                        { "userId", userId },
-                        {"communityId", communityId },
-                        { "name", data.Name },
-                        { "avatar", data.Avatar },
-                        { "tags", data.Tags },
-                        { "isPrivate", data.IsPrivate?.ToLower() == "private" }
-                    }
-                );
-
-                return Ok(new { succcess = true });
-            }
-            catch (Exception err)
-            {
-                // Log the exception here
-                Console.WriteLine($"Error updating community: {err.Message}");
-                return StatusCode(500, new { message = "Update community error!", success = false });
-            }
-            finally
-            {
-                await session.CloseAsync();
-            }
+            return Ok(new { succcess = true });
         }
 
 
         /// <summary>
-        /// Join a public community
+        /// Delete a community
         /// </summary>
         /// <param name="userId"></param>
         /// <param name="communityId"></param>
         /// <param name="request"></param>
         /// <returns></returns>
+        [HttpDelete("{userId}/{communityId}")]
+        public async Task<IActionResult> DeleteCommunity(
+            Guid userId,
+            Guid communityId)
+        {
+
+            if (userId == Guid.Empty)
+            {
+                return BadRequest("User ID is required for updating your user.");
+            }
+            if (communityId == Guid.Empty)
+            {
+                return BadRequest("Community ID is required for updating your user.");
+            }
+
+            await _communityRepository.DeleteCommunity(_supabase, userId, communityId);
+
+            return Ok(new { succcess = true });
+        }
+
+        /// <summary>
+        /// Join a public community.
+        /// Migrated from Neo4j MERGE (user)-[:JOINED]->(community) + notification.
+        /// </summary>
         [HttpPatch("{userId}/{communityId}/join")]
         public async Task<IActionResult> JoinCommunity(
             string userId,
@@ -495,83 +175,31 @@ namespace AlSaqr.API.Controllers.SocialMedia
         {
             var data = request.Values;
 
-            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId) || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId)
+                || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
             {
                 return BadRequest("Missing required fields");
             }
 
-            await using var session = _driver.AsyncSession();
+            if (!Guid.TryParse(userId, out var userGuid) || !Guid.TryParse(communityId, out var communityGuid))
+                return BadRequest("User ID and Community ID must be valid GUIDs");
 
             try
             {
-                // Add join relationship
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                        // Match the user node
-                        MERGE (invitedUser:User {id: $userId})
-                        // Match the community node
-                        MERGE (community:Community {id: $communityId})
-                        // Create the 'JOINED' relationship with a timestamp
-                        MERGE (invitedUser)-[r:JOINED]->(community)
-                        ON CREATE SET r.timestamp = timestamp()
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                        { "userId", userId },
-                        { "communityId", communityId }
-                    }
-                );
-
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                        // Match joined user
-                        MATCH (invitedUser:User {id: $userId})
-                        MATCH (community: Community {id: $communityId})
-                        // Match the community admin
-                        MATCH (communityAdmin:User)-[:CREATED_COMMUNITY]->(community)
-                        // Create notification connected to admin
-                        CREATE (communityAdmin)-[:NOTIFIED_BY]->(n:Notification {
-                            id: ""notification_"" + randomUUID(),
-                            message: invitedUser.username + "" joined your community of  "" + community.name + ""."",
-                            read: false,
-                            relatedEntityId: community.id,
-                            link: ""/communities/"" + community.id,
-                            createdAt: datetime(),
-                            updatedAt: null,
-                            _rev: null,
-                            _type: ""notification"",
-                            notificationType: ""user_joined""
-                        })
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                        { "userId", userId },
-                        { "communityId", communityId }
-                    }
-                );
-         
+                await _communityMemberRepository.JoinCommunity(_supabase, userGuid, communityGuid);
                 return Ok(new { success = true, message = "Joined Successfully" });
             }
             catch (Exception err)
             {
                 _logger.LogError(err, "Join Community error!");
                 return StatusCode(500, new { message = "Join Community error!", success = false });
-            } finally
-            {
-               await session.CloseAsync();
             }
-
         }
 
         /// <summary>
-        /// Unjoin a community
+        /// Unjoin a community.
+        /// Migrated from Neo4j delete of INVITED/JOINED relationships + notification.
         /// </summary>
-        /// <param name="userId"></param>
-        /// <param name="communityId"></param>
-        /// <param name="request"></param>
-        /// <returns></returns>
         [HttpPatch("{userId}/{communityId}/unjoin")]
         public async Task<IActionResult> UnJoinCommunity(
             string userId,
@@ -579,68 +207,19 @@ namespace AlSaqr.API.Controllers.SocialMedia
             [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request)
         {
             var data = request.Values;
-            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId) || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
+
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId)
+                || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
             {
                 return BadRequest("Missing required fields");
             }
 
-            await using var session = _driver.AsyncSession();
+            if (!Guid.TryParse(userId, out var userGuid) || !Guid.TryParse(communityId, out var communityGuid))
+                return BadRequest("User ID and Community ID must be valid GUIDs");
 
             try
             {
-
-                // Delete the invited or joined user.
-                // Delete invite relationship
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                        MATCH(community: Community { id: $communityId })- [ir:INVITED]->(u: User { id: $userId })
-                        DELETE ir;
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                        { "userId", userId },
-                        { "communityId", communityId }
-                    }
-                );
-
-                // Delete Joined Relationship
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                          MATCH(u: User { id: $userId })- [jr:JOINED]->(community: Community { id: $communityId })
-                          DELETE jr;
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                        { "userId", userId },
-                        { "communityId", communityId }
-                    }
-                );
-
-                // Delete notification
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                          // Match the joined User 
-                          MATCH(joinedOrInvitedUser: User { id: $userId})
-                          MATCH(community: Community { id: $communityId})
-                          // Match the author who created the community
-                          MATCH(communityAdmin: User) - [:CREATED_COMMUNITY]->(community)
-                          // Find and delete the specific notification
-                          MATCH(communityAdmin) - [r:NOTIFIED_BY]->(n: Notification {
-                                relatedEntityId: community.id,
-                            notificationType: ""user_joined""
-                          })
-                          DELETE r, n
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                        { "userId", userId },
-                        { "communityId", communityId }
-                    }
-                );
-
+                await _communityMemberRepository.UnJoinCommunity(_supabase, userGuid, communityGuid);
                 return Ok(new { success = true, message = "Left community Successfully" });
             }
             catch (Exception err)
@@ -648,20 +227,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 _logger.LogError(err, "Left Community error!");
                 return StatusCode(500, new { message = "Left Community error!", success = false });
             }
-            finally
-            {
-                await session.CloseAsync();
-            }
-
         }
 
         /// <summary>
-        /// Create a request to join
+        /// Create a request to join a community.
+        /// Migrated from Neo4j MERGE (community)-[:INVITE_REQUESTED]->(user) + notification.
         /// </summary>
-        /// <param name="userId"></param>
-        /// <param name="communityId"></param>
-        /// <param name="request"></param>
-        /// <returns></returns>
         [HttpPost("{userId}/{communityId}/request-join")]
         public async Task<IActionResult> PostRequestJoin(
             string userId,
@@ -669,60 +240,19 @@ namespace AlSaqr.API.Controllers.SocialMedia
             [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request)
         {
             var data = request.Values;
-            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId) || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
+
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId)
+                || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
             {
                 return BadRequest("Missing required fields");
             }
 
-            await using var session = _driver.AsyncSession();
+            if (!Guid.TryParse(userId, out var userGuid) || !Guid.TryParse(communityId, out var communityGuid))
+                return BadRequest("User ID and Community ID must be valid GUIDs");
 
             try
             {
-
-                //Create INVITE_REQUESTED relationship
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                        MERGE (invitedUser:User {id: $userId})
-                        MERGE (community:Community {id: $communityId})
-                        MERGE (community)-[r:INVITE_REQUESTED]->(invitedUser)
-                        ON CREATE SET r.timestamp = timestamp()
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                        { "userId", userId },
-                        { "communityId", communityId }
-                    }
-                );
-
-                //Create notification
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                        MATCH (invitedUser:User {id: $userId})
-                        MATCH (community:Community {id: $communityId})
-                        MATCH (communityAdmin:User)-[:CREATED_COMMUNITY]->(community)
-                        CREATE (communityAdmin)-[:NOTIFIED_BY]->(n:Notification {
-                            id: ""notification_"" + randomUUID(),
-                            message: invitedUser.username + "" has requested to join your community of "" + community.name + ""."",
-                            read: false,
-                            relatedEntityId: community.id,
-                            link: ""/communities/"" + community.id,
-                            createdAt: datetime(),
-                            updatedAt: null,
-                            _rev: null,
-                            _type: ""notification"",
-                            notificationType: ""user_request_join""
-                        })
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                        { "userId", userId },
-                        { "communityId", communityId }
-                    }
-                );
-
-
+                await _communityMemberRepository.RequestJoinCommunity(_supabase, userGuid, communityGuid);
                 return Ok(new { success = true, message = "Request to join community successfully." });
             }
             catch (Exception err)
@@ -730,20 +260,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 _logger.LogError(err, "Request to join community error!");
                 return StatusCode(500, new { message = "Request to join community error!", success = false });
             }
-            finally
-            {
-                await session.CloseAsync();
-            }
-
         }
 
         /// <summary>
-        /// Accept or deny a request to join
+        /// Accept or deny a request to join a community.
+        /// Migrated from Neo4j accept/deny MERGE/notification + INVITE_REQUESTED cleanup.
         /// </summary>
-        /// <param name="userId"></param>
-        /// <param name="communityId"></param>
-        /// <param name="request"></param>
-        /// <returns></returns>
         [HttpPatch("{userId}/{communityId}/request-join")]
         public async Task<IActionResult> RequestJoin(
             string userId,
@@ -751,146 +273,29 @@ namespace AlSaqr.API.Controllers.SocialMedia
             [FromBody] AlSaqrUpsertRequest<AcceptOrDenyCommunityInviteConfirmationDto> request)
         {
             var data = request.Values;
-            // Input validation
-            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId))
-            {
-                return BadRequest("Missing required fields.");
-            }
 
-            await using var session = _driver.AsyncSession();
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId))
+                return BadRequest("Missing required fields.");
+
+            if (!Guid.TryParse(userId, out var userGuid) || !Guid.TryParse(communityId, out var communityGuid))
+                return BadRequest("User ID and Community ID must be valid GUIDs");
 
             try
             {
-                if (data.Accept == true)
-                {
-                    // Add a invite relationship, since accept request to join.
-                    await Neo4jHelpers.WriteAsync(
-                        session,
-                        @"
-                          // Match the user node
-                          MERGE (invitedUser:User {id: $userId})
-                          // Match the community node
-                          MERGE (community:Community {id: $communityId})
-                          // Create the 'INVITED' relationship with a timestamp
-                          MERGE (community)-[r:INVITED]->(invitedUser)
-                          ON CREATE SET r.timestamp = timestamp()
-                        ",
-                        new Dictionary<string, object>()
-                        {
-                            { "userId", userId },
-                            { "communityId", communityId }
-                        }
-                    );
-
-                    await Neo4jHelpers.WriteAsync(
-                        session,
-                        @"
-                            // Match invited user
-                            MATCH (invitedUser:User {id: $userId})
-                            MATCH (community: Community {id: $communityId})
-                            // Match the community admin
-                            MATCH (communityAdmin:User)-[:CREATED_COMMUNITY]->(community)
-                            // Create notification connected to admin
-                            CREATE (communityAdmin)-[:NOTIFIED_BY]->(n:Notification {
-                                id: ""notification_"" + randomUUID(),
-                                message: invitedUser.username + "" joined your community of  "" + community.name + ""."",
-                                read: false,
-                                relatedEntityId: community.id,
-                                link: ""/communities/"" + community.id,
-                                createdAt: datetime(),
-                                updatedAt: null,
-                                _rev: null,
-                                _type: ""notification"",
-                                notificationType: ""user_joined""
-                            })
-                        ",
-                        new Dictionary<string, object>()
-                        {
-                            { "userId", userId },
-                            { "communityId", communityId }
-                        }
-                    );
-                }
-                else
-                {
-                    
-                    await Neo4jHelpers.WriteAsync(
-                        session,
-                        @"
-                           // Match invited user
-                            MATCH (invitedUser:User {id: $userId})
-                            MATCH (community: Community {id: $communityId})
-                            // Match the community admin
-                            MATCH (communityAdmin:User)-[:CREATED_COMMUNITY]->(community)
-                            // Create notification connected to admin
-                            CREATE (communityAdmin)-[:NOTIFIED_BY]->(n:Notification {
-                                id: ""notification_"" + randomUUID(),
-                                message: invitedUser.username + "" denied from  your community of  "" + community.name + ""."",
-                                read: false,
-                                relatedEntityId: community.id,
-                                link: ""/communities/"" + community.id,
-                                createdAt: datetime(),
-                                updatedAt: null,
-                                _rev: null,
-                                _type: ""notification"",
-                                notificationType: ""user_joined""
-                            })
-                        ",
-                        new Dictionary<string, object>()
-                        {
-                            { "userId", userId },
-                            { "communityId", communityId }
-                        }
-                    );
-                }
-
-                // Delete REQUEST_INVITE record in neo4j
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                      MATCH (community:Community {id: $communityId})-[r:INVITE_REQUESTED]->(invitedUser:User {id: $userId})
-                      DELETE r
-                      ",
-                    new Dictionary<string, object>()
-                    {
-                        { "userId", userId },
-                        { "communityId", communityId }
-                    }
+                await _communityMemberRepository.RespondToJoinRequest(
+                    _supabase,
+                    userGuid,
+                    communityGuid,
+                    accept: data.Accept == true
                 );
 
-                // Delete request notification
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                      // Match the joined User 
-                      MATCH (invitedUser:User {id: $userId})
-                      MATCH (community:Community {id: $communityId})
-                      // Match the author who created the community
-                      MATCH (communityAdmin:User)-[:CREATED_COMMUNITY]->(community)
-                      // Find and delete the specific notification
-                      MATCH (communityAdmin)-[r:NOTIFIED_BY]->(n:Notification {
-                        relatedEntityId: community.id,
-                        notificationType: ""user_request_join""
-                      })
-                      DELETE r, n
-                        ",
-                    new Dictionary<string, object>()
-                    {
-                        { "userId", userId },
-                        { "communityId", communityId }
-                    }
-                );
                 return Ok(new { success = true });
             }
             catch (Exception err)
             {
                 _logger.LogError(err, "Error accepting or deny request to join community!");
                 return StatusCode(500, new { message = "Error accepting or deny request to join community!", success = false });
-            } finally
-            {
-                await session.CloseAsync();
             }
-
         }
     }
 }

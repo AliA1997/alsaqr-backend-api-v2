@@ -16,5 +16,20 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
             string? searchTerm,
             int currentPage,
             int itemsPerPage);
+
+        Task<PaginatedResult<PostDto>> GetPosts(
+            Supabase.Client supabase,
+            string? searchTerm,
+            int currentPage,
+            int itemsPerPage);
+
+        Task<PostDto> GetPost(
+            Supabase.Client supabase,
+            Guid postId);
+
+        Task<Guid> CreatePost(
+            Supabase.Client supabase,
+            Guid userId,
+            Posts.CreatePostDto data);
     }
 }
