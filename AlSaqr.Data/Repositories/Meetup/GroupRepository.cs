@@ -124,34 +124,34 @@ namespace AlSaqr.Data.Repositories.Meetup
             return new PaginatedResult<GroupDto>(groups ?? new List<GroupDto>(), pagination!);
         }
 
-        public async Task<List<SimilarGroupDto>> GetSimilarGroups(
-            Supabase.Client client,
-            Guid groupId,
-            string latitude,
-            string longitude)
-        {
-            var similarGroups = new List<SimilarGroupDto>();
-            var functionName = "get_similar_groups";
-            try
+            public async Task<List<SimilarGroupDto>> GetSimilarGroups(
+                Supabase.Client client,
+                Guid groupId,
+                string latitude,
+                string longitude)
             {
-                int totalItems;
-                IDictionary<string, object> functionParams = SupabaseHelper.DefineGetSimilarGroupsParams(
-                            groupId: groupId,
-                            latitude: latitude,
-                            longitude: longitude
-                );
+                var similarGroups = new List<SimilarGroupDto>();
+                var functionName = "get_similar_groups";
+                try
+                {
+                    int totalItems;
+                    IDictionary<string, object> functionParams = SupabaseHelper.DefineGetSimilarGroupsParams(
+                                groupId: groupId,
+                                latitude: latitude,
+                                longitude: longitude
+                    );
 
-                similarGroups = JsonConvert.DeserializeObject<List<SimilarGroupDto>>(
-                    await SupabaseHelper.CallFunction(client, functionName, functionParams)
-                );
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+                    similarGroups = JsonConvert.DeserializeObject<List<SimilarGroupDto>>(
+                        await SupabaseHelper.CallFunction(client, functionName, functionParams)
+                    );
+                }
+                catch (Exception ex)
+                {
+                    throw ex;
+                }
 
-            return similarGroups;
-        }
+                return similarGroups;
+            }
 
         public async Task<Groups> CreateGroup(Supabase.Client client, CreateGroupForm form, Guid userId, Guid organizerId, Guid cityId)
         {

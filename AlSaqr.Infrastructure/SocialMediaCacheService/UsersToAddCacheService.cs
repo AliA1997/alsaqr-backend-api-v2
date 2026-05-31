@@ -1,9 +1,5 @@
-﻿using Microsoft.Extensions.Caching.Memory;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using AlSaqr.Domain.SocialMedia;
+using Microsoft.Extensions.Caching.Memory;
 using static AlSaqr.Domain.Utils.Common;
 
 namespace AlSaqr.Infrastructure.SocialMediaCache
@@ -16,19 +12,19 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
         {
             _cache.Remove($"{usersToAddKeyPrefix}{userId}");
         }
-        public void SetUsersToAdd(PaginatedResult<Dictionary<string, object>> usersToAddPaginatedResult, string userId)
+        public void SetUsersToAdd(PaginatedResult<UsersToAddDto> usersToAddPaginatedResult, string userId)
         {
             _cache.Set($"{usersToAddKeyPrefix}{userId}", usersToAddPaginatedResult, CommonCacheOptions);
         }
         public bool CheckIfInitialUsersToAddCanBeRetrieved(int currentPage, string userId)
         {
-            _cache.TryGetValue($"{usersToAddKeyPrefix}{userId}", out PaginatedResult<Dictionary<string, object>>? usersToAddPaginatedResult);
+            _cache.TryGetValue($"{usersToAddKeyPrefix}{userId}", out PaginatedResult<UsersToAddDto>? usersToAddPaginatedResult);
 
             return (usersToAddPaginatedResult != null && usersToAddPaginatedResult.Pagination.CurrentPage == currentPage);
         }
-        public PaginatedResult<Dictionary<string, object>>? GetInitialUsersToAdd(string userId)
+        public PaginatedResult<UsersToAddDto>? GetInitialUsersToAdd(string userId)
         {
-            _cache.TryGetValue($"{usersToAddKeyPrefix}{userId}", out PaginatedResult<Dictionary<string, object>>? usersToAddPaginatedResult);
+            _cache.TryGetValue($"{usersToAddKeyPrefix}{userId}", out PaginatedResult<UsersToAddDto>? usersToAddPaginatedResult);
 
             return usersToAddPaginatedResult;
         }

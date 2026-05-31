@@ -10,5 +10,6 @@ namespace  AlSaqr.Domain.Utils
             public string Audience { get; set; } 
             public int ExpiryMinutes { get; set; } 
         }
+
     }
 }

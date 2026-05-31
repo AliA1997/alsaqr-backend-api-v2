@@ -332,6 +332,47 @@ namespace AlSaqr.Data.Helpers
             }
         }
 
+        public static IDictionary<string, dynamic> DefineGetUsersToAddParams(
+            Guid currentUserId,
+            string? searchTerm,
+            int currentPage,
+            int itemsPerPage)
+        {
+            return new Dictionary<string, dynamic>
+            {
+                { "current_user_id", currentUserId },
+                { "search_term", searchTerm },
+                { "current_page", currentPage },
+                { "items_per_page", itemsPerPage }
+            };
+        }
+
+        public static IDictionary<string, dynamic> DefineGetPostsToAddParams(
+            Guid currentUserId,
+            string? searchTerm,
+            int currentPage,
+            int itemsPerPage)
+        {
+            return new Dictionary<string, dynamic>
+            {
+                { "current_user_id", currentUserId },
+                { "search_term", searchTerm },
+                { "current_page", currentPage },
+                { "items_per_page", itemsPerPage }
+            };
+        }
+
+        public static IDictionary<string, dynamic> DefineGetMessageParams(
+            Guid currentUserId,
+            string? searchTerm)
+        {
+            return new Dictionary<string, dynamic>
+            {
+                { "p_user_id", currentUserId },
+                { "p_search_term", searchTerm }
+            };
+        }
+
         public static async Task<string> CallFunction(
             Supabase.Client supabaseClient,
             string functionName,

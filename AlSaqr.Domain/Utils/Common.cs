@@ -4,7 +4,8 @@ namespace  AlSaqr.Domain.Utils
 {
     public static class Common
     {
-
+        public static string AssignStringValue(string? originalValue, string? value) =>
+            !string.IsNullOrEmpty(value) ? value : originalValue ?? string.Empty;
         public class Pagination
         {
             public int ItemsPerPage { get; set; }

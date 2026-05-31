@@ -235,35 +235,29 @@ namespace  AlSaqr.Domain.SocialMedia
 
         public class SessionUser
         {
-            public SessionUser(IDictionary<string, object> sessionData)
+            public SessionUser(dynamic sessionData)
             {
-                this.Id = sessionData.ContainsKey("id") ? Guid.Parse(sessionData["id"].ToString()) : Guid.Empty;
-                this.Username = sessionData.ContainsKey("username") ? sessionData["username"].ToString() : "";
-                this.CountryOfOrigin = sessionData.ContainsKey("countryOfOrigin") ? sessionData["countryOfOrigin"].ToString() : "";
-                this.FirstName = sessionData.ContainsKey("firstName") ? sessionData["firstName"].ToString() : "";
-                this.LastName = sessionData.ContainsKey("lastName") ? sessionData["lastName"].ToString() : "";
-                this.Bio = sessionData.ContainsKey("bio") ? sessionData["bio"].ToString() : "";
-                this.Email = sessionData.ContainsKey("email") ? sessionData["email"].ToString() : "";
-                this.Phone = sessionData.ContainsKey("phone") ? sessionData["phone"].ToString() : "";
-                this.BgThumbnail = sessionData.ContainsKey("bgThumbnail") ? sessionData["bgThumbnail"].ToString() : "";
-                this.Avatar = sessionData.ContainsKey("avatar") ? sessionData["avatar"].ToString() : "";
-
+                this.Id = sessionData.Id != null ? Guid.Parse(sessionData.Id.ToString()) : Guid.Empty;
+                this.Username = sessionData.Username != null ? sessionData.Username.ToString() : "";
+                this.CountryOfOrigin = sessionData.CountryOfOrigin != null ? sessionData.CountryOfOrigin.ToString() : "";
+                this.FirstName = sessionData.FirstName != null ? sessionData.FirstName.ToString() : "";
+                this.LastName = sessionData.LastName != null ? sessionData.LastName.ToString() : "";
+                this.Bio = sessionData.Bio != null ? sessionData.Bio.ToString() : "";
+                this.Email = sessionData.Email != null ? sessionData.Email.ToString() : "";
+                this.Phone = sessionData.Phone != null ? sessionData.Phone.ToString() : "";
+                this.BgThumbnail = sessionData.BgThumbnail != null ? sessionData.BgThumbnail.ToString() : "";
+                this.Avatar = sessionData.Avatar != null ? sessionData.Avatar.ToString() : "";
                 // For properties that require casting, TryGetValue might be safer
-                this.DateOfBirth = sessionData.TryGetValue("dateOfBirth", out dynamic dob) ? dob : null;
-                this.GeoId = sessionData.ContainsKey("geoId") ? sessionData["geoId"].ToString() : "";
-                this.MaritalStatus = sessionData.ContainsKey("maritalStatus") ? sessionData["maritalStatus"].ToString() : "";
-                this.Religion = sessionData.ContainsKey("religion") ? sessionData["religion"].ToString() : "";
-                this.PreferredMadhab = sessionData.ContainsKey("preferredMadhab") ? sessionData["preferredMadhab"].ToString() : "";
-
-                this.Hobbies = sessionData.TryGetValue("hobbies", out dynamic hobbies) ? hobbies : new string[] { };
-                this.FrequentMasjid = sessionData.ContainsKey("frequentMasjid") ? sessionData["frequentMasjid"].ToString() : "";
-                this.FavoriteQuranReciters = sessionData.TryGetValue("favoriteQuranReciters", out dynamic reciters) ? reciters : new string[] { };
-                this.FavoriteIslamicScholars = sessionData.TryGetValue("favoriteIslamicScholars", out dynamic scholars) ? scholars : new string[] { };
-                this.IslamicStudyTopics = sessionData.TryGetValue("islamicStudyTopics", out dynamic topics) ? topics : new string[] { };
-
-                this.Verified = sessionData.TryGetValue("verified", out object verified) ? (bool)verified : false;
-                this.IsCompleted = sessionData.TryGetValue("isCompleted", out object completed) ? (bool)completed : false;
-                this.CreatedAt = sessionData.TryGetValue("createdAt", out dynamic createdAt) ? createdAt : null;
+                this.DateOfBirth = sessionData.DateOfBirth != null ? (dynamic)sessionData.DateOfBirth : null;
+                this.GeoId = sessionData.GeoId != null ? sessionData.GeoId.ToString() : "";
+                this.MaritalStatus = sessionData.MaritalStatus != null ? sessionData.MaritalStatus.ToString() : "";
+                this.Religion = sessionData.Religion != null ? sessionData.Religion.ToString() : "";
+                this.PreferredMadhab = sessionData.PreferredMadhab != null ? sessionData.PreferredMadhab.ToString() : "";
+                this.Hobbies = sessionData.Hobbies != null ? (dynamic)sessionData.Hobbies : new string[] { };
+                this.FrequentMasjid = sessionData.FrequentMasjid != null ? sessionData.FrequentMasjid.ToString() : "";
+                this.FavoriteQuranReciters = sessionData.FavoriteQuranReciters != null ? (dynamic)sessionData.FavoriteQuranReciters : new string[] { };
+                this.FavoriteIslamicScholars = sessionData.FavoriteIslamicScholars != null ? (dynamic)sessionData.FavoriteIslamicScholars : new string[] { };
+                this.IslamicStudyTopics = sessionData.IslamicStudyTopics != null ? (dynamic)sessionData.IslamicStudyTopics : new string[] { };
             }
             public Guid? Id { get; set; }
             public dynamic? CreatedAt { get; set; }
@@ -289,9 +283,9 @@ namespace  AlSaqr.Domain.SocialMedia
             public dynamic? IslamicStudyTopics { get; set; }
             public bool? Verified { get; set; }
             public bool? IsCompleted { get; set; }
-            public string[] Bookmarks { get; set; }
-            public string[] Reposts { get; set; }
-            public string[] LikedPosts { get; set; }
+            public Guid[] Bookmarks { get; set; }
+            public Guid[] Reposts { get; set; }
+            public Guid[] LikedPosts { get; set; }
         }
     }
      

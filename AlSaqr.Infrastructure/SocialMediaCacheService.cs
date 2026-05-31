@@ -2,15 +2,16 @@
 using Microsoft.Extensions.Caching.Memory;
 using static AlSaqr.Domain.Utils.Common;
 using static AlSaqr.Domain.SocialMedia.Session;
+using AlSaqr.Domain.SocialMedia;
 
 namespace AlSaqr.Infrastructure.SocialMediaCache
 {
     public interface ISocialMediaCacheService
     {
         void ClearUsersToAdd(string userId);
-        void SetUsersToAdd(PaginatedResult<Dictionary<string, object>> pagination, string userId);
+        void SetUsersToAdd(PaginatedResult<UsersToAddDto> pagination, string userId);
         bool CheckIfInitialUsersToAddCanBeRetrieved(int currentPage, string userId);
-        PaginatedResult<Dictionary<string, object>>? GetInitialUsersToAdd(string userId);
+        PaginatedResult<UsersToAddDto>? GetInitialUsersToAdd(string userId);
 
         void ClearInitialCommunities(string userId);
         void SetInitialCommunities(PaginatedResult<Dictionary<string, object>> pagination, string userId);

@@ -1,0 +1,36 @@
+﻿using Supabase.Postgrest.Attributes;
+using Supabase.Postgrest.Models;
+
+namespace AlSaqr.Data.Entities.SocialMedia
+{
+    [Table("lists")]
+    public class List : BaseModel
+    {
+        [PrimaryKey("id")]
+        public Guid Id { get; set; } = Guid.NewGuid();
+        [Column("user_id")]
+        public Guid UserId { get; set; }
+        [Column("name")]
+        public string Name { get; set; }
+
+        [Column("description")]
+        public string? Description { get; set; }
+        [Column("avatar")]
+        public string? Avatar { get; set; }
+        [Column("banner_image")]
+        public string? BannerImage { get; set; }
+        [Column("tags")]
+        public string[]? Tags { get; set; }
+        [Column("created_at")]
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        [Column("updated_at")]
+        public DateTime? UpdatedAt { get; set; }
+        [Column("deleted_at")]
+        public DateTime? DeletedAt { get; set; }
+
+        // Navigation properties
+        public AlSaqrUser? User { get; set; }
+        public ICollection<ListItem> ListItems { get; set; } = new List<ListItem>();
+        public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+    }
+}

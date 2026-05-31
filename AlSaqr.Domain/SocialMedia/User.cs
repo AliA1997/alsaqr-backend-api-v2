@@ -37,9 +37,18 @@ namespace  AlSaqr.Domain.SocialMedia
             public Common.User User { get; set; }
             
         }
+        public class CreateInitialUserDto: UpdateUserDto
+        {
+            public DateTime CreatedAt { get; set; }
+            public string Email { get; set; }
+            public string? Phone { get; set; }
+            public object Avatar { get; set; }
+            public DateTime? DateOfBirth { get; set; }
+            
+        }
         public class UpdateUserDto
         {
-            public string Id { get; set; }
+            public Guid Id { get; set; }
             public string? FirstName { get; set; }
             public string? LastName { get; set; }
             public string? Avatar { get; set; }
@@ -60,23 +69,24 @@ namespace  AlSaqr.Domain.SocialMedia
 
         public class FollowUserFormDto
         {
-            public string UserToFollowId { get; set; }
+            public Guid UserToFollowId { get; set; }
         }
 
         public class UnFollowUserFormDto
         {
-            public string UserToUnFollowId { get; set; }
+            public Guid UserToUnFollowId { get; set; }
         }
 
         public class UserRegisterFormDto
         {
             public string[] FollowingUsers { get; set; }
             public string? Bio { get; set; }
+            public string? Username { get; set; }
             public string? Avatar { get; set; }
             public string? BgThumbnail { get; set; }
             public string FirstName { get; set; }
             public string LastName { get; set; }
-            public DateTime DateOfBirth { get; set; }
+            public DateTime? DateOfBirth { get; set; }
             public string? MaritalStatus { get; set; }
             public string[]? Hobbies { get; set; }
             public string? Religion { get; set; }
@@ -104,5 +114,51 @@ namespace  AlSaqr.Domain.SocialMedia
             public bool Success { get; set; }
 
         }
+        public sealed class UserSummaryDto
+        {
+            [JsonPropertyName("user_id")]
+            public Guid UserId { get; set; }
+
+            [JsonPropertyName("username")]
+            public string Username { get; set; } = string.Empty;
+
+            [JsonPropertyName("avatar")]
+            public string? Avatar { get; set; }
+        }
+    }
+    public class UsersToAddDto
+    {
+        [JsonProperty("id")] 
+        public Guid Id { get; set; }
+        [JsonProperty("username")] 
+        public string Username { get; set; }
+        [JsonProperty("avatar")] 
+        public string? Avatar { get; set; }
+        [JsonProperty("bio")] 
+        public string? Bio { get; set; }
+        [JsonProperty("first_name")] 
+        public string? FirstName { get; set; }
+        [JsonProperty("last_name")] 
+        public string? LastName { get; set; }
+        [JsonProperty("banner_image")] 
+        public string? BannerImage { get; set; }
+        [JsonProperty("country_of_origin")] 
+        public string? CountryOfOrigin { get; set; }
+        [JsonProperty("preferred_madhab")] 
+        public string? PreferredMadhab { get; set; }
+        [JsonProperty("hobbies")] 
+        public List<string> Hobbies { get; set; } = new();
+        [JsonProperty("favorite_quran_reciters")] 
+        public List<string> FavoriteQuranReciters { get; set; } = new();
+        [JsonProperty("favorite_islamic_scholars")] 
+        public List<string> FavoriteIslamicScholars { get; set; } = new();
+        [JsonProperty("islamic_study_topics")] 
+        public List<string> IslamicStudyTopics { get; set; } = new();
+        [JsonProperty("follower_count")] 
+        public long FollowerCount { get; set; }
+        [JsonProperty("following_count")] 
+        public long FollowingCount { get; set; }
+        [JsonProperty("total_items")] 
+        public int TotalItems { get; set; }
     }
 }

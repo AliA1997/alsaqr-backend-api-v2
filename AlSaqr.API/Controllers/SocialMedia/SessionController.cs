@@ -1,15 +1,24 @@
-﻿using AlSaqr.Data.Helpers;
+﻿using AlSaqr.Data.Entities;
+using AlSaqr.Data.Entities.Meetup;
+using AlSaqr.Data.Entities.SocialMedia;
+using AlSaqr.Data.Entities.SocialMedia.Views;
+using AlSaqr.Data.Helpers;
+using AlSaqr.Data.Repositories.SocialMedia;
+using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Domain.Common;
+using AlSaqr.Domain.Meetup;
 using AlSaqr.Domain.Utils;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNet.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Neo4j.Driver;
 using Newtonsoft.Json;
+using Supabase.Postgrest.Interfaces;
 using System.Collections.Generic;
 using System.Data.Entity.Core.Metadata.Edm;
 using System.Runtime.ConstrainedExecution;
 using static AlSaqr.Domain.SocialMedia.Session;
+using static AlSaqr.Domain.SocialMedia.User;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace AlSaqr.API.Controllers.SocialMedia
@@ -20,18 +29,21 @@ namespace AlSaqr.API.Controllers.SocialMedia
     {
 
         private readonly ILogger<SessionController> _logger;
-        private readonly IDriver _driver;
+        private readonly IUserRepository _userRepository;
+        private readonly Supabase.Client _supabase;
         private readonly IConfiguration _configuration;
         private readonly IUserCacheService _userCacheService;
 
         public SessionController(
-            ILogger<SessionController> logger, 
-            IDriver driver, 
+            ILogger<SessionController> logger,  
+            IUserRepository userRepository,
+            Supabase.Client supabase,
             IConfiguration configuration,
             IUserCacheService userCacheService)
         {
             _logger = logger;
-            _driver = driver;
+            _userRepository = userRepository;
+            _supabase = supabase;
             _configuration = configuration;
             _userCacheService = userCacheService;
         }
@@ -44,94 +56,56 @@ namespace AlSaqr.API.Controllers.SocialMedia
         public async Task<IActionResult> SignInWithSupabase([FromBody] Common.AlSaqrUpsertRequest<OAuthUserProfile> request)
         {
             var data = request.Values;
+            
             // Input validation
             if (string.IsNullOrEmpty(data.Email))
             {
                 return BadRequest("Enail is required");
             }
-            var checkUserQuery = "MATCH(user: User { email: $email}) return user";
-
-            await using var session = _driver.AsyncSession();
 
             try
             {
-                var userResult = await Neo4jHelpers.ReadAsync(
-                    session,
-                    checkUserQuery,
-                    new Dictionary<string, object>
-                    {
-                        { "email", data.Email }
-                    },
-                    new[] { "user" }
-                );
 
+
+                var selectUserResult = _supabase.From<AlSaqrUser>()
+                                            .Filter("email", Supabase.Postgrest.Constants.Operator.Equals, data.Email)
+                                            .Limit(1);
+
+                var existingUser = (await selectUserResult.Get()).Models.FirstOrDefault();
             
-                var user = userResult?.FirstOrDefault();
-
-                if (user == null && !string.IsNullOrEmpty(data.Email))
+                if (existingUser == null && !string.IsNullOrEmpty(data.Email))
                 {
-                    string mutateCipher = @"
-                      CREATE (u:User {
-                        id: $id,
-                        createdAt: $createdAt,
-                        updatedAt: $updatedAt,
-                        username: $username,
-                        countryOfOrigin: $countryOfOrigin,
-                        email: $email,
-                        firstName: $firstName,
-                        lastName: $lastName,
-                        phone: $phone,
-                        bio: $bio,
-                        bgThumbnail: $bgThumbnail,
-                        avatar: $avatar,
-                        dateOfBirth: $dateOfBirth,
-                        geoId: $geoId,
-                        maritalStatus: $maritalStatus,
-                        religion: $religion,
-                        preferredMadhab: $preferredMadhab,
-                        hobbies: $hobbies,
-                        frequentMasjid: $frequentMasjid,
-                        favoriteQuranReciters: $favoriteQuranReciters,
-                        favoriteIslamicScholars: $favoriteIslamicScholars,
-                        islamicStudyTopics: $islamicStudyTopics,
-                        verified: false,
-                        isCompleted: false
-                      })
-                    ";
+
                     var isDiscordAccount = !string.IsNullOrEmpty(data.ImageUrl) ? data.ImageUrl.Contains("discord") : false;
 
-                    await Neo4jHelpers.WriteAsync(
-                        session,
-                        mutateCipher,
-                        new Dictionary<string, object>
-                        {
-                            { "id", Guid.NewGuid() },
-                            { "createdAt", new DateTime().ToString() },
-                            { "updatedAt", null },
-                            { "username", isDiscordAccount ? data.GlobalName : GetEmailUsername(data.Email ?? "") },
-                            { "email", data.Email },
-                            { "firstName", string.IsNullOrEmpty(data?.FirstName) ? data.Name : data?.FirstName ?? "" },
-                            { "lastName", string.IsNullOrEmpty(data?.LastName) ? data.Name : data?.LastName ?? "" },
-                            { "bio", "" },
-                            { "countryOfOrigin", "United States" },
-                            { "phone", null },
-                            { "avatar", data.Picture != null ? data?.Picture : data?.ImageUrl },
-                            { "bgThumbnail", GetRandomCityImage() },
-                            { "dateOfBirth", null },
-                            { "geoId", null },
-                            { "maritalStatus", "Single" },
-                            { "preferredMadhab", "Hanafi" },
-                            { "religion", "Muslim" },
-                            { "hobbies", new List<object>() },
-                            { "frequentMasjid", "" },
-                            { "favoriteQuranReciters", new List<object>() },
-                            { "favoriteIslamicScholars", new List<object>() },
-                            { "islamicStudyTopics", new List<object>() }
-                        }
-                    );
-                    
+                    var newUser = new CreateInitialUserDto()
+                    {
+                        Id = Guid.NewGuid(),
+                        FirstName = data.FirstName,
+                        LastName = data.LastName,
+                        Username = isDiscordAccount ? data.GlobalName : GetEmailUsername(data.Email ?? ""),
+                        Email = data.Email!,
+                        CreatedAt = DateTime.UtcNow,
+                        Bio = "",
+                        CountryOfOrigin = "United States",
+                        Phone = null,
+                        Avatar = data.Picture != null ? data.Picture : data?.ImageUrl,
+                        BgThumbnail = GetRandomCityImage(),
+                        DateOfBirth = null,
+                        Religion = "Muslim",
+                        Hobbies = new string[] { },
+                        FrequentMasjid = "",
+                        FavoriteQuranReciters = new string[] { },
+                        FavoriteIslamicScholars = new string[] { },
+                        IslamicStudyTopics = new string[] { },
+                        MaritalStatus = "Single",
+                        PreferredMadhab = "Hanafi"
+                    };
+
+                    await _userRepository.CreateInitialUser(_supabase, newUser);
                 }
 
+                
                 _logger.LogInformation("User signed in successfully!");
                 return Ok(new { success = true });
             }
@@ -139,10 +113,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
             {
                 _logger.LogError(err, "Fetch Post error!");
                 return StatusCode(500, new { message = "Fetch Post error!", success = false });
-            }
-            finally
-            {
-                await session.CloseAsync();
             }
         }
 
@@ -160,62 +130,37 @@ namespace AlSaqr.API.Controllers.SocialMedia
             {
                 return BadRequest("Enail is required");
             }
-            var sessionQuery = @"
-                MATCH (user:User {email: $email})
-                OPTIONAL MATCH (user)-[:BOOKMARKED]->(bookmark:Post)
-                OPTIONAL MATCH (user)-[:REPOSTED]->(repost:Post)
-                OPTIONAL MATCH (user)-[:LIKES]->(likedPost:Post)
-                OPTIONAL MATCH (user)-[:COMMENTED]->(repliedPost: Post)
-                RETURN user,
-                    COLLECT(bookmark) AS bookmarks,
-                    COLLECT(repost) AS reposts,
-                    COLLECT(likedPost) AS likedPosts,
-                    COLLECT(repliedPost) as repliedPosts
-            ";
 
-            await using var session = _driver.AsyncSession();
 
             try
             {
-                var userResult = await Neo4jHelpers.ReadUserData(
-                    session,
-                    sessionQuery,
-                    new Dictionary<string, object>
-                    {
-                        { "email", data.Email }
-                    },
-                    new[] { "user", "bookmarks", "reposts", "likedPosts" }
-                );
+                var userProfileResult = await _supabase.From<VwUserProfileInfo>()
+                                            .Filter("email", Supabase.Postgrest.Constants.Operator.Equals, data.Email)
+                                            .Limit(1)
+                                            .Get(); 
+                var userProfilePosts = await _supabase.From<VwUserProfilePosts>()
+                                            .Filter("email", Supabase.Postgrest.Constants.Operator.Equals, data.Email)
+                                            .Get();
 
+                VwUserProfileInfo? userRes = userProfileResult?.Models.FirstOrDefault();
+                List<VwUserProfilePosts>? userPostsRes = userProfilePosts.Models;
 
-                var userRes = userResult?.FirstOrDefault();
-
-                if (userRes == null || userRes.User == null)
+                if (userRes == null)
                     return BadRequest($"User not found for {data.Email}");
 
                 _logger.LogInformation("User signed in successfully!");
-                var user = userRes;
-                var bookmarkIds = user.Bookmarks != null
-                                    ? user.Bookmarks.Select(x => x["id"].ToString() ?? "").ToList()
-                                    : new List<string>();
-
-                var repostsIds = user.Reposts != null
-                    ? user.Reposts.Select(x => x["id"].ToString() ?? "").ToList()
-                    : new List<string>();
-                var likedPostsIds = user.LikedPosts != null
-                    ? user.LikedPosts.Select(x => x["id"].ToString() ?? "").ToList()
-                    : new List<string>();
 
 
-                var sessionUser = new SessionUser(user.User!)
+                var sessionUser = new SessionUser(userRes)
                 {
-                    Bookmarks = bookmarkIds.ToArray(),
-                    Reposts = repostsIds.ToArray(),
-                    LikedPosts = likedPostsIds.ToArray()
-                };
-                var userId = user.User["id"].ToString();
 
-                if (string.IsNullOrEmpty(userId))
+                    Bookmarks = userRes.BookmarkIds.ToArray(),
+                    Reposts = userPostsRes.Where(u => u.PostRelationType == "repost").Select(u => u.PostId).ToArray(),
+                    LikedPosts = userPostsRes.Where(u => u.PostRelationType == "liked").Select(u => u.PostId).ToArray()
+                };
+                var userId = sessionUser.Id;
+
+                if (sessionUser.Id == Guid.Empty || sessionUser.Id == null)
                     return BadRequest("Invalid user retrieved");
 
                 _userCacheService.SetLoggedInUser(sessionUser);
@@ -226,10 +171,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
             {
                 _logger.LogError(err, "Fetch User Session error!");
                 return StatusCode(500, new { message = "Fetch User Session error!", success = false });
-            }
-            finally
-            {
-                await session.CloseAsync();
             }
         }
 

@@ -3,18 +3,17 @@ using AlSaqr.API.Extensions;
 using AlSaqr.Data;
 using AlSaqr.Data.Repositories.Meetup;
 using AlSaqr.Data.Repositories.Meetup.Impl;
+using AlSaqr.Data.Repositories.SocialMedia;
+using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Data.Repositories.Zook;
 using AlSaqr.Data.Repositories.Zook.Impl;
-using AlSaqr.Domain.Common;
 using AlSaqr.Infrastructure;
 using AlSaqr.Infrastructure.SocialMediaCache;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Neo4j.Driver;
 using NewsAPI;
 using System.Text;
-using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHttpClient();
@@ -50,6 +49,11 @@ builder.Services.AddScoped<ILocalGuidesRepository, LocalGuidesRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<ITopicRepository, TopicRepository>();
 
+
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IPostRepository, PostRepository>();
+builder.Services.AddScoped<IUserFollowRepository, UserFollowRepository>();
+builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 
 builder.Services.AddHostedService<SupabaseInitializer>();
 

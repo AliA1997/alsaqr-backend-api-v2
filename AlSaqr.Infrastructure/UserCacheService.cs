@@ -1,6 +1,8 @@
-﻿using AlSaqr.Domain.Zook;
+﻿using AlSaqr.Domain.SocialMedia;
+using AlSaqr.Domain.Zook;
 using Microsoft.Extensions.Caching.Memory;
 using static AlSaqr.Domain.SocialMedia.Session;
+using static AlSaqr.Domain.Utils.Common;
 
 namespace AlSaqr.Infrastructure
 {
@@ -11,6 +13,10 @@ namespace AlSaqr.Infrastructure
         void SetProductCategory(Guid productCategoryId, ProductCategoryDto productCategory);
         ProductCategoryDto? GetProductCategory(Guid productCategoryId);
         void RemoveLoggedInUser(string userId);
+
+        void SetUserBookmarks(Guid userId, PaginatedResult<PostDto> bookmarks);
+
+        PaginatedResult<PostDto>? GetUserBookmarks(Guid userId);
     }
 
     public sealed class UserCacheService : IUserCacheService
@@ -67,6 +73,19 @@ namespace AlSaqr.Infrastructure
         {
             if (!string.IsNullOrWhiteSpace(userId))
                 _cache.Remove(userId);
+        }
+        
+        public void SetUserBookmarks(Guid userId, PaginatedResult<PostDto> bookmarks)
+        {
+            if (bookmarks == null)
+                return;
+            _cache.Set($"bookmarks-{userId.ToString()}", bookmarks, CacheOptions);
+        }
+
+        public PaginatedResult<PostDto>? GetUserBookmarks(Guid userId)
+        {
+            _cache.TryGetValue($"bookmarks-{userId.ToString()}", out PaginatedResult<PostDto>? bookmarks);
+            return bookmarks;
         }
     }
 }
