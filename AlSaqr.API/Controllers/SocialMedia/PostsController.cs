@@ -2,7 +2,6 @@ using AlSaqr.Data.Helpers;
 using AlSaqr.Infrastructure;
 using AlSaqr.Infrastructure.SocialMediaCache;
 using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
 using static AlSaqr.Domain.Utils.Common;
 using AlSaqr.Domain.SocialMedia;
 using AlSaqr.Data.Repositories.SocialMedia.Impl;
@@ -15,7 +14,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
     {
 
         private readonly ILogger<PostsController> _logger;
-        private readonly IDriver _driver;
         private readonly Supabase.Client _supabase;
         private readonly IPostRepository _postRepository;
         private readonly ICommentRepository _commentRepository;
@@ -25,7 +23,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
         public PostsController(
             ILogger<PostsController> logger, 
-            IDriver driver, 
             Supabase.Client supabase,
             IPostRepository postRepository,
             ICommentRepository commentRepository,
@@ -34,7 +31,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
             ISocialMediaCacheService socialMediaCacheService)
         {
             _logger = logger;
-            _driver = driver;
             _supabase = supabase;
             _postRepository = postRepository;
             _commentRepository= commentRepository;
@@ -50,9 +46,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
             [FromQuery] string? searchTerm = null
         )
         {
-            await using var session = _driver.AsyncSession();
-            var posts = new List<Dictionary<string, object>>();
-            Pagination? pagination = null;
 
             if(_socialMediaCacheService.CheckIfInitialPostsCanBeRetrieved(currentPage))
                 return Ok(_socialMediaCacheService.GetInitialPosts());
@@ -232,44 +225,19 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="postId"></param>
         /// <returns></returns>
         [HttpDelete("{postId}")]
-        public async Task<IActionResult> DeletePost(string postId)
+        public async Task<IActionResult> DeletePost(Guid postId)
         {
             // Input validation
-            if (string.IsNullOrEmpty(postId))
+            if (postId == Guid.Empty)
             {
                 return BadRequest("Post ID is required");
             }
             var user = _userCacheService.GetLoggedInUser();
-            if (user == null)
+            if (user == null || user.Id == Guid.Empty)
                 return Unauthorized("Must be logged in to delete a post.");
 
-            var userId = user.Id;
-
-            await using var session = _driver.AsyncSession();
-
-            try
-            {
-
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                          MATCH (pst: Post { id: $postId })
-                          WHERE pst.userId = $userId
-                          DETACH DELETE pst;
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                        { "userId", userId },
-                        { "postId", postId }
-                    }
-                );
-                return Ok(new { success = true });
-            }
-            catch (Exception err)
-            {
-                _logger.LogError(err, "Delete post error!");
-                return StatusCode(500, new { message = "Delete post error!", success = false });
-            }
+            await _postRepository.DeletePost(_supabase, (Guid)user.Id, postId);
+           return Ok(new { success = true });
         }
 
     }

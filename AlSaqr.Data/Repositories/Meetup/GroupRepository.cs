@@ -2,17 +2,9 @@
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
-using Neo4j.Driver;
 using Newtonsoft.Json;
 using Supabase.Postgrest;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using static AlSaqr.Domain.Utils.Common;
-using static Supabase.Postgrest.Constants;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace AlSaqr.Data.Repositories.Meetup
 {

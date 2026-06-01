@@ -2,7 +2,6 @@ using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Domain.SocialMedia;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
 using static AlSaqr.Domain.Utils.Common;
 
 namespace AlSaqr.API.Controllers.SocialMedia

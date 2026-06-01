@@ -1,7 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
-using static AlSaqr.Domain.SocialMedia.User;
-using AlSaqr.Data.Helpers;
+using AlSaqr.Data.Repositories.SocialMedia.Impl;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {
@@ -11,13 +9,18 @@ namespace AlSaqr.API.Controllers.SocialMedia
     {
 
         private readonly ILogger<ProfileController> _logger;
-        private readonly IDriver _driver;
+        private readonly Supabase.Client _supabase;
+        private readonly IProfileRepository _profileRepository;
 
 
-        public ProfileController(ILogger<ProfileController> logger, IDriver driver)
+        public ProfileController(
+            ILogger<ProfileController> logger, 
+            Supabase.Client supabase,
+            IProfileRepository profileRepository)
         {
             _logger = logger;
-            _driver = driver;
+            _supabase = supabase;
+            _profileRepository = profileRepository;
         }
 
         /// <summary>
@@ -36,52 +39,15 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return BadRequest("Username is required");
             }
 
-            await using var session = _driver.AsyncSession();
 
-            try
+            var userProfileInfo = await _profileRepository.GetProfileInfo(_supabase, username);
+
+            if (userProfileInfo == null)
             {
-                string selectQuery = @"
-                    MATCH (user:User {username: $username})
-                    OPTIONAL MATCH (user)-[:BOOKMARKED]->(bookmark:Post)
-                    OPTIONAL MATCH (user)-[:FOLLOW_USER]->(followedUser:User)
-                    OPTIONAL MATCH (follower:User)-[fr:FOLLOW_USER]->(user)
-                    RETURN user,
-                      COLLECT(DISTINCT bookmark.id) AS bookmarks,
-                      COLLECT(DISTINCT followedUser) AS following,
-                      COLLECT(DISTINCT follower) AS followers
-                ";
-
-
-                var selectResult = await Neo4jHelpers.ReadAsync(
-                    session,
-                    selectQuery,
-                    new Dictionary<string, object>()
-                    {
-                        { "username", username }
-                    },
-                    new[] {
-                        "user", "bookmarks", "following", "followers"
-                    }
-                );
-
-                var userProfileInfo = selectResult?.FirstOrDefault();
-
-                if (userProfileInfo == null)
-                {
-                    return NotFound(new { message = $"User Profile with a username of {username}", success = false });
-                }
-
-                return Ok(userProfileInfo);
+                return NotFound(new { message = $"User Profile with a username of {username}", success = false });
             }
-            catch (Exception err)
-            {
-                _logger.LogError(err, "Fetch User Profile error!");
-                return StatusCode(500, new { message = "Fetch User Profile error!", success = false });
-            }
-            finally
-            {
-                await session.CloseAsync();
-            }
+
+            return Ok(userProfileInfo);
         }
 
 
@@ -95,7 +61,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
         public async Task<IActionResult> GetProfilePosts(
             string username,
             [FromQuery] int currentPage = 1,
-            [FromQuery] int itemsPerPage = 50)
+            [FromQuery] int itemsPerPage = 25)
         {
             // Input validation
             if (string.IsNullOrEmpty(username))
@@ -103,125 +69,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return BadRequest("Username is required");
             }
 
-            await using var session = _driver.AsyncSession();
+            var result = await _profileRepository.GetProfilePosts(_supabase, username, currentPage, itemsPerPage);
 
-            try
-            {
-                string selectQuery = @"
-                    // User Tweets
-                    MATCH (u:User {username: $username})
-                    MATCH (post:Post {userId: u.id})
-                    OPTIONAL MATCH (post)-[:COMMENT_ON]->(c:Comment)<-[:COMMENTED]-(u:User)
-                    OPTIONAL MATCH (post)-[:RETWEETS]->(reposter:User)
-                    OPTIONAL MATCH (post)-[:LIKED]->(liker:User)
-                    WITH post, u.username as username, u.avatar as profileImg, COLLECT(DISTINCT c) AS comments, COLLECT(DISTINCT u) AS commenters, COLLECT(DISTINCT reposter) AS reposters, COLLECT(DISTINCT liker) AS likers, ""user"" as type
-                    ORDER BY post.createdAt DESCENDING
-                    RETURN post, username, profileImg, comments, commenters, reposters, likers, type
-                    SKIP $skip
-                    LIMIT $itemsPerPage
-
-                    UNION
-
-                    // Bookmarked Tweets
-                    MATCH (u:User {username: $username})
-                    MATCH (post:Post), (postUser: User { id: post.userId })
-                    WHERE (u)-[:BOOKMARKED]->(post)
-                    OPTIONAL MATCH (post)-[:COMMENT_ON]->(c:Comment)<-[:COMMENTED]-(u:User)
-                    OPTIONAL MATCH (post)-[:RETWEETS]->(reposter:User)
-                    OPTIONAL MATCH (post)-[:LIKED]->(liker:User)
-                    WITH post, postUser.username as username, postUser.avatar as profileImg, COLLECT(DISTINCT c) AS comments, COLLECT(DISTINCT u) AS commenters, COLLECT(DISTINCT reposter) AS reposters, COLLECT(DISTINCT liker) AS likers, ""bookmarked"" as type
-                    ORDER BY post.createdAt DESCENDING
-                    RETURN post, username, profileImg, comments, commenters, reposters, likers, type
-                    SKIP $skip
-                    LIMIT $itemsPerPage
-
-                    UNION
-
-                    // Liked Tweets
-                    MATCH (u:User {username: $username})
-                    MATCH (post:Post), (postUser: User { id: post.userId })
-                    WHERE (u)-[:LIKES]->(post)
-                    OPTIONAL MATCH (post)-[:COMMENT_ON]->(c:Comment)<-[:COMMENTED]-(u:User)
-                    OPTIONAL MATCH (post)-[:RETWEETS]->(reposter:User)
-                    OPTIONAL MATCH (post)-[:LIKED]->(liker:User)
-                    WITH post, postUser.username as username, postUser.avatar as profileImg, COLLECT(DISTINCT c) AS comments, COLLECT(DISTINCT u) AS commenters, COLLECT(DISTINCT reposter) AS reposters, COLLECT(DISTINCT liker) AS likers, ""liked"" as type
-                    ORDER BY post.createdAt DESCENDING
-                    RETURN post, username, profileImg, comments, commenters, reposters, likers, type
-                    SKIP $skip
-                    LIMIT $itemsPerPage
-
-                    UNION
-
-                    // Reposted Posts
-                    MATCH (u:User {username: $username})
-                    MATCH (post:Post), (postUser: User { id: post.userId })
-                    WHERE (u)-[:REPOSTED]->(post)
-                    OPTIONAL MATCH (post)-[:COMMENT_ON]->(c:Comment)<-[:COMMENTED]-(u:User)
-                    OPTIONAL MATCH (post)-[:RETWEETS]->(reposter:User)
-                    OPTIONAL MATCH (post)-[:LIKED]->(liker:User)
-                    WITH post, postUser.username as username, postUser.avatar as profileImg, COLLECT(DISTINCT c) AS comments, COLLECT(DISTINCT u) AS commenters, COLLECT(DISTINCT reposter) AS reposters, COLLECT(DISTINCT liker) AS likers, ""reposted"" as type
-                    ORDER BY post.createdAt DESCENDING
-                    RETURN post, username, profileImg, comments, commenters, reposters, likers, type
-                    SKIP $skip
-                    LIMIT $itemsPerPage
-
-                    UNION
-
-                    // Replied Tweets
-                    MATCH (u:User {username: $username})
-                    MATCH (post:Post), (comment:Comment), (postUser: User { id: post.userId })
-                    WHERE (u)-[:COMMENTED]->(comment)-[:COMMENT_ON]->(post)
-                    OPTIONAL MATCH (post)-[:COMMENT_ON]->(c:Comment)<-[:COMMENTED]-(u:User)
-                    OPTIONAL MATCH (post)-[:RETWEETS]->(reposter:User)
-                    OPTIONAL MATCH (post)-[:LIKED]->(liker:User)
-                    WITH post, postUser.username as username, postUser.avatar as profileImg, COLLECT(DISTINCT c) AS comments, COLLECT(DISTINCT u) AS commenters, COLLECT(DISTINCT reposter) AS reposters, COLLECT(DISTINCT liker) AS likers, ""replied"" as type
-                    ORDER BY post.createdAt DESCENDING
-                    RETURN post, username, profileImg, comments, commenters, reposters, likers, type
-                    SKIP $skip
-                    LIMIT $itemsPerPage
-                ";
-
-
-                var selectResult = await Neo4jHelpers.ReadAsync(
-                    session,
-                    selectQuery,
-                    new Dictionary<string, object>()
-                    {
-                        { "username", username },
-                        { "skip", (currentPage - 1) * itemsPerPage },
-                        { "itemsPerPage", itemsPerPage },
-
-                    },
-                    new[] {
-                        "post", "username", "profileImg", "comments", "commenters", "reposters", "likers", "type"
-                    }
-                );
-
-                var bookmarkedPosts = selectResult.Where(n => n["type"].ToString() == "bookmarked").ToList();
-                var likedPosts = selectResult.Where(n => n["type"].ToString() == "liked").ToList();
-                var repostedPosts = selectResult.Where(n => n["type"].ToString() == "reposted").ToList();
-                var userPosts = selectResult.Where(n => n["type"].ToString() == "user").ToList();
-                var repliedPosts = selectResult.Where(n => n["type"].ToString() == "replied").ToList();
-
-                return Ok(new UserProfilePostsResponse()
-                {
-                    UserPosts = userPosts,
-                    BookmarkedPosts = bookmarkedPosts,
-                    LikedPosts = likedPosts,
-                    RepostedPosts = repostedPosts,
-                    RepliedPosts = repliedPosts,
-                    Success = true
-                });
-            }
-            catch (Exception err)
-            {
-                _logger.LogError(err, "Fetch User Profile Posts error!");
-                return StatusCode(500, new { message = "Fetch User Profile Posts error!", success = false });
-            }
-            finally
-            {
-                await session.CloseAsync();
-            }
+            return Ok(result);
         }
     }
 }

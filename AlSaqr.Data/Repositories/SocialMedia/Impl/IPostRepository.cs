@@ -31,5 +31,10 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
             Supabase.Client supabase,
             Guid userId,
             Posts.CreatePostDto data);
+
+        Task<Guid> DeletePost(
+           Supabase.Client supabase,
+           Guid userId,
+           Guid postId);
     }
 }

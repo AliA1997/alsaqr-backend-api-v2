@@ -18,6 +18,8 @@ namespace AlSaqr.Data.Entities.SocialMedia
 
         [Column("content")]
         public string Content { get; set; }
+        [Column("image")]
+        public string Image { get; set; }
 
         [Column("read")]
         public bool Read { get; set; }
