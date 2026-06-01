@@ -174,6 +174,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
             [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request)
         {
             var data = request.Values;
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
 
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId)
                 || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
@@ -186,7 +188,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             try
             {
-                await _communityMemberRepository.JoinCommunity(_supabase, userGuid, communityGuid);
+                await _communityMemberRepository.JoinCommunity(_supabase, userGuid, communityGuid, ct);
                 return Ok(new { success = true, message = "Joined Successfully" });
             }
             catch (Exception err)
@@ -207,7 +209,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
             [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request)
         {
             var data = request.Values;
-
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId)
                 || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
             {
@@ -219,7 +222,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             try
             {
-                await _communityMemberRepository.UnJoinCommunity(_supabase, userGuid, communityGuid);
+                await _communityMemberRepository.UnJoinCommunity(_supabase, userGuid, communityGuid, ct);
                 return Ok(new { success = true, message = "Left community Successfully" });
             }
             catch (Exception err)
@@ -240,6 +243,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
             [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request)
         {
             var data = request.Values;
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
 
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId)
                 || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
@@ -252,7 +257,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             try
             {
-                await _communityMemberRepository.RequestJoinCommunity(_supabase, userGuid, communityGuid);
+                await _communityMemberRepository.RequestJoinCommunity(_supabase, userGuid, communityGuid, ct);
                 return Ok(new { success = true, message = "Request to join community successfully." });
             }
             catch (Exception err)
@@ -273,6 +278,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
             [FromBody] AlSaqrUpsertRequest<AcceptOrDenyCommunityInviteConfirmationDto> request)
         {
             var data = request.Values;
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
 
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId))
                 return BadRequest("Missing required fields.");
@@ -286,7 +293,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
                     _supabase,
                     userGuid,
                     communityGuid,
-                    accept: data.Accept == true
+                    accept: data.Accept == true,
+                    ct
                 );
 
                 return Ok(new { success = true });

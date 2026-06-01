@@ -104,45 +104,57 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             SaveItemToListDto data,
             CancellationToken ct)
         {
-            // Verify list ownership before mutating anything.
-            var list = await supabase
-                .From<Entities.SocialMedia.List>()
-                .Where(l => l.Id == listId && l.UserId == userId)
-                .Single(ct);
-
-            if (list == null)
-                throw new Exception("List not found");
-
-            if (!Guid.TryParse(data.RelatedEntityId, out var relatedEntityGuid))
-                throw new ArgumentException("RelatedEntityId must be a valid GUID");
-
-            switch (data.Type)
+            try
             {
-                case POST_ITEM_TYPE:
-                    await AddPostsToList(supabase, listId, new List<Guid> { relatedEntityGuid }, ct);
-                    break;
+                // Verify list ownership before mutating anything.
+                var list = await supabase
+                    .From<Entities.SocialMedia.List>()
+                    .Where(l => l.Id == listId && l.UserId == userId)
+                    .Single(ct);
 
-                case USER_ITEM_TYPE:
-                    await AddUsersToList(supabase, listId, new List<Guid> { relatedEntityGuid }, ct);
-                    break;
+                if (list == null)
+                    throw new Exception("List not found");
 
-                case COMMUNITY_ITEM_TYPE:
-                    await AddCommunityToList(supabase, listId, relatedEntityGuid, ct);
-                    break;
+                if (data.RelatedEntityId == Guid.Empty)
+                    throw new ArgumentException("RelatedEntityId must be a valid GUID");
 
-                case COMMUNITY_DISCUSSION_ITEM_TYPE:
-                    await AddCommunityDiscussionToList(supabase, listId, relatedEntityGuid, ct);
-                    break;
+                switch (data.Type)
+                {
+                    case POST_ITEM_TYPE:
+                        await AddPostsToList(supabase, listId, new List<Guid> { data.RelatedEntityId }, ct);
+                        break;
 
-                case COMMUNITY_DISCUSSION_MESSAGE_ITEM_TYPE:
-                    await AddCommunityDiscussionMessageToList(supabase, listId, relatedEntityGuid, ct);
-                    break;
+                    case USER_ITEM_TYPE:
+                        await AddUsersToList(supabase, listId, new List<Guid> { data.RelatedEntityId }, ct);
+                        break;
 
-                default:
-                    throw new ArgumentException($"Unsupported list item type: {data.Type}");
+                    case COMMUNITY_ITEM_TYPE:
+                        await AddCommunityToList(supabase, listId, data.RelatedEntityId, ct);
+                        break;
+
+                    case COMMUNITY_DISCUSSION_ITEM_TYPE:
+                        await AddCommunityDiscussionToList(supabase, listId, data.RelatedEntityId, ct);
+                        break;
+
+                    case COMMUNITY_DISCUSSION_MESSAGE_ITEM_TYPE:
+                        await AddCommunityDiscussionMessageToList(supabase, listId, data.RelatedEntityId, ct);
+                        break;
+
+                    default:
+                        throw new ArgumentException($"Unsupported list item type: {data.Type}");
+                }
+
+                return listId;
+            }
+            catch(SavedItemToListException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new SavedItemToListException(listId, data.RelatedEntityId, ex);
             }
 
-            return listId;
         }
 
 

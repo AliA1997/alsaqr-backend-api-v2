@@ -166,7 +166,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
             if (string.IsNullOrEmpty(data.Type))
                 return BadRequest("Item type is required");
 
-            if (string.IsNullOrEmpty(data.RelatedEntityId))
+            if (data.RelatedEntityId == Guid.Empty)
                 return BadRequest("Related entity ID is required");
 
             using var cts = new CancellationTokenSource();
@@ -176,10 +176,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 await _listItemRepository.SaveItemToList(_supabase, userGuid, listGuid, data, cts.Token);
 
                 return Ok(new { success = true, message = "Saved item to list Successfully" });
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message, success = false });
             }
             catch (Exception err)
             {

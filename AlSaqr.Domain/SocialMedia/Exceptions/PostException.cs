@@ -51,4 +51,40 @@ namespace AlSaqr.Domain.SocialMedia.Exceptions
             UnfollowedUserId = unfollowedUserId;
         }
     }
+
+
+    public class CreateMessageException : PostException
+    {
+        public Guid SenderId { get; }
+        public Guid RecipientId { get; }
+        public CreateMessageException(Guid senderId, Guid recipientId)
+            : base($"Failed to create message from user with ID: {senderId} to user with ID: {recipientId}.")
+        {
+            SenderId = senderId;
+            RecipientId = recipientId;
+        }
+        public CreateMessageException(Guid senderId, Guid recipientId, Exception innerException)
+            : base($"Failed to create message from user with ID: {senderId} to user with ID: {recipientId}.", innerException)
+        {
+            SenderId = senderId;
+            RecipientId = recipientId;
+        }
+    }
+    public class CreateListException : PostException
+    {
+        public Guid UserId { get; }
+        public string ListName { get; }
+        public CreateListException(Guid userId, string listName)
+            : base($"Failed to create list with name: {listName} for user with ID: {userId}.")
+        {
+            UserId = userId;
+            ListName = listName;
+        }
+        public CreateListException(Guid userId, string listName, Exception innerException)
+            : base($"Failed to create list with name: {listName} for user with ID: {userId}.", innerException)
+        {
+            UserId = userId;
+            ListName = listName;
+        }
+    }
 }

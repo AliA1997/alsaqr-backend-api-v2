@@ -120,7 +120,6 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
             var community = new Community
             {
-                Id = Guid.NewGuid(),
                 FounderId = userId,
                 Name = data.Name,
                 Description = data.Description,
@@ -135,22 +134,23 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 .Insert(community, new QueryOptions
                 {
                     Returning = ReturnType.Representation
-                });
+                }, ct);
 
             if (inserted?.Model == null)
                 throw new Exception("Error creating community");
+            var communityId = inserted.Model.Id;
 
-            await AddUsersToCommunity(supabase, community.Id, data.UsersAdded.ToList());
+            await AddUsersToCommunity(supabase, communityId, data.UsersAdded.ToList(), ct);
 
             await CreateCommunityNotification(
                 supabase,
                 userId,
-                community.Id,
+                communityId,
                 "You created the community of {community}",
                 "community_created",
                 ct);
 
-            return inserted.Model.Id;
+            return communityId;
         }
 
 
@@ -240,7 +240,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         private async Task AddUsersToCommunity(
             Supabase.Client supabase, 
             Guid communityId, 
-            List<Guid> userIds)
+            List<Guid> userIds,
+            CancellationToken ct)
         {
             var members = userIds.Select(userId => new CommunityMember
             {
@@ -256,7 +257,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 .Insert(members, new Supabase.Postgrest.QueryOptions
                 {
                     Returning = Supabase.Postgrest.QueryOptions.ReturnType.Minimal
-                });
+                }, ct);
             if (inserted == null)
                 throw new Exception("Error adding members to community");
 

@@ -4,7 +4,7 @@ using Supabase.Postgrest.Models;
 
 namespace AlSaqr.Data.Entities.SocialMedia
 {
-    [Table("alsaqr-2026.users")]
+    [Table("users")]
     public class AlSaqrUser : BaseModel
     {
         [PrimaryKey("id")]

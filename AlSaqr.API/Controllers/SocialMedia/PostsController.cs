@@ -144,6 +144,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
             string postId,
             [FromBody] AlSaqrUpsertRequest<BookmarkRequest> request)
         {
+            using var cts = new CancellationTokenSource();
+            var ct = cts.Token;
+
             var data = request.Values;
             var user = _userCacheService.GetLoggedInUser();
             if (user == null)
@@ -156,7 +159,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return BadRequest("Post ID is required");
             }
 
-            await _postStatusRepository.BookmarkPost(_supabase, userId ?? Guid.Empty, data.StatusId, data.Bookmarked);
+            await _postStatusRepository.BookmarkPost(_supabase, userId ?? Guid.Empty, data.StatusId, data.Bookmarked, ct);
 
             return Ok(new { success = true });
         }
@@ -172,6 +175,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
             string postId, 
             [FromBody] AlSaqrUpsertRequest<LikeRequest> request)
         {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
             var data = request.Values;
 
             if (data.StatusId == Guid.Empty)
@@ -185,7 +191,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             var userId = user.Id;
             
-            await _postStatusRepository.LikePost(_supabase, userId ?? Guid.Empty, data.StatusId, data.Liked);
+            await _postStatusRepository.LikePost(_supabase, userId ?? Guid.Empty, data.StatusId, data.Liked, ct);
 
             return Ok(new { success = true });
    
@@ -201,6 +207,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
             string postId, 
             [FromBody] AlSaqrUpsertRequest<RePostRequest> request)
         {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
             var data = request.Values;
             // Input validation
             if (data.StatusId == Guid.Empty)
@@ -213,7 +222,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             var userId = user.Id;
 
-            await _postStatusRepository.RepostPost(_supabase, userId ?? Guid.Empty, data.StatusId, data.Reposted);
+            await _postStatusRepository.RepostPost(_supabase, userId ?? Guid.Empty, data.StatusId, data.Reposted, ct);
 
             return Ok(new { success = true });
             

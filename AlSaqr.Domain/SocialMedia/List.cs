@@ -141,7 +141,7 @@ namespace  AlSaqr.Domain.SocialMedia
 
         public class SaveItemToListDto
         {
-            public string RelatedEntityId { get; set; }
+            public Guid RelatedEntityId { get; set; }
             public string Type { get; set; }
         }
 

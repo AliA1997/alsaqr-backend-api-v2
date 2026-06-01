@@ -1,5 +1,6 @@
 ﻿using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Repositories.SocialMedia.Impl;
+using AlSaqr.Domain.SocialMedia.Exceptions;
 using Supabase.Postgrest;
 using static Supabase.Postgrest.Constants;
 using static Supabase.Postgrest.QueryOptions;
@@ -20,98 +21,138 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         public async Task JoinCommunityDiscussion(
             Supabase.Client supabase,
             Guid userId,
-            Guid communityDiscussionId)
+            Guid communityDiscussionId,
+            CancellationToken ct)
         {
-            // Upsert the membership row as a full member.
-            var member = new CommunityDiscussionMember
+            try 
             {
-                Id = Guid.NewGuid(),
-                CommunityDiscussionId = communityDiscussionId,
-                UserId = userId,
-                Role = RoleMember,
-                JoinedAt = DateTime.UtcNow,
-            };
+                // Upsert the membership row as a full member.
+                var member = new CommunityDiscussionMember
+                {
+                    CommunityDiscussionId = communityDiscussionId,
+                    UserId = userId,
+                    Role = RoleMember,
+                    JoinedAt = DateTime.UtcNow,
+                };
 
-            await supabase
-                .From<CommunityDiscussionMember>()
-                .Upsert(member, new QueryOptions { Returning = ReturnType.Minimal });
+                await supabase
+                    .From<CommunityDiscussionMember>()
+                    .Upsert(member, new QueryOptions { Returning = ReturnType.Minimal }, ct);
 
-            await CreateCommunityDiscussionMemberNotification(
-                supabase,
-                userId: userId,
-                communityDiscussionId: communityDiscussionId,
-                messageTemplate: "{username} joined your community discussion of {communityDiscussion}.",
-                notificationType: "user_joined"
-            );
+                await CreateCommunityDiscussionMemberNotification(
+                    supabase,
+                    userId: userId,
+                    communityDiscussionId: communityDiscussionId,
+                    messageTemplate: "{username} joined your community discussion of {communityDiscussion}.",
+                    notificationType: "user_joined",
+                    ct
+                );
+            }
+            catch (JoinCommunityDiscussionException ex)
+            {
+                throw ex;
+            }
+            catch (Exception ex)
+            {
+                throw new JoinCommunityDiscussionException(communityDiscussionId, ex);
+            }
         }
 
         public async Task UnJoinCommunityDiscussion(
             Supabase.Client supabase,
             Guid userId,
-            Guid communityDiscussionId)
+            Guid communityDiscussionId,
+            CancellationToken ct)
         {
-            // Remove the membership row regardless of its role
-            // (covers both JOINED and INVITED states from Neo4j).
-            await supabase
-                .From<CommunityDiscussionMember>()
-                .Where(cm => cm.UserId == userId && cm.CommunityDiscussionId == communityDiscussionId)
-                .Delete();
-
-            // Delete the "user_joined" notification on the founder's feed.
-            var communityDiscussion = await supabase
-                .From<CommunityDiscussion>()
-                .Where(c => c.Id == communityDiscussionId)
-                .Single();
-
-            if (communityDiscussion != null)
+            try
             {
+
+                // Delete the "user_joined" notification on the founder's feed.
+                var communityDiscussion = await supabase
+                    .From<CommunityDiscussion>()
+                    .Where(c => c.Id == communityDiscussionId)
+                    .Single(ct);
+
+                if (communityDiscussion != null)
+                {
+                    await supabase
+                        .From<Notification>()
+                        .Where(n => n.UserId == communityDiscussion.CreatorId
+                                    && n.CommunityDiscussionId == communityDiscussionId
+                                    && n.NotificationType == "user_joined")
+                        .Delete(null, ct);
+
+                    var unjoinedUser = await supabase
+                            .From<AlSaqrUser>()
+                            .Where(u => u.Id == userId)
+                            .Single(ct);
+
+                    await CreateCommunityDiscussionMemberNotification(
+                        supabase,
+                        userId: communityDiscussion.CreatorId,
+                        communityDiscussionId: communityDiscussionId,
+                        messageTemplate: $"Someone with ID of {unjoinedUser?.Username} has unjoined your community discussion of {communityDiscussion.Title}.",
+                        notificationType: "user_request_join",
+                        ct
+                    );
+                }
+
                 await supabase
-                    .From<Notification>()
-                    .Where(n => n.UserId == communityDiscussion.CreatorId
-                                && n.CommunityDiscussionId == communityDiscussionId
-                                && n.NotificationType == "user_joined")
-                    .Delete();
+                    .From<CommunityDiscussionMember>()
+                    .Where(cm => cm.UserId == userId && cm.CommunityDiscussionId == communityDiscussionId)
+                    .Delete(null, ct);
 
-                var unjoinedUser = await supabase
-                        .From<AlSaqrUser>()
-                        .Where(u => u.Id == userId)
-                        .Single();
-
-                await CreateCommunityDiscussionMemberNotification(
-                    supabase,
-                    userId: communityDiscussion.CreatorId,
-                    communityDiscussionId: communityDiscussionId,
-                    messageTemplate: $"Someone with ID of {unjoinedUser?.Username} has unjoined your community discussion of {communityDiscussion.Title}.",
-                    notificationType: "user_request_join"
-                );
             }
+            catch(UnJoinCommunityDiscussionException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new UnJoinCommunityDiscussionException(communityDiscussionId, ex);
+            }
+            
         }
 
         public async Task RequestJoinCommunityDiscussion(
               Supabase.Client supabase,
               Guid userId,
-              Guid communityDiscussionId)
+              Guid communityDiscussionId,
+              CancellationToken ct)
         {
-            var member = new CommunityDiscussionMember
+            try
             {
-                Id = Guid.NewGuid(),
-                CommunityDiscussionId = communityDiscussionId,
-                UserId = userId,
-                Role = RoleRequested,
-                JoinedAt = DateTime.UtcNow,
-            };
+                var member = new CommunityDiscussionMember
+                {
+                    Id = Guid.NewGuid(),
+                    CommunityDiscussionId = communityDiscussionId,
+                    UserId = userId,
+                    Role = RoleRequested,
+                    JoinedAt = DateTime.UtcNow,
+                };
 
-            await supabase
-                .From<CommunityDiscussionMember>()
-                .Upsert(member, new QueryOptions { Returning = ReturnType.Minimal });
+                await supabase
+                    .From<CommunityDiscussionMember>()
+                    .Upsert(member, new QueryOptions { Returning = ReturnType.Minimal }, ct);
 
-            await CreateCommunityDiscussionMemberNotification(
-                supabase,
-                userId: userId,
-                communityDiscussionId: communityDiscussionId,
-                messageTemplate: "{username} has requested to join your community discussion of {communityDiscussion}.",
-                notificationType: "user_request_join"
-            );
+                await CreateCommunityDiscussionMemberNotification(
+                    supabase,
+                    userId: userId,
+                    communityDiscussionId: communityDiscussionId,
+                    messageTemplate: "{username} has requested to join your community discussion of {communityDiscussion}.",
+                    notificationType: "user_request_join",
+                    ct
+                );
+            }
+            catch(RequestToJoinCommunityDiscussionException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new RequestToJoinCommunityDiscussionException(communityDiscussionId, ex);
+            }
+
         }
 
 
@@ -119,86 +160,101 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             Supabase.Client supabase,
             Guid userId,
             Guid communityDiscussionId,
-            bool accept)
+            bool accept,
+            CancellationToken ct)
         {
-            if (accept)
+            try 
             {
-                // Promote the pending request row to an invited/member row.
-                var existing = await supabase
-                    .From<CommunityDiscussionMember>()
-                    .Where(cdm => cdm.UserId == userId
-                                && cdm.CommunityDiscussionId == communityDiscussionId)
-                    .Filter("role", Operator.Equals, RoleRequested)
-                    .Single();
-
-                if (existing != null)
+                if (accept)
                 {
-                    existing.Role = RoleInvited;
-                    existing.JoinedAt = DateTime.UtcNow;
-
-                    await supabase
+                    // Promote the pending request row to an invited/member row.
+                    var existing = await supabase
                         .From<CommunityDiscussionMember>()
-                        .Where(cdm => cdm.Id == existing.Id)
-                        .Upsert(existing, new QueryOptions { Returning = ReturnType.Minimal });
+                        .Where(cdm => cdm.UserId == userId
+                                    && cdm.CommunityDiscussionId == communityDiscussionId)
+                        .Filter("role", Operator.Equals, RoleRequested)
+                        .Single(ct);
+
+                    if (existing != null)
+                    {
+                        existing.Role = RoleInvited;
+                        existing.JoinedAt = DateTime.UtcNow;
+
+                        await supabase
+                            .From<CommunityDiscussionMember>()
+                            .Where(cdm => cdm.Id == existing.Id)
+                            .Upsert(existing, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+                    }
+                    else
+                    {
+                        // No pending request found — create the invited row directly.
+                        var member = new CommunityDiscussionMember
+                        {
+                            Id = Guid.NewGuid(),
+                            CommunityDiscussionId = communityDiscussionId,
+                            UserId = userId,
+                            Role = RoleInvited,
+                            JoinedAt = DateTime.UtcNow,
+                        };
+
+                        await supabase
+                            .From<CommunityDiscussionMember>()
+                            .Upsert(member, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+                    }
+
+                    await CreateCommunityDiscussionMemberNotification(
+                        supabase,
+                        userId: userId,
+                        communityDiscussionId: communityDiscussionId,
+                        messageTemplate: "{username} joined your community discussion of {communityDiscussion}.",
+                        notificationType: "user_joined",
+                        ct
+                    );
                 }
                 else
                 {
-                    // No pending request found — create the invited row directly.
-                    var member = new CommunityDiscussionMember
-                    {
-                        Id = Guid.NewGuid(),
-                        CommunityDiscussionId = communityDiscussionId   ,
-                        UserId = userId,
-                        Role = RoleInvited,
-                        JoinedAt = DateTime.UtcNow,
-                    };
-
+                    // Deny: remove the pending request row.
                     await supabase
                         .From<CommunityDiscussionMember>()
-                        .Upsert(member, new QueryOptions { Returning = ReturnType.Minimal });
+                        .Where(cdm => cdm.UserId == userId && cdm.CommunityDiscussionId == communityDiscussionId)
+                        .Filter("role", Operator.Equals, RoleRequested)
+                        .Delete(null, ct);
+
+                    await CreateCommunityDiscussionMemberNotification(
+                        supabase,
+                        userId: userId,
+                        communityDiscussionId: communityDiscussionId,
+                        messageTemplate: "{username} denied from your community discussion of {communityDiscussion}.",
+                        notificationType: "user_joined",
+                        ct
+                    );
                 }
 
-                await CreateCommunityDiscussionMemberNotification(
-                    supabase,
-                    userId: userId,
-                    communityDiscussionId: communityDiscussionId,
-                    messageTemplate: "{username} joined your community discussion of {communityDiscussion}.",
-                    notificationType: "user_joined"
-                );
+                // In both branches, delete the original "user_request_join" notification.
+                var communityDiscussion = await supabase
+                    .From<CommunityDiscussion>()
+                    .Where(c => c.Id == communityDiscussionId)
+                    .Single(ct);
+
+                if (communityDiscussion != null)
+                {
+                    await supabase
+                        .From<Notification>()
+                        .Where(n => n.UserId == communityDiscussion.CreatorId
+                                    && n.CommunityDiscussionId == communityDiscussionId
+                                    && n.NotificationType == "user_request_join")
+                        .Delete(null, ct);
+                }
             }
-            else
+            catch(RespondToRequestToJoinCommunityDiscussionException ex)
             {
-                // Deny: remove the pending request row.
-                await supabase
-                    .From<CommunityDiscussionMember>()
-                    .Where(cdm => cdm.UserId == userId && cdm.CommunityDiscussionId == communityDiscussionId)
-                    .Filter("role", Operator.Equals, RoleRequested)
-                    .Delete();
-
-                await CreateCommunityDiscussionMemberNotification(
-                    supabase,
-                    userId: userId,
-                    communityDiscussionId: communityDiscussionId,
-                    messageTemplate: "{username} denied from your community discussion of {communityDiscussion}.",
-                    notificationType: "user_joined"
-                );
+                throw ex;
             }
-
-            // In both branches, delete the original "user_request_join" notification.
-            var communityDiscussion = await supabase
-                .From<CommunityDiscussion>()
-                .Where(c => c.Id == communityDiscussionId)
-                .Single();
-
-            if (communityDiscussion != null)
+            catch (Exception ex)
             {
-                await supabase
-                    .From<Notification>()
-                    .Where(n => n.UserId == communityDiscussion.CreatorId
-                                && n.CommunityDiscussionId == communityDiscussionId
-                                && n.NotificationType == "user_request_join")
-                    .Delete();
+                throw new RespondToRequestToJoinCommunityDiscussionException(communityDiscussionId, ex);
             }
+
         }
 
 
@@ -207,12 +263,13 @@ namespace AlSaqr.Data.Repositories.SocialMedia
              Guid userId,
              Guid communityDiscussionId,
              string messageTemplate,
-             string notificationType)
+             string notificationType,
+            CancellationToken ct)
         {
             var communityDiscussion = await supabase
                 .From<CommunityDiscussion>()
                 .Where(c => c.Id == communityDiscussionId)
-                .Single();
+                .Single(ct);
 
             if (communityDiscussion == null || communityDiscussion.CreatorId == userId)
                 return;
@@ -220,7 +277,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             var actingUser = await supabase
                 .From<AlSaqrUser>()
                 .Where(u => u.Id == userId)
-                .Single();
+                .Single(ct);
 
             var username = actingUser?.Username ?? "Someone";
 
@@ -243,7 +300,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
             var created = await supabase
                 .From<Notification>()
-                .Insert(notification, new QueryOptions { Returning = ReturnType.Minimal });
+                .Insert(notification, new QueryOptions { Returning = ReturnType.Representation }, ct);
 
             if (created == null)
                 throw new Exception("Error creating notification");

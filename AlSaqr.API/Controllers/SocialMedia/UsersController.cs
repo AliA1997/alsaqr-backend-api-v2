@@ -107,6 +107,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid userId,
             [FromBody] User.FollowUserFormDto request)
         {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
             // Input validation
             if (userId == Guid.Empty)
             {
@@ -115,7 +118,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             try
             {
-                await _userFollowRepository.AddUserFollow(_supabase, userId, request);
+                await _userFollowRepository.AddUserFollow(_supabase, userId, request, ct);
 
                 return Ok(new { success = true });
             }
@@ -137,6 +140,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid userId,
             [FromBody] User.UnFollowUserFormDto request)
         {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
             // Input validation
             if (userId == Guid.Empty)
             {
@@ -145,7 +151,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             try
             {
-                await _userFollowRepository.RemoveUserFollow(_supabase, userId, request);
+                await _userFollowRepository.RemoveUserFollow(_supabase, userId, request, ct);
 
                 return Ok(new { success = true });
             }

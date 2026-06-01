@@ -7,18 +7,21 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
             Supabase.Client supabase,
             Guid userId,
             Guid postId,
-            bool currentlyBookmarked);
+            bool currentlyBookmarked,
+            CancellationToken ct);
 
         Task LikePost(
             Supabase.Client supabase,
             Guid userId,
             Guid postId,
-            bool currentlyLiked);
+            bool currentlyLiked,
+            CancellationToken ct);
 
         Task RepostPost(
             Supabase.Client supabase,
             Guid userId,
             Guid postId,
-            bool currentlyReposted);
+            bool currentlyReposted,
+            CancellationToken ct);
     }
 }

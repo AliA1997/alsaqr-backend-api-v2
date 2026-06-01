@@ -33,9 +33,10 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 [FromQuery] string? searchTerm = null
             )
         {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
 
-
-            var result = await _postRepository.GetBookmarkedPosts(_supabase, userId, searchTerm, currentPage, itemsPerPage);
+            var result = await _postRepository.GetBookmarkedPosts(_supabase, userId, searchTerm, currentPage, itemsPerPage, ct);
 
             return Ok(result);
         }

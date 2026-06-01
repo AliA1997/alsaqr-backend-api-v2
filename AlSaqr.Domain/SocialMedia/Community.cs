@@ -1,6 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
-using System.ComponentModel.DataAnnotations.Schema;
+﻿using Newtonsoft.Json;
 
 namespace  AlSaqr.Domain.SocialMedia
 {
@@ -28,55 +26,55 @@ namespace  AlSaqr.Domain.SocialMedia
                 this.TotalMembers = details.TotalMembers;
             }
 
-            [JsonProperty("community_id")]
+            [JsonProperty("communityId")]
             public Guid CommunityId { get; set; }
 
-            [JsonProperty("community_name")]
+            [JsonProperty("communityName")]
             public string CommunityName { get; set; } = string.Empty;
 
-            [JsonProperty("community_description")]
+            [JsonProperty("communityDescription")]
             public string? CommunityDescription { get; set; }
 
-            [JsonProperty("community_avatar")]
+            [JsonProperty("communityAvatar")]
             public string? CommunityAvatar { get; set; }
 
-            [JsonProperty("community_banner_image")]
+            [JsonProperty("communityBannerImage")]
             public string? CommunityBannerImage { get; set; }
 
-            [JsonProperty("community_tags")]
+            [JsonProperty("communityTags")]
             public string[]? CommunityTags { get; set; }
 
-            [JsonProperty("community_created_at")]
+            [JsonProperty("communityCreatedAt")]
             public DateTime CommunityCreatedAt { get; set; }
 
-            [JsonProperty("community_updated_at")]
+            [JsonProperty("communityUpdatedAt")]
             public DateTime? CommunityUpdatedAt { get; set; }
 
             // Founder
-            [JsonProperty("founder_id")]
+            [JsonProperty("founderId")]
             public Guid FounderId { get; set; }
 
-            [JsonProperty("founder_username")]
+            [JsonProperty("founderUsername")]
             public string FounderUsername { get; set; } = string.Empty;
 
-            [JsonProperty("founder_avatar")]
+            [JsonProperty("founderAvatar")]
             public string? FounderAvatar { get; set; }
 
             // Requesting user context
-            [JsonProperty("user_id")]
+            [JsonProperty("userId")]
             public Guid? UserId { get; set; }
 
-            [JsonProperty("user_role")]
+            [JsonProperty("userRole")]
             public string? UserRole { get; set; }
 
-            [JsonProperty("user_joined_at")]
+            [JsonProperty("userJoinedAt")]
             public DateTime? UserJoinedAt { get; set; }
 
-            [JsonProperty("relationship_type")]
+            [JsonProperty("relationshipType")]
             public string? RelationshipType { get; set; }
 
             // Counts
-            [JsonProperty("total_members")]
+            [JsonProperty("totalMembers")]
             public long TotalMembers { get; set; }
         }
 

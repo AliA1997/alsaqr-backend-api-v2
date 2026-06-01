@@ -2,6 +2,7 @@
 using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Domain.SocialMedia;
+using AlSaqr.Domain.SocialMedia.Exceptions;
 using Supabase.Postgrest;
 using static Supabase.Postgrest.Constants;
 using static Supabase.Postgrest.QueryOptions;
@@ -16,68 +17,81 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             Supabase.Client supabase,
             Guid userId,
             Guid postId,
-            bool currentlyBookmarked)
+            bool currentlyBookmarked,
+            CancellationToken ct)
         {
-            if (!currentlyBookmarked)
+            try 
             {
-                // ── ADD bookmark ────────────────────────────────────────────────
-                // Upsert a PostStatus row with action = "bookmarked"
-                var status = new PostStatus
+                if (!currentlyBookmarked)
                 {
-                    Id = Guid.NewGuid(),
-                    UserId = userId,
-                    PostId = postId,
-                    Action = "bookmarked",
-                    CreatedAt = DateTime.UtcNow,
-                };
-
-                await supabase
-                    .From<PostStatus>()
-                    .Upsert(status, new QueryOptions
+                    // ── ADD bookmark ────────────────────────────────────────────────
+                    // Upsert a PostStatus row with action = "bookmarked"
+                    var status = new PostStatus
                     {
-                        Returning = ReturnType.Minimal
-                    });
+                        Id = Guid.NewGuid(),
+                        UserId = userId,
+                        PostId = postId,
+                        Action = "bookmarked",
+                        CreatedAt = DateTime.UtcNow,
+                    };
 
-                // Resolve the post author so the notification lands on the right user
-                var post = await supabase
-                    .From<Post>()
-                    .Where(p => p.Id == postId)
-                    .Single();
-
-
-                await CreateNotificationAfterUpsert(
-                    supabase,
-                    userId: post.UserId,
-                    post: post,
-                    notificationMsgPrefix: "Post bookmarked by",
-                    notificationType: "bookmarked_post"
-                );
-
-            }
-            else
-            {
-                // ── REMOVE bookmark ─────────────────────────────────────────────
-                await supabase
-                    .From<PostStatus>()
-                    .Where(ps => ps.UserId == userId && ps.PostId == postId)
-                    .Filter("action", Operator.Equals, "bookmarked")
-                    .Delete();
-
-                // Delete the matching notification from the post author's feed
-                var post = await supabase
-                    .From<Post>()
-                    .Where(p => p.Id == postId)
-                    .Single();
-
-                if (post != null)
-                {
                     await supabase
-                        .From<Notification>()
-                        .Where(n => n.UserId == post.UserId
-                                 && n.PostId == postId
-                                 && n.NotificationType == "bookmarked_post")
-                        .Delete();
+                        .From<PostStatus>()
+                        .Upsert(status, new QueryOptions
+                        {
+                            Returning = ReturnType.Minimal
+                        }, ct);
+
+                    // Resolve the post author so the notification lands on the right user
+                    var post = await supabase
+                        .From<Post>()
+                        .Where(p => p.Id == postId)
+                        .Single(ct);
+
+
+                    await CreateNotificationAfterUpsert(
+                        supabase,
+                        userId: post.UserId,
+                        post: post,
+                        notificationMsgPrefix: "Post bookmarked by",
+                        notificationType: "bookmarked_post",
+                        ct: ct
+                    );
+
                 }
+                else
+                {
+                    // ── REMOVE bookmark ─────────────────────────────────────────────
+                    await supabase
+                        .From<PostStatus>()
+                        .Where(ps => ps.UserId == userId && ps.PostId == postId)
+                        .Filter("action", Operator.Equals, "bookmarked")
+                        .Delete(null, ct);
+
+                    // Delete the matching notification from the post author's feed
+                    var post = await supabase
+                        .From<Post>()
+                        .Where(p => p.Id == postId)
+                        .Single(ct);
+
+                    if (post != null)
+                    {
+                        await supabase
+                            .From<Notification>()
+                            .Where(n => n.UserId == post.UserId
+                                     && n.PostId == postId
+                                     && n.NotificationType == "bookmarked_post")
+                            .Delete(null, ct);
+                    }
+                }
+            }
+            catch(BookmarkPostException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new BookmarkPostException(postId, ex);
             }
         }
 
@@ -85,129 +99,158 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             Supabase.Client supabase,
             Guid userId,
             Guid postId,
-            bool currentlyLiked)
+            bool currentlyLiked,
+            CancellationToken ct)
         {
-            if (!currentlyLiked)
+            try 
             {
-                // ── ADD like ─────────────────────────────────────────────────────
-                var status = new PostStatus
+                if (!currentlyLiked)
                 {
-                    Id = Guid.NewGuid(),
-                    UserId = userId,
-                    PostId = postId,
-                    Action = "liked",
-                    CreatedAt = DateTime.UtcNow,
-                };
-
-                await supabase
-                    .From<PostStatus>()
-                    .Upsert(status, new QueryOptions
+                    // ── ADD like ─────────────────────────────────────────────────────
+                    var status = new PostStatus
                     {
-                        Returning = ReturnType.Minimal
-                    });
+                        Id = Guid.NewGuid(),
+                        UserId = userId,
+                        PostId = postId,
+                        Action = "liked",
+                        CreatedAt = DateTime.UtcNow,
+                    };
 
-                var post = await supabase
-                    .From<Post>()
-                    .Where(p => p.Id == postId)
-                    .Single();
-
-                await CreateNotificationAfterUpsert(
-                    supabase,
-                    userId: post.UserId,
-                    post: post,
-                    notificationMsgPrefix: "Post liked by",
-                    notificationType: "liked_post"
-                );
-
-            }
-            else
-            {
-                // ── REMOVE like ──────────────────────────────────────────────────
-                await supabase
-                    .From<PostStatus>()
-                    .Where(ps => ps.UserId == userId && ps.PostId == postId)
-                    .Filter("action", Operator.Equals, "liked")
-                    .Delete();
-
-                var post = await supabase
-                    .From<Post>()
-                    .Where(p => p.Id == postId)
-                    .Single();
-
-                if (post != null)
-                {
                     await supabase
-                        .From<Notification>()
-                        .Where(n => n.UserId == post.UserId
-                                 && n.PostId == postId
-                                 && n.NotificationType == "liked_post")
-                        .Delete();
+                        .From<PostStatus>()
+                        .Upsert(status, new QueryOptions
+                        {
+                            Returning = ReturnType.Minimal
+                        }, ct);
+
+                    var post = await supabase
+                        .From<Post>()
+                        .Where(p => p.Id == postId)
+                        .Single(ct);
+
+                    await CreateNotificationAfterUpsert(
+                        supabase,
+                        userId: post.UserId,
+                        post: post,
+                        notificationMsgPrefix: "Post liked by",
+                        notificationType: "liked_post",
+                        ct: ct
+                    );
+
+                }
+                else
+                {
+                    // ── REMOVE like ──────────────────────────────────────────────────
+                    await supabase
+                        .From<PostStatus>()
+                        .Where(ps => ps.UserId == userId && ps.PostId == postId)
+                        .Filter("action", Operator.Equals, "liked")
+                        .Delete(null, ct);
+
+                    var post = await supabase
+                        .From<Post>()
+                        .Where(p => p.Id == postId)
+                        .Single(ct);
+
+                    if (post != null)
+                    {
+                        await supabase
+                            .From<Notification>()
+                            .Where(n => n.UserId == post.UserId
+                                     && n.PostId == postId
+                                     && n.NotificationType == "liked_post")
+                            .Delete(null, ct);
+                    }
                 }
             }
+            catch(LikedPostException ex)
+            {
+                throw ex;
+            }
+            catch (Exception ex)
+            {
+                throw new LikedPostException(postId, ex);
+            }
+
+
         }
 
         public async Task RepostPost(
             Supabase.Client supabase,
             Guid userId,
             Guid postId,
-            bool currentlyReposted)
+            bool currentlyReposted,
+            CancellationToken ct)
         {
-            if (!currentlyReposted)
+            try 
             {
-                // ── ADD repost ───────────────────────────────────────────────────
-                var status = new PostStatus
+                if (!currentlyReposted)
                 {
-                    Id = Guid.NewGuid(),
-                    UserId = userId,
-                    PostId = postId,
-                    Action = "reposted",
-                    CreatedAt = DateTime.UtcNow,
-                };
-
-                await supabase
-                    .From<PostStatus>()
-                    .Upsert(status, new QueryOptions
+                    // ── ADD repost ───────────────────────────────────────────────────
+                    var status = new PostStatus
                     {
-                        Returning = ReturnType.Minimal
-                    });
+                        Id = Guid.NewGuid(),
+                        UserId = userId,
+                        PostId = postId,
+                        Action = "reposted",
+                        CreatedAt = DateTime.UtcNow,
+                    };
 
-                var post = await supabase
-                    .From<Post>()
-                    .Where(p => p.Id == postId)
-                    .Single();
-
-                await CreateNotificationAfterUpsert(
-                    supabase,
-                    userId: post.UserId,
-                    post:post,
-                    notificationMsgPrefix: "Post reposted by",
-                    notificationType: "reposted_post"
-                );
-            }
-            else
-            {
-                // ── REMOVE repost ────────────────────────────────────────────────
-                await supabase
-                    .From<PostStatus>()
-                    .Where(ps => ps.UserId == userId && ps.PostId == postId)
-                    .Filter("action", Operator.Equals, "reposted")
-                    .Delete();
-
-                var post = await supabase
-                    .From<Post>()
-                    .Where(p => p.Id == postId)
-                    .Single();
-
-                if (post != null)
-                {
                     await supabase
-                        .From<Notification>()
-                        .Where(n => n.UserId == post.UserId
-                                 && n.PostId == postId
-                                 && n.NotificationType == "reposted_post")
-                        .Delete();
+                        .From<PostStatus>()
+                        .Upsert(status, new QueryOptions
+                        {
+                            Returning = ReturnType.Minimal
+                        }, ct);
+
+                    var post = await supabase
+                        .From<Post>()
+                        .Where(p => p.Id == postId)
+                        .Single(ct);
+
+                    await CreateNotificationAfterUpsert(
+                        supabase,
+                        userId: post.UserId,
+                        post: post,
+                        notificationMsgPrefix: "Post reposted by",
+                        notificationType: "reposted_post",
+                        ct: ct
+                    );
+                }
+                else
+                {
+                    // ── REMOVE repost ────────────────────────────────────────────────
+                    await supabase
+                        .From<PostStatus>()
+                        .Where(ps => ps.UserId == userId && ps.PostId == postId)
+                        .Filter("action", Operator.Equals, "reposted")
+                        .Delete(null, ct);
+
+                    var post = await supabase
+                        .From<Post>()
+                        .Where(p => p.Id == postId)
+                        .Single(ct);
+
+                    if (post != null)
+                    {
+                        await supabase
+                            .From<Notification>()
+                            .Where(n => n.UserId == post.UserId
+                                     && n.PostId == postId
+                                     && n.NotificationType == "reposted_post")
+                            .Delete(null, ct);
+                    }
                 }
             }
+            catch(RepostPostException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new RepostPostException(postId, ex);
+            }
+ 
         }
 
        private async Task CreateNotificationAfterUpsert(
@@ -215,14 +258,15 @@ namespace AlSaqr.Data.Repositories.SocialMedia
          Post? post,
          Guid userId,
          string notificationMsgPrefix,
-         string notificationType)
+         string notificationType,
+         CancellationToken ct)
         {
             if (post != null && post.UserId != userId)
             {
                 var repostingUser = await supabase
                    .From<AlSaqrUser>()
                    .Where(u => u.Id == userId)
-                   .Single();
+                   .Single(ct);
 
                 var username = repostingUser?.Username ?? "Someone";
 
@@ -244,7 +288,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 {
                     Returning = ReturnType.Minimal
 
-                });
+                }, ct);
 
                 if (newNotification == null)
                 {

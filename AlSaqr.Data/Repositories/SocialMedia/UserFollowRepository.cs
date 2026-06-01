@@ -11,7 +11,11 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         public UserFollowRepository() { }
 
 
-        public async Task<(Guid, Guid)> AddUserFollow(Supabase.Client client, Guid userId, FollowUserFormDto userFollowFormDto)
+        public async Task<(Guid, Guid)> AddUserFollow(
+            Supabase.Client client, 
+            Guid userId, 
+            FollowUserFormDto userFollowFormDto, 
+            CancellationToken ct)
         {
             try {
                 await client.From<UserFollow>().Insert(new UserFollow
@@ -19,7 +23,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     FollowerId = userId,
                     FollowingId = userFollowFormDto.UserToFollowId,
                     CreatedAt = DateTime.UtcNow
-                });
+                }, null, ct);
 
 
                 return (userId, userFollowFormDto.UserToFollowId);
@@ -38,11 +42,15 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             }
         }
 
-        public async Task<(Guid, Guid)> RemoveUserFollow(Supabase.Client client, Guid userId, UnFollowUserFormDto userFollowFormDto)
+        public async Task<(Guid, Guid)> RemoveUserFollow(
+            Supabase.Client client, 
+            Guid userId,
+            UnFollowUserFormDto userFollowFormDto,
+            CancellationToken ct)
         {
             try
             {
-                await client.From<UserFollow>().Where(uf => uf.FollowerId == userId && uf.FollowingId == userFollowFormDto.UserToUnFollowId).Delete();
+                await client.From<UserFollow>().Where(uf => uf.FollowerId == userId && uf.FollowingId == userFollowFormDto.UserToUnFollowId).Delete(null, ct);
 
                 return (userId, userFollowFormDto.UserToUnFollowId);
             }

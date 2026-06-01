@@ -15,7 +15,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
             Guid userId,
             string? searchTerm,
             int currentPage,
-            int itemsPerPage);
+            int itemsPerPage,
+            CancellationToken ct);
 
         Task<PaginatedResult<PostDto>> GetPosts(
             Supabase.Client supabase,

@@ -4,7 +4,7 @@ using Supabase.Postgrest.Models;
 
 namespace AlSaqr.Data.Entities.SocialMedia.Views
 {
-    [Table("alsaqr-2026.vw_notification_details")]
+    [Table("vw_notification_details")]
     public class VwNotificationDetails : BaseModel
     {
         [PrimaryKey("notification_id", false)]

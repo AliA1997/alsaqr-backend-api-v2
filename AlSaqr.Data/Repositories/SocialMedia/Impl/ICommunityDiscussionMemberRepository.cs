@@ -6,22 +6,26 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
         Task JoinCommunityDiscussion(
             Supabase.Client supabase,
             Guid userId,
-            Guid communityDiscussionId);
+            Guid communityDiscussionId,
+            CancellationToken ct);
 
         Task UnJoinCommunityDiscussion(
             Supabase.Client supabase,
             Guid userId,
-            Guid communityDiscussionId);
+            Guid communityDiscussionId,
+            CancellationToken ct);
 
         Task RequestJoinCommunityDiscussion(
               Supabase.Client supabase,
               Guid userId,
-              Guid communityDiscussionId);
+              Guid communityDiscussionId,
+              CancellationToken ct);
 
         Task RespondToJoinRequest(
             Supabase.Client supabase,
             Guid userId,
             Guid communityDiscussionId,
-            bool accept);
+            bool accept,
+            CancellationToken ct);
     }
 }

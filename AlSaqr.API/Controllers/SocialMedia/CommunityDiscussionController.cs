@@ -95,6 +95,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid communityDiscussionId,
             [FromBody] AlSaqrUpsertRequest<CommunityDiscussion.CommunityDiscussionInviteConfirmationDto> request)
         {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
             var data = request.Values;
             if (userId == Guid.Empty || communityId == Guid.Empty || communityDiscussionId == Guid.Empty
                 || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
@@ -102,7 +105,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return BadRequest("Missing required fields");
             }
 
-            var result = _communityDiscussionMemberRepository.JoinCommunityDiscussion(_supabase, userId, communityDiscussionId);
+            var result = _communityDiscussionMemberRepository.JoinCommunityDiscussion(_supabase, userId, communityDiscussionId, ct);
 
 
             return Ok(new { success = true, message = "Joined Discussion Successfully" });
@@ -124,6 +127,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid communityDiscussionId,
             [FromBody] AlSaqrUpsertRequest<CommunityDiscussion.CommunityDiscussionInviteConfirmationDto> request)
         {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
             var data = request.Values;
             if (userId == Guid.Empty || communityId == Guid.Empty || communityDiscussionId == Guid.Empty
                 || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
@@ -131,7 +137,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return BadRequest("Missing required fields");
             }
             
-            var result = _communityDiscussionMemberRepository.UnJoinCommunityDiscussion(_supabase, userId, communityDiscussionId);
+            var result = _communityDiscussionMemberRepository.UnJoinCommunityDiscussion(_supabase, userId, communityDiscussionId, ct);
 
             return Ok(new { success = true, message = "Left community discussion Successfully" });
 
@@ -150,6 +156,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
             [FromRoute] Guid communityId,
             [FromBody] AlSaqrUpsertRequest<CreateCommunityDiscussionForm> request)
         {
+
             var data = request.Values;
 
             if (userId == Guid.Empty)
@@ -187,6 +194,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid communityDiscussionId,
             [FromBody] AlSaqrUpsertRequest<CommunityDiscussionInviteConfirmationDto> request)
         {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
             var data = request.Values;
             if (userId == Guid.Empty || communityId == Guid.Empty || communityDiscussionId == Guid.Empty
                 || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
@@ -194,7 +204,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return BadRequest("Missing required fields");
             }
 
-            await _communityDiscussionMemberRepository.RequestJoinCommunityDiscussion(_supabase, userId, communityDiscussionId);
+            await _communityDiscussionMemberRepository.RequestJoinCommunityDiscussion(_supabase, userId, communityDiscussionId, ct);
 
             return Ok(new { success = true, message = "Request to join community discussion successfully." });
 
@@ -216,13 +226,16 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid communityDiscussionId,
             [FromBody] AlSaqrUpsertRequest<AcceptOrDenyCommunityDiscussionInviteConfirmationDto> request)
         {
-            if(communityId == Guid.Empty)
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            if (communityId == Guid.Empty)
                 return BadRequest("Community ID is required");
 
             if (communityDiscussionId == Guid.Empty)
                 return BadRequest("Community Discussion ID is required");
 
-            await _communityDiscussionMemberRepository.RespondToJoinRequest(_supabase, userId, communityDiscussionId, request.Values.Accept);
+            await _communityDiscussionMemberRepository.RespondToJoinRequest(_supabase, userId, communityDiscussionId, request.Values.Accept, ct);
 
             return Ok(new { success = true });
 

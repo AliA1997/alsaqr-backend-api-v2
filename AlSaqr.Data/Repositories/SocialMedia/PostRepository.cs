@@ -19,7 +19,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             Guid userId,
             string? searchTerm,
             int currentPage,
-            int itemsPerPage)
+            int itemsPerPage,
+            CancellationToken ct = default)
         {
             var posts = new List<PostDto>();
             Pagination? pagination = null;
@@ -32,7 +33,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     .From<PostStatus>()
                     .Where(x => x.UserId == userId)
                     .Filter("action", Operator.Equals, "bookmarked")
-                    .Get();
+                    .Get(ct);
 
                 var postIds = bookmarks.Models
                     .Select(x => x.PostId.ToString())
@@ -42,7 +43,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 var bookmarkPosts = await supabase
                     .From<Post>()
                     .Where(x => x.UserId == userId)
-                    .Get();
+                    .Get(ct);
 
                 if (!postIds.Any())
                 {
@@ -86,7 +87,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 var pageResult = await dataQuery
                     .Order("post_created_at", Ordering.Descending)
                     .Range(skip, skip + itemsPerPage - 1)
-                    .Get();
+                    .Get(ct);
 
                 posts = pageResult.Models.Select(vwPost => new PostDto(vwPost)).ToList();
 
