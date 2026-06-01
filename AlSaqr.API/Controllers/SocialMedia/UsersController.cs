@@ -3,7 +3,6 @@ using AlSaqr.Domain.SocialMedia;
 using AlSaqr.Infrastructure.SocialMediaCache;
 using Microsoft.AspNetCore.Mvc;
 
-using Neo4j.Driver;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {
@@ -13,7 +12,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
     {
 
         private readonly ILogger<UsersController> _logger;
-        private readonly IDriver _driver;
         private readonly Supabase.Client _supabase;
         private readonly IUserRepository _userRepository;
         private readonly IUserFollowRepository _userFollowRepository;

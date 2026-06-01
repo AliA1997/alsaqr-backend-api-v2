@@ -53,10 +53,15 @@ builder.Services.AddScoped<ITopicRepository, TopicRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<ICommunityRepository, CommunityRepository>();
+builder.Services.AddScoped<ICommunityDiscussionRepository, CommunityDiscussionRepository>();
+builder.Services.AddScoped<ICommunityDiscussionMemberRepository, CommunityDiscussionMemberRepository>();
+builder.Services.AddScoped<ICommunityDiscussionMessageRepository, CommunityDiscussionMessageRepository>();
 builder.Services.AddScoped<ICommunityMemberRepository, CommunityMemberRepository>();
 builder.Services.AddScoped<IPostRepository, PostRepository>();
 builder.Services.AddScoped<IPostStatusRepository, PostStatusRepository>();
 builder.Services.AddScoped<IUserFollowRepository, UserFollowRepository>();
+builder.Services.AddScoped<IListRepository, ListRepository>();
+builder.Services.AddScoped<IListItemRepository, ListItemRepository>();
 builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 
 builder.Services.AddHostedService<SupabaseInitializer>();

@@ -1,0 +1,80 @@
+﻿using Supabase.Postgrest.Models;
+using Supabase.Postgrest.Attributes;
+
+namespace AlSaqr.Data.Entities.SocialMedia.Views
+{
+    [Table("vw_community_discussion_details")]
+    public class VwCommunityDiscussionDetails : BaseModel
+    {
+        [Column("discussion_id")]
+        public Guid DiscussionId { get; set; }
+
+        [Column("community_id")]
+        public Guid CommunityId { get; set; }
+
+        [Column("discussion_title")]
+        public string DiscussionTitle { get; set; } = string.Empty;
+
+        [Column("discussion_content")]
+        public string DiscussionContent { get; set; } = string.Empty;
+
+        [Column("discussion_created_at")]
+        public DateTime DiscussionCreatedAt { get; set; }
+
+        [Column("discussion_updated_at")]
+        public DateTime? DiscussionUpdatedAt { get; set; }
+
+        // Creator
+        [Column("creator_id")]
+        public Guid CreatorId { get; set; }
+
+        [Column("creator_username")]
+        public string CreatorUsername { get; set; } = string.Empty;
+
+        [Column("creator_avatar")]
+        public string? CreatorAvatar { get; set; }
+
+        // Requesting user context
+        [Column("user_id")]
+        public Guid? UserId { get; set; }
+
+        [Column("user_role")]
+        public string? UserRole { get; set; }
+
+        [Column("user_joined_at")]
+        public DateTime? UserJoinedAt { get; set; }
+
+        [Column("relationship_type")]
+        public string? RelationshipType { get; set; }
+
+        // Aggregated member lists (JSONB → string; deserialize downstream)
+        [Column("joined_users")]
+        public string JoinedUsers { get; set; } = "[]";
+
+        [Column("moderator_users")]
+        public string ModeratorUsers { get; set; } = "[]";
+
+        // Counts
+        [Column("member_count")]
+        public long MemberCount { get; set; }
+
+        [Column("moderator_count")]
+        public long ModeratorCount { get; set; }
+
+        [Column("total_member_count")]
+        public long TotalMemberCount { get; set; }
+
+        // Latest message preview
+        [Column("last_message_id")]
+        public Guid? LastMessageId { get; set; }
+
+        [Column("last_message_creator_id")]
+        public Guid? LastMessageCreatorId { get; set; }
+
+        [Column("last_message_content")]
+        public string? LastMessageContent { get; set; }
+
+        [Column("last_message_at")]
+        public DateTime? LastMessageAt { get; set; }
+    }
+}

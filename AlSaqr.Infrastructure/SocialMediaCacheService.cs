@@ -4,6 +4,7 @@ using static AlSaqr.Domain.Utils.Common;
 using static AlSaqr.Domain.SocialMedia.Session;
 using AlSaqr.Domain.SocialMedia;
 using static AlSaqr.Domain.SocialMedia.Community;
+using static AlSaqr.Domain.SocialMedia.List;
 
 namespace AlSaqr.Infrastructure.SocialMediaCache
 {
@@ -19,10 +20,10 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
         PaginatedResult<CommunityDto>? GetInitialCommunities(Guid userId);
         bool CheckIfInitialCommunitiesCanBeRetrieved(int currentPage, Guid userId);
 
-        void ClearInitialLists(string userId);
-        void SetInitialLists(PaginatedResult<Dictionary<string, object>> pagination, string userId);
-        PaginatedResult<Dictionary<string, object>>? GetInitialLists(string userId);
-        bool CheckIfInitialListsCanBeRetrieved(int currentPage, string userId);
+        void ClearInitialLists(Guid userId);
+        void SetInitialLists(PaginatedResult<ListDto> pagination, Guid userId);
+        PaginatedResult<ListDto>? GetInitialLists(Guid userId);
+        bool CheckIfInitialListsCanBeRetrieved(int currentPage, Guid userId);
 
         void ClearInitialPosts();
         void SetInitialPosts(PaginatedResult<Dictionary<string, object>> pagination);

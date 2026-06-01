@@ -13,7 +13,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
     {
 
         private readonly ILogger<CommentsController> _logger;
-        private readonly IDriver _driver;
         private Supabase.Client _supabase;
         private readonly ICommentRepository _commentsRepository;
         private readonly IUserCacheService _userCacheService;
@@ -21,13 +20,11 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
         public CommentsController(
             ILogger<CommentsController> logger, 
-            IDriver driver, 
             Supabase.Client supabase,
             ICommentRepository commentRepository,
             IUserCacheService userCacheService)
         {
             _logger = logger;
-            _driver = driver;
             _supabase = supabase;
             _commentsRepository = commentRepository;
             _userCacheService = userCacheService;
@@ -50,8 +47,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return BadRequest("User ID is required");
             }
 
-            await using var session = _driver.AsyncSession();
-
+           
             if (string.IsNullOrEmpty(data?.Text))
             {
                 return BadRequest("Text of the Comment is required");

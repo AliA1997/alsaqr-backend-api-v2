@@ -3,7 +3,6 @@ using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
 using Supabase.Postgrest.Interfaces;
 
 namespace AlSaqr.API.Controllers.Meetup
@@ -13,20 +12,17 @@ namespace AlSaqr.API.Controllers.Meetup
     public class EventDetailsController : ControllerBase
     {
         private readonly ILogger<EventDetailsController> _logger;
-        private readonly IDriver _driver;
         private readonly IUserCacheService _userCacheService;
         private readonly Supabase.Client _supabase;
         private readonly IEventRepository _eventRepository;
 
         public EventDetailsController(
             ILogger<EventDetailsController> logger,
-            IDriver driver,
             Supabase.Client supabase,
             IUserCacheService userCacheService,
             IEventRepository eventRepository)
         {
             _logger = logger;
-            _driver = driver;
             _supabase = supabase;
             _userCacheService = userCacheService;
             _eventRepository = eventRepository;

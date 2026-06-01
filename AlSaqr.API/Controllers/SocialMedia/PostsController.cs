@@ -81,8 +81,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return BadRequest("User ID is required");
             }
 
-            await using var session = _driver.AsyncSession();
-
             if (string.IsNullOrEmpty(data?.Text))
             {
                 return BadRequest("Text of the Post is required");

@@ -1,25 +1,11 @@
-﻿using AlSaqr.Data.Entities;
-using AlSaqr.Data.Entities.Meetup;
-using AlSaqr.Data.Entities.SocialMedia;
+﻿using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Entities.SocialMedia.Views;
-using AlSaqr.Data.Helpers;
-using AlSaqr.Data.Repositories.SocialMedia;
 using AlSaqr.Data.Repositories.SocialMedia.Impl;
-using AlSaqr.Domain.Common;
-using AlSaqr.Domain.Meetup;
 using AlSaqr.Domain.Utils;
 using AlSaqr.Infrastructure;
-using Microsoft.AspNet.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
-using Newtonsoft.Json;
-using Supabase.Postgrest.Interfaces;
-using System.Collections.Generic;
-using System.Data.Entity.Core.Metadata.Edm;
-using System.Runtime.ConstrainedExecution;
 using static AlSaqr.Domain.SocialMedia.Session;
 using static AlSaqr.Domain.SocialMedia.User;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {
@@ -31,20 +17,17 @@ namespace AlSaqr.API.Controllers.SocialMedia
         private readonly ILogger<SessionController> _logger;
         private readonly IUserRepository _userRepository;
         private readonly Supabase.Client _supabase;
-        private readonly IConfiguration _configuration;
         private readonly IUserCacheService _userCacheService;
 
         public SessionController(
             ILogger<SessionController> logger,  
             IUserRepository userRepository,
             Supabase.Client supabase,
-            IConfiguration configuration,
             IUserCacheService userCacheService)
         {
             _logger = logger;
             _userRepository = userRepository;
             _supabase = supabase;
-            _configuration = configuration;
             _userCacheService = userCacheService;
         }
 

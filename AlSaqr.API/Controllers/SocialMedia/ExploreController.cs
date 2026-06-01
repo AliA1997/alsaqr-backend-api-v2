@@ -1,11 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
 using NewsAPI;
 using NewsAPI.Constants;
-using System;
-using System.Diagnostics;
-using System.Text.Json.Serialization;
-using AlSaqr.Data;
 using static AlSaqr.Domain.Utils.Common;
 using AlSaqr.Domain.SocialMedia;
 
@@ -17,19 +12,13 @@ namespace AlSaqr.API.Controllers.SocialMedia
     {
 
         private readonly ILogger<ExploreController> _logger;
-        private readonly IDriver _driver;
-        private readonly IConfiguration _configuration;
         private readonly NewsApiClient _newsApiClient;
 
         public ExploreController(
             ILogger<ExploreController> logger, 
-            IDriver driver, 
-            IConfiguration configuration,
             NewsApiClient newsApiClient)
         {
             _logger = logger;
-            _driver = driver;
-            _configuration = configuration;
             _newsApiClient = newsApiClient;
         }
 

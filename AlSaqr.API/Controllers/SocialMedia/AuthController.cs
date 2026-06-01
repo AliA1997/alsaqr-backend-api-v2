@@ -16,13 +16,11 @@ namespace AlSaqr.API.Controllers.SocialMedia
     {
 
         private readonly ILogger<AuthController> _logger;
-        private readonly IDriver _driver;
 
 
-        public AuthController(ILogger<AuthController> logger, IDriver driver)
+        public AuthController(ILogger<AuthController> logger)
         {
             _logger = logger;
-            _driver = driver;
         }
 
         [HttpGet("external-login/{provider}")]

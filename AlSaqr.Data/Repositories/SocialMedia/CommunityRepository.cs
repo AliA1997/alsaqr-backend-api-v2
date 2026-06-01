@@ -138,7 +138,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 });
 
             if (inserted?.Model == null)
-                throw new Exception("Error creating post");
+                throw new Exception("Error creating community");
 
             await AddUsersToCommunity(supabase, community.Id, data.UsersAdded.ToList());
 
