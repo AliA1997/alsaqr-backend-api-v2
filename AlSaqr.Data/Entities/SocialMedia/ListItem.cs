@@ -26,12 +26,5 @@ namespace AlSaqr.Data.Entities.SocialMedia
         [Column("saved_at")]
         public DateTime SavedAt { get; set; } = DateTime.UtcNow;
 
-        // Navigation properties
-        //public List? List { get; set; }
-        public AlSaqrUser? User { get; set; }
-        public Post? Post { get; set; }
-        //public Community? Community { get; set; }
-        //public CommunityDiscussion? CommunityDiscussion { get; set; }
-        //public CommunityDiscussionMessage? CommunityDiscussionMessage { get; set; }
     }
 }

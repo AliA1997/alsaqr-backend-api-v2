@@ -31,12 +31,5 @@ namespace AlSaqr.Data.Entities.SocialMedia
         [Column("deleted_at")]
         public DateTime? DeletedAt { get; set; }
 
-        // Navigation properties
-        public AlSaqrUser? User { get; set; }
-        public Post? RelatedPost { get; set; }
-        public ICollection<Post> Comments { get; set; } = new List<Post>();
-        public ICollection<PostStatus> PostStatuses { get; set; } = new List<PostStatus>();
-        public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
-        public ICollection<ListItem> ListItems { get; set; } = new List<ListItem>();
     }
 }

@@ -39,13 +39,5 @@ namespace AlSaqr.Data.Entities.SocialMedia
         [Column("updated_at")]
         public DateTime? UpdatedAt { get; set; }
 
-        // Navigation properties
-        public AlSaqrUser? User { get; set; }
-        public AlSaqrUser? RelatedUser { get; set; }
-        //public Post? Post { get; set; }
-        //public Community? Community { get; set; }
-        //public CommunityDiscussion? CommunityDiscussion { get; set; }
-        //public CommunityDiscussionMessage? CommunityDiscussionMessage { get; set; }
-        //public List? List { get; set; }
     }
 }

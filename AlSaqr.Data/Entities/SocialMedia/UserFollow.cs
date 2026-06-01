@@ -19,8 +19,5 @@ namespace AlSaqr.Data.Entities.SocialMedia
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        // Navigation properties
-        public AlSaqrUser? Follower { get; set; }
-        public AlSaqrUser? Following { get; set; }
     }
 }

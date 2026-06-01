@@ -82,8 +82,8 @@ namespace  AlSaqr.Domain.SocialMedia
 
         public class CreateCommunityFormDto: CreateCommunityForm
         {
-            public Guid[] UsersAdded { get; set; }
-            public Guid[] PostsAdded { get; set; }
+            public Guid[] UsersAdded { get; set; } = new Guid[] { };
+            public Guid[] PostsAdded { get; set; } = new Guid[] { };
         }
         public class CreateCommunityForm 
         { 

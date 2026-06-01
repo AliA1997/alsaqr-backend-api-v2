@@ -20,8 +20,6 @@ namespace AlSaqr.Data.Entities.SocialMedia
         [Column("updated_at")]
         public DateTime? UpdatedAt { get; set; }
 
-        // Navigation properties
-        public Post? Post { get; set; }
-        public AlSaqrUser? User { get; set; }
+        
     }
 }

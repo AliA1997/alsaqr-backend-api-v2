@@ -18,8 +18,5 @@ namespace AlSaqr.Data.Entities.SocialMedia
         [Column("joined_at")]
         public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
 
-        // Navigation properties
-        public CommunityDiscussion? CommunityDiscussion { get; set; }
-        public AlSaqrUser? User { get; set; }
     }
 }
