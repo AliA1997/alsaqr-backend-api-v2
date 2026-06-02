@@ -36,39 +36,39 @@ namespace  AlSaqr.Domain.SocialMedia
                 this.RecipientAvatar = details.RecipientAvatar;
             }
 
-            [JsonPropertyName("message_id")]
+            [JsonPropertyName("messageId")]
             public Guid MessageId { get; set; }
 
-            [JsonPropertyName("sender_id")]
+            [JsonPropertyName("senderId")]
             public Guid SenderId { get; set; }
 
-            [JsonPropertyName("recipient_id")]
+            [JsonPropertyName("recipientId")]
             public Guid RecipientId { get; set; }
 
-            [JsonPropertyName("message_content")]
+            [JsonPropertyName("messageContent")]
             public string MessageContent { get; set; } = string.Empty;
 
-            [JsonPropertyName("is_read")]
+            [JsonPropertyName("isRead")]
             public bool IsRead { get; set; }
 
-            [JsonPropertyName("message_created_at")]
+            [JsonPropertyName("messageCreatedAt")]
             public DateTimeOffset MessageCreatedAt { get; set; }
 
-            [JsonPropertyName("message_updated_at")]
+            [JsonPropertyName("messageUpdatedAt")]
             public DateTimeOffset? MessageUpdatedAt { get; set; }
 
             // Sender
-            [JsonPropertyName("sender_username")]
+            [JsonPropertyName("senderUsername")]
             public string SenderUsername { get; set; } = string.Empty;
 
-            [JsonPropertyName("sender_avatar")]
+            [JsonPropertyName("senderAvatar")]
             public string? SenderAvatar { get; set; }
 
             // Recipient
-            [JsonPropertyName("recipient_username")]
+            [JsonPropertyName("recipientUsername")]
             public string RecipientUsername { get; set; } = string.Empty;
 
-            [JsonPropertyName("recipient_avatar")]
+            [JsonPropertyName("recipientAvatar")]
             public string? RecipientAvatar { get; set; }
         }
     }

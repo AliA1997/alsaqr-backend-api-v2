@@ -99,38 +99,38 @@ namespace  AlSaqr.Domain.SocialMedia
             Bookmarkers = postDetails.Bookmarkers;
             BookmarkCount = postDetails.BookmarkCount;
         }
-        [JsonPropertyName("post_id")]
+        [JsonPropertyName("postId")]
         public Guid PostId { get; set; }
 
         [JsonPropertyName("content")]
         public string Content { get; set; } = string.Empty;
 
-        [JsonPropertyName("post_type")]
+        [JsonPropertyName("postType")]
         public string PostType { get; set; } = string.Empty;
 
-        [JsonPropertyName("related_post_id")]
+        [JsonPropertyName("relatedPostId")]
         public Guid? RelatedPostId { get; set; }
 
-        [JsonPropertyName("post_avatar")]
+        [JsonPropertyName("postAvatar")]
         public string? PostAvatar { get; set; }
 
-        [JsonPropertyName("post_banner_image")]
+        [JsonPropertyName("postBannerImage")]
         public string? PostBannerImage { get; set; }
 
-        [JsonPropertyName("post_tags")]
+        [JsonPropertyName("postTags")]
         public string[]? PostTags { get; set; }
 
-        [JsonPropertyName("post_created_at")]
+        [JsonPropertyName("postCreatedAt")]
         public DateTime CreatedAt { get; set; }
 
-        [JsonPropertyName("post_updated_at")]
+        [JsonPropertyName("postUpdatedAt")]
         public DateTime? UpdatedAt { get; set; }
 
         [JsonPropertyName("username")]
         public string? Username { get; set; }
-        [JsonPropertyName("profile_img")]
+        [JsonPropertyName("profileImg")]
         public string? ProfileImg { get; set; }
-        [JsonPropertyName("author_bio")]
+        [JsonPropertyName("authorBio")]
         public string? AuthorBio { get; set; }
 
         // Aggregated collections (JSONB → string; deserialize downstream)
@@ -150,16 +150,16 @@ namespace  AlSaqr.Domain.SocialMedia
         public PostUserInfoDto[]? Bookmarkers { get; set; } = new PostUserInfoDto[] { };
 
         // Counts
-        [JsonPropertyName("comment_count")]
+        [JsonPropertyName("commentCount")]
         public long CommentCount { get; set; }
 
-        [JsonPropertyName("repost_count")]
+        [JsonPropertyName("repostCount")]
         public long RepostCount { get; set; }
 
-        [JsonPropertyName("like_count")]
+        [JsonPropertyName("likeCount")]
         public long LikeCount { get; set; }
 
-        [JsonPropertyName("bookmark_count")]
+        [JsonPropertyName("bookmarkCount")]
         public long BookmarkCount { get; set; }
     }
 
@@ -191,51 +191,51 @@ namespace  AlSaqr.Domain.SocialMedia
 
     public class PostsToAddDto
     {
-        [JsonProperty("post_id")] 
+        [JsonProperty("postId")] 
         public Guid PostId { get; set; }
-        [JsonProperty("user_id")] 
+        [JsonProperty("userId")] 
         public Guid UserId { get; set; }
         [JsonProperty("content")] 
         public string Content { get; set; }
-        [JsonProperty("post_type")] 
+        [JsonProperty("postType")] 
         public string PostType { get; set; }
-        [JsonProperty("related_post_id")] 
+        [JsonProperty("relatedPostId")] 
         public Guid? RelatedPostId { get; set; }
-        [JsonProperty("post_avatar")] 
+        [JsonProperty("postAvatar")] 
         public string? PostAvatar { get; set; }
-        [JsonProperty("post_banner_image")] 
+        [JsonProperty("postBannerImage")] 
         public string? PostBannerImage { get; set; }
-        [JsonProperty("post_tags")] 
+        [JsonProperty("postTags")] 
         public List<string> PostTags { get; set; } = new();
-        [JsonProperty("post_created_at")] 
+        [JsonProperty("postCreatedAt")] 
         public DateTime PostCreatedAt { get; set; }
-        [JsonProperty("post_updated_at")] 
+        [JsonProperty("postUpdatedAt")] 
         public DateTime? PostUpdatedAt { get; set; }
         [JsonProperty("username")] 
         public string Username { get; set; }
-        [JsonProperty("profile_img")] 
+        [JsonProperty("profileImg")] 
         public string? ProfileImg { get; set; }
-        [JsonProperty("author_bio")] 
+        [JsonProperty("authorBio")] 
         public string? AuthorBio { get; set; }
         [JsonProperty("comments")] 
         public JArray Comments { get; set; } = new();
         [JsonProperty("commenters")] 
         public JArray Commenters { get; set; } = new();
-        [JsonProperty("comment_count")] 
+        [JsonProperty("commentCount")] 
         public long CommentCount { get; set; }
         [JsonProperty("reposters")] 
         public JArray Reposters { get; set; } = new();
-        [JsonProperty("repost_count")] 
+        [JsonProperty("repostCount")] 
         public long RepostCount { get; set; }
         [JsonProperty("likers")] 
         public JArray Likers { get; set; } = new();
-        [JsonProperty("like_count")] 
+        [JsonProperty("likeCount")] 
         public long LikeCount { get; set; }
         [JsonProperty("bookmarkers")] 
         public JArray Bookmarkers { get; set; } = new();
-        [JsonProperty("bookmark_count")] 
+        [JsonProperty("bookmarkCount")] 
         public long BookmarkCount { get; set; }
-        [JsonProperty("total_items")] 
+        [JsonProperty("totalItems")] 
         public int TotalItems { get; set; }
     }
 }

@@ -56,7 +56,7 @@ namespace  AlSaqr.Domain.SocialMedia
             public string MessageText { get; set; }
             [JsonProperty("image")]
             public string Image { get; set; }
-            [JsonProperty("created_at")]
+            [JsonProperty("createdAt")]
             public DateTime CreatedAt { get; set; }
         }
 

@@ -137,29 +137,29 @@ namespace  AlSaqr.Domain.SocialMedia
         public string? Avatar { get; set; }
         [JsonProperty("bio")] 
         public string? Bio { get; set; }
-        [JsonProperty("first_name")] 
+        [JsonProperty("firstName")] 
         public string? FirstName { get; set; }
-        [JsonProperty("last_name")] 
+        [JsonProperty("lastName")] 
         public string? LastName { get; set; }
-        [JsonProperty("banner_image")] 
+        [JsonProperty("bannerImage")] 
         public string? BannerImage { get; set; }
-        [JsonProperty("country_of_origin")] 
+        [JsonProperty("countryOfOrigin")] 
         public string? CountryOfOrigin { get; set; }
-        [JsonProperty("preferred_madhab")] 
+        [JsonProperty("preferredMadhab")] 
         public string? PreferredMadhab { get; set; }
         [JsonProperty("hobbies")] 
         public List<string> Hobbies { get; set; } = new();
-        [JsonProperty("favorite_quran_reciters")] 
+        [JsonProperty("favoriteQuranReciters")] 
         public List<string> FavoriteQuranReciters { get; set; } = new();
-        [JsonProperty("favorite_islamic_scholars")] 
+        [JsonProperty("favoriteIslamicScholars")] 
         public List<string> FavoriteIslamicScholars { get; set; } = new();
-        [JsonProperty("islamic_study_topics")] 
+        [JsonProperty("islamicStudyTopics")] 
         public List<string> IslamicStudyTopics { get; set; } = new();
-        [JsonProperty("follower_count")] 
+        [JsonProperty("followerCount")] 
         public long FollowerCount { get; set; }
-        [JsonProperty("following_count")] 
+        [JsonProperty("followingCount")] 
         public long FollowingCount { get; set; }
-        [JsonProperty("total_items")] 
+        [JsonProperty("totalItems")] 
         public int TotalItems { get; set; }
     }
 

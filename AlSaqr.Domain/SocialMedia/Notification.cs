@@ -19,37 +19,37 @@ namespace AlSaqr.Domain.SocialMedia
             this.CommunityDiscussionId = details.CommunityDiscussionId;
         }
 
-        [JsonPropertyName("notification_id")]
+        [JsonPropertyName("notificationId")]
         public Guid NotificationId { get; set; }
 
-        [JsonPropertyName("user_id")]
+        [JsonPropertyName("userId")]
         public Guid UserId { get; set; }
 
-        [JsonPropertyName("notification_type")]
+        [JsonPropertyName("notificationType")]
         public string NotificationType { get; set; } = string.Empty;
 
-        [JsonPropertyName("notification_message")]
+        [JsonPropertyName("notificationMessage")]
         public string? NotificationMessage { get; set; }
 
-        [JsonPropertyName("is_read")]
+        [JsonPropertyName("isRead")]
         public bool IsRead { get; set; }
 
-        [JsonPropertyName("notification_created_at")]
+        [JsonPropertyName("notificationCreatedAt")]
         public DateTime NotificationCreatedAt { get; set; }
 
-        [JsonPropertyName("notification_updated_at")]
+        [JsonPropertyName("notificationUpdatedAt")]
         public DateTime? NotificationUpdatedAt { get; set; }
 
         //[JsonPropertyName("triggered_by")]
         //public NotificationActorDto? TriggeredBy { get; set; }
 
-        [JsonPropertyName("post_id")]
+        [JsonPropertyName("postId")]
         public Guid? PostId { get; set; }
 
-        [JsonPropertyName("community_id")]
+        [JsonPropertyName("communityId")]
         public Guid? CommunityId { get; set; }
 
-        [JsonPropertyName("community_discussion_id")]
+        [JsonPropertyName("communityDiscussionId")]
         public Guid? CommunityDiscussionId { get; set; }
     }
 
