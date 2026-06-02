@@ -47,12 +47,17 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
         [Column("relationship_type")]
         public string? RelationshipType { get; set; }
 
-        // Aggregated member lists (JSONB → string; deserialize downstream)
+        // Aggregated member lists (json → string; deserialize downstream)
         [Column("joined_users")]
-        public string JoinedUsers { get; set; } = "[]";
+        public IDictionary<string , object>[]? JoinedUsers { get; set; }
 
         [Column("moderator_users")]
-        public string ModeratorUsers { get; set; } = "[]";
+        public IDictionary<string, object>[]? ModeratorUsers { get; set; }
+        [Column("invited_users")]
+        public IDictionary<string, object>[]? InvitedUsers { get; set; }
+
+        [Column("requested_users")]
+        public IDictionary<string, object>[]? RequestedUsers { get; set; }
 
         // Counts
         [Column("member_count")]
@@ -60,6 +65,11 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
 
         [Column("moderator_count")]
         public long ModeratorCount { get; set; }
+        [Column("invited_count")]
+        public long InvitedCount { get; set; }
+
+        [Column("requested_count")]
+        public long RequestedCount { get; set; }
 
         [Column("total_member_count")]
         public long TotalMemberCount { get; set; }

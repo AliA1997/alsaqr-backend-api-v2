@@ -77,9 +77,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 {
                     await supabase
                         .From<Notification>()
-                        .Where(n => n.UserId == communityDiscussion.CreatorId
-                                    && n.CommunityDiscussionId == communityDiscussionId
-                                    && n.NotificationType == "user_joined")
+                        .Where(n => n.RelatedUserId == userId)
+                        .Where(n => n.CommunityDiscussionId == communityDiscussionId)
                         .Delete(null, ct);
 
                     var unjoinedUser = await supabase
@@ -89,10 +88,10 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
                     await CreateCommunityDiscussionMemberNotification(
                         supabase,
-                        userId: communityDiscussion.CreatorId,
+                        userId: userId,
                         communityDiscussionId: communityDiscussionId,
                         messageTemplate: $"Someone with ID of {unjoinedUser?.Username} has unjoined your community discussion of {communityDiscussion.Title}.",
-                        notificationType: "user_request_join",
+                        notificationType: "user_unjoined",
                         ct
                     );
                 }
@@ -170,9 +169,9 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     // Promote the pending request row to an invited/member row.
                     var existing = await supabase
                         .From<CommunityDiscussionMember>()
-                        .Where(cdm => cdm.UserId == userId
-                                    && cdm.CommunityDiscussionId == communityDiscussionId)
-                        .Filter("role", Operator.Equals, RoleRequested)
+                        .Where(cdm => cdm.UserId == userId)
+                        .Where(cdm => cdm.CommunityDiscussionId == communityDiscussionId)
+                        .Where(cdm => cdm.Role == RoleRequested)
                         .Single(ct);
 
                     if (existing != null)
@@ -206,7 +205,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                         supabase,
                         userId: userId,
                         communityDiscussionId: communityDiscussionId,
-                        messageTemplate: "{username} joined your community discussion of {communityDiscussion}.",
+                        messageTemplate: "{username} invited to a community discussion of {communityDiscussion}.",
                         notificationType: "user_joined",
                         ct
                     );
@@ -216,8 +215,9 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     // Deny: remove the pending request row.
                     await supabase
                         .From<CommunityDiscussionMember>()
-                        .Where(cdm => cdm.UserId == userId && cdm.CommunityDiscussionId == communityDiscussionId)
-                        .Filter("role", Operator.Equals, RoleRequested)
+                        .Where(cdm => cdm.UserId == userId)
+                        .Where(cdm => cdm.CommunityDiscussionId == communityDiscussionId)
+                        .Where(cdm => cdm.Role == RoleRequested)
                         .Delete(null, ct);
 
                     await CreateCommunityDiscussionMemberNotification(
@@ -225,7 +225,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                         userId: userId,
                         communityDiscussionId: communityDiscussionId,
                         messageTemplate: "{username} denied from your community discussion of {communityDiscussion}.",
-                        notificationType: "user_joined",
+                        notificationType: "user_denied",
                         ct
                     );
                 }
@@ -240,9 +240,9 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 {
                     await supabase
                         .From<Notification>()
-                        .Where(n => n.UserId == communityDiscussion.CreatorId
-                                    && n.CommunityDiscussionId == communityDiscussionId
-                                    && n.NotificationType == "user_request_join")
+                        .Where(n => n.UserId == communityDiscussion.CreatorId)
+                        .Where(n => n.CommunityDiscussionId == communityDiscussionId)
+                        .Where(n => n.NotificationType == "user_request_join")
                         .Delete(null, ct);
                 }
             }
@@ -274,15 +274,15 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             if (communityDiscussion == null || communityDiscussion.CreatorId == userId)
                 return;
 
-            var actingUser = await supabase
+            var communityDiscussionMember = await supabase
                 .From<AlSaqrUser>()
                 .Where(u => u.Id == userId)
                 .Single(ct);
 
-            var username = actingUser?.Username ?? "Someone";
+            var communityDiscussionMemberUsername = communityDiscussionMember?.Username ?? "Someone";
 
             var message = messageTemplate
-                .Replace("{username}", username)
+                .Replace("{username}", communityDiscussionMemberUsername)
                 .Replace("{communityDiscussion}", communityDiscussion.Title);
 
             var notification = new Notification
@@ -291,11 +291,12 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 UserId = communityDiscussion.CreatorId,
                 Read = false,
                 CreatedAt = DateTime.UtcNow,
-                Message = message,
+                Message = message,  
                 NotificationType = notificationType,
-                ItemType = "community",
+                ItemType = "community_discussion",
                 CommunityDiscussionId = communityDiscussionId,
-                Link = $"/communityDiscussions/{communityDiscussionId}",
+                RelatedUserId = userId,
+                Link = $"/users/{communityDiscussionMemberUsername}"
             };
 
             var created = await supabase

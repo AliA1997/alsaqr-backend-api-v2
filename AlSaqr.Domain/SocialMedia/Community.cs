@@ -23,7 +23,7 @@ namespace  AlSaqr.Domain.SocialMedia
                 this.UserRole = details.UserRole;
                 this.UserJoinedAt = details.UserJoinedAt;
                 this.RelationshipType = details.RelationshipType;
-                this.TotalMembers = details.TotalMembers;
+                this.TotalMembers = details.TotalMembers ?? 0;
             }
 
             [JsonProperty("communityId")]
@@ -75,7 +75,7 @@ namespace  AlSaqr.Domain.SocialMedia
 
             // Counts
             [JsonProperty("totalMembers")]
-            public long TotalMembers { get; set; }
+            public long? TotalMembers { get; set; } = 0;
         }
 
         public class CreateCommunityFormDto: CreateCommunityForm

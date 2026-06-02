@@ -1,5 +1,7 @@
 ﻿using AlSaqr.Data.Entities.SocialMedia;
+using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.SocialMedia.Impl;
+using AlSaqr.Domain.SocialMedia;
 using static AlSaqr.Domain.SocialMedia.CommunityDiscussion;
 using static AlSaqr.Domain.Utils.Common;
 using static Supabase.Postgrest.Constants;
@@ -27,6 +29,10 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 CancellationToken ct = cts.Token;
 
                 var baseQuery = supabase.From<CommunityDiscussionMessage>().Where(x => x.CommunityDiscussionId == communityDiscussionId);
+                var totalParams = new Dictionary<string, dynamic>()
+                {
+                    { "p_community_discussion_id", communityDiscussionId },
+                };
 
                 if (!string.IsNullOrEmpty(searchTerm))
                 {
@@ -34,7 +40,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     //baseQuery = baseQuery.Filter("content", Operator.ILike, $"%{searchTerm ?? string.Empty}%");
                 }
 
-                var totalItems = await baseQuery.Count(CountType.Exact, ct);
+                var result = await SupabaseHelper.CallFunction(supabase, "get_all_community_discussion_messages_count", totalParams);
+                var totalItems = result != null ? long.Parse(result) : 0;
 
                 if (totalItems == 0)
                 {

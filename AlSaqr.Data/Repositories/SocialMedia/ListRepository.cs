@@ -96,37 +96,48 @@ namespace AlSaqr.Data.Repositories.SocialMedia
               CreateListFormDto data,
               CancellationToken ct)
         {
-
-            var list = new Entities.SocialMedia.List()
+            try
             {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                Name = data.Name,
-                BannerImage = data.AvatarOrBannerImage,
-                Tags = data.Tags ?? Array.Empty<string>(),
-                CreatedAt = DateTime.UtcNow
-            };
-
-            var inserted = await supabase
-                .From<Entities.SocialMedia.List>()
-                .Insert(list, new QueryOptions
+                var list = new Entities.SocialMedia.List()
                 {
-                    Returning = ReturnType.Representation
-                });
+                    UserId = userId,
+                    Name = data.Name,
+                    BannerImage = data.AvatarOrBannerImage,
+                    Tags = data.Tags ?? Array.Empty<string>(),
+                    CreatedAt = DateTime.UtcNow
+                };
 
-            if (inserted?.Model == null)
-                throw new Exception("Error creating list");
+                var inserted = await supabase
+                    .From<Entities.SocialMedia.List>()
+                    .Insert(list, new QueryOptions
+                    {
+                        Returning = ReturnType.Representation
+                    });
+
+                if (inserted?.Model == null)
+                    throw new Exception("Error creating list");
 
 
-            await CreateListNotification(
-                supabase,
-                userId,
-                list.Id,
-                "You created the list {list}",
-                "list_created",
-                ct);
+                await CreateListNotification(
+                    supabase,
+                    userId,
+                    inserted.Model.Id,
+                    "You created the list {list}",
+                    "list_created",
+                    ct);
 
-            return inserted.Model.Id;
+                return inserted.Model.Id;
+            }
+            catch(CreateListException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new CreateListException(userId, data.Name, ex);
+            }
+
+          
         }
 
 
@@ -138,31 +149,44 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
-            Entities.SocialMedia.List? listToDelete = await supabase
-                .From<Entities.SocialMedia.List>()
-                .Where(c => c.Id == listId && c.UserId == userId)
-                .Single(ct);
+            try
+            {
+                Entities.SocialMedia.List? listToDelete = await supabase
+                                                            .From<Entities.SocialMedia.List>()
+                                                            .Where(c => c.Id == listId && c.UserId == userId)
+                                                            .Single(ct);
 
-            if (listToDelete == null)
-                throw new Exception("Can't delete the list");
+                if (listToDelete == null)
+                    throw new Exception("Can't delete the list");
 
-            var deleted = await supabase.From<Entities.SocialMedia.List>().Delete(listToDelete, new QueryOptions() { Returning = ReturnType.Minimal }, ct);
+                var deleted = await supabase.From<Entities.SocialMedia.List>().Delete(listToDelete, new QueryOptions() { Returning = ReturnType.Minimal }, ct);
 
-            if (deleted == null || deleted.Model == null)
-                throw new Exception("Issue deleting list");
+                if (deleted == null || deleted.Model == null)
+                    throw new Exception("Issue deleting list");
 
 
-            await DeleteListItemsToList(supabase, listId);
+                await DeleteListItemsToList(supabase, listId);
 
-            await CreateListNotification(
-                supabase,
-                userId,
-                listId,
-                "You deleted the list {list}",
-                "list_deleted",
-                ct);
+                await CreateListNotification(
+                    supabase,
+                    userId,
+                    listId,
+                    "You deleted the list {list}",
+                    "list_deleted",
+                    ct);
 
-            return deleted.Model.Id;
+                return deleted.Model.Id;
+            } 
+            catch(DeleteListException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new DeleteListException(listId, ex);
+            }
+
+
         }
 
         private async Task DeleteListItemsToList(

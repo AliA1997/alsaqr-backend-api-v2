@@ -55,6 +55,6 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
 
         // Counts
         [Column("total_members")]
-        public long TotalMembers { get; set; }
+        public long? TotalMembers { get; set; } = 0;
     }
 }

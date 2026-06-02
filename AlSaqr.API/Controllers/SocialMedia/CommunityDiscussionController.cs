@@ -265,7 +265,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return BadRequest("Community Discussion must have an id");
             }
 
-            var result = _communityDiscussionRepository.GetAdminCommunityDiscussionInfo(_supabase, userId, communityDiscussionId);
+            var result = await _communityDiscussionRepository.GetAdminCommunityDiscussionInfo(_supabase, userId, communityDiscussionId);
 
             return Ok(result);
         }

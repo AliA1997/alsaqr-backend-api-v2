@@ -66,8 +66,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     );
                 }
 
-
-                communityDiscussions = (await baseQuery.Order("community_created_at", Ordering.Descending)
+                communityDiscussions = (await baseQuery.Order("discussion_created_at", Ordering.Descending)
                                 .Range(skip, skip + itemsPerPage - 1)
                                 .Get(ct))
                                 .Models
@@ -121,7 +120,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         /// Retrieves admin information for a single community discussion: the
         /// discussion details, its founder, whether the caller is the founder,
         /// </summary>
-        public async Task<AdminCommunityDiscussionInfoDto> GetAdminCommunityDiscussionInfo(
+        public async Task<AdminCommunityDiscussionInfoDto?> GetAdminCommunityDiscussionInfo(
             Supabase.Client supabase,
             Guid userId,
             Guid communityDiscussionId)
@@ -142,6 +141,9 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
                 // 2. isFounder is caller-specific, so compute it here rather than in the view.
                 var isFounder = adminInfo.CreatorId == userId;
+
+                if (!isFounder)
+                    return null;
 
                 // 3. Fetch the invite-requested users (the collection the view can't flatten).
                 var requestedMembers = await supabase
@@ -202,12 +204,12 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     .Insert(communityDiscussion, new QueryOptions
                     {
                         Returning = ReturnType.Representation
-                    });
+                    }, ct);
 
                 if (inserted?.Model == null)
                     throw new Exception("Error creating community discussion");
 
-                await AddUsersToCommunityDiscussion(supabase, inserted.Model.Id, data.UsersAdded.ToList());
+                await AddUsersToCommunityDiscussion(supabase, inserted.Model.Id, data.UsersAdded.ToList(), ct);
 
                 await CreateCommunityDiscussionNotification(
                     supabase,
@@ -281,7 +283,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         private async Task AddUsersToCommunityDiscussion(
             Supabase.Client supabase,
             Guid communityDiscussionId,
-            List<Guid> userIds)
+            List<Guid> userIds,
+            CancellationToken ct)
         {
             var members = userIds.Select(userId => new CommunityDiscussionMember
             {
@@ -296,8 +299,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 .From<CommunityDiscussionMember>()
                 .Insert(members, new QueryOptions
                 {
-                    Returning = ReturnType.Minimal
-                });
+                    Returning = ReturnType.Representation
+                }, ct);
             if (inserted == null)
                 throw new Exception("Error adding members to community discussion");
 

@@ -273,26 +273,23 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// </summary>
         [HttpPatch("{userId}/{communityId}/request-join")]
         public async Task<IActionResult> RequestJoin(
-            string userId,
-            string communityId,
+            Guid userId,
+            Guid communityId,
             [FromBody] AlSaqrUpsertRequest<AcceptOrDenyCommunityInviteConfirmationDto> request)
         {
             var data = request.Values;
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
-            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId))
+            if (userId == Guid.Empty || communityId == Guid.Empty)
                 return BadRequest("Missing required fields.");
-
-            if (!Guid.TryParse(userId, out var userGuid) || !Guid.TryParse(communityId, out var communityGuid))
-                return BadRequest("User ID and Community ID must be valid GUIDs");
 
             try
             {
                 await _communityMemberRepository.RespondToJoinRequest(
                     _supabase,
-                    userGuid,
-                    communityGuid,
+                    userId,
+                    communityId,
                     accept: data.Accept == true,
                     ct
                 );

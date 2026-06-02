@@ -24,7 +24,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
                     Guid communityId,
                     CreateCommunityDiscussionForm data);
 
-        Task<AdminCommunityDiscussionInfoDto> GetAdminCommunityDiscussionInfo(
+        Task<AdminCommunityDiscussionInfoDto?> GetAdminCommunityDiscussionInfo(
             Supabase.Client supabase,
             Guid userId,
             Guid communityDiscussionId);

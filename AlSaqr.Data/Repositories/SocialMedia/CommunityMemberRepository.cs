@@ -79,11 +79,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
                 if (community != null)
                 {
-                    await supabase
-                        .From<Notification>()
-                        .Filter("user_id", Operator.Equals, userId)
-                        .Filter("community_id", Operator.Equals, communityId)
-                        .Filter("notification_type", Operator.Equals, "user_joined")
+                    await supabase.From<Notification>()
+                        .Where(x => x.RelatedUserId == userId && x.CommunityId == communityId)
                         .Delete(null, ct);
 
                     var unjoinedUser = await supabase
@@ -93,10 +90,10 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
                     await CreateCommunityMemberNotification(
                         supabase,
-                        userId: community.FounderId,
+                        userId: userId,
                         communityId: communityId,
                         messageTemplate: $"Someone with ID of {unjoinedUser?.Username} has unjoined your community of {community}.",
-                        notificationType: "user_request_join",
+                        notificationType: "user_unjoined",
                         ct
                     );
                 }
@@ -174,9 +171,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     // Promote the pending request row to an invited/member row.
                     var existing = await supabase
                         .From<CommunityMember>()
-                        .Where(cm => cm.UserId == userId
-                                    && cm.CommunityId == communityId)
-                        .Filter("role", Operator.Equals, RoleRequested)
+                        .Where(cm => cm.UserId == userId)
+                        .Where(cm =>  cm.CommunityId == communityId)
                         .Single(ct);
 
                     if (existing != null)
@@ -209,7 +205,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                         supabase,
                         userId: userId,
                         communityId: communityId,
-                        messageTemplate: "{username} joined your community of {community}.",
+                        messageTemplate: "{username} invited to  your community of {community}.",
                         notificationType: "user_joined",
                         ct
                     );
@@ -228,7 +224,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                         userId: userId,
                         communityId: communityId,
                         messageTemplate: "{username} denied from your community of {community}.",
-                        notificationType: "user_joined",
+                        notificationType: "user_denied",
                         ct
                     );
                 }
@@ -243,9 +239,9 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 {
                     await supabase
                         .From<Notification>()
-                        .Where(n => n.UserId == community.FounderId
-                                    && n.CommunityId == communityId
-                                    && n.NotificationType == "user_request_join")
+                        .Where(n => n.UserId == community.FounderId)
+                        .Where(n => n.CommunityId == communityId)
+                        .Where(n => n.NotificationType == "user_request_join")
                         .Delete(null, ct);
                 }
 
@@ -277,15 +273,16 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             if (community == null || community.FounderId == userId)
                 return;
 
-            var actingUser = await supabase
+            var newCommunityMember = await supabase
                 .From<AlSaqrUser>()
                 .Where(u => u.Id == userId)
                 .Single();
 
-            var username = actingUser?.Username ?? "Someone";
+            var communityMemberName = newCommunityMember?.Username ?? "Someone";
+
 
             var message = messageTemplate
-                .Replace("{username}", username)
+                .Replace("{username}", communityMemberName)
                 .Replace("{community}", community.Name);
 
             var notification = new Notification
@@ -297,13 +294,14 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 Message = message,
                 NotificationType = notificationType,
                 ItemType = "community",
+                RelatedUserId = userId,
                 CommunityId = communityId,
-                Link = $"/communities/{communityId}",
+                Link = $"/users/{communityMemberName}",
             };
 
             var created = await supabase
                 .From<Notification>()
-                .Insert(notification, new QueryOptions { Returning = ReturnType.Minimal });
+                .Insert(notification, new QueryOptions { Returning = ReturnType.Representation }, ct);
 
             if (created == null)
                 throw new Exception("Error creating notification");

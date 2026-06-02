@@ -39,12 +39,14 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
         public string? FounderLastName { get; set; }
 
         [Column("invited_count")]
-        public int InvitedCount { get; set; }
+        public long InvitedCount { get; set; }
 
         [Column("joined_count")]
-        public int JoinedCount { get; set; }
+        public long JoinedCount { get; set; }
+        [Column("moderator_count")]
+        public long ModeratorCount { get; set; }
 
         [Column("requested_count")]
-        public int RequestedCount { get; set; }
+        public long RequestedCount { get; set; }
     }
 }
