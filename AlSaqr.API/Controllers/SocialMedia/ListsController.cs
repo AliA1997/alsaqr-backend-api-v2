@@ -148,20 +148,14 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <returns></returns>
         [HttpPatch("{userId}/{listId}")]
         public async Task<IActionResult> SavedItemToList(
-            string userId,
-            string listId,
+            Guid userId,
+            Guid listId,
             [FromBody] AlSaqrUpsertRequest<List.SaveItemToListDto> request)
         {
             var data = request.Values;
 
-            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(listId))
+            if (userId == Guid.Empty || listId == Guid.Empty)
                 return BadRequest("Missing required fields");
-
-            if (!Guid.TryParse(userId, out var userGuid))
-                return BadRequest("User ID must be a valid GUID");
-
-            if (!Guid.TryParse(listId, out var listGuid))
-                return BadRequest("List ID must be a valid GUID");
 
             if (string.IsNullOrEmpty(data.Type))
                 return BadRequest("Item type is required");
@@ -173,7 +167,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             try
             {
-                await _listItemRepository.SaveItemToList(_supabase, userGuid, listGuid, data, cts.Token);
+                await _listItemRepository.SaveItemToList(_supabase, userId, listId, data, cts.Token);
 
                 return Ok(new { success = true, message = "Saved item to list Successfully" });
             }
@@ -213,6 +207,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// </summary>
         /// <param name="userId"></param>
         /// <param name="listId"></param>
+        /// <param name="listItemId"></param>
         /// <returns></returns>
         [HttpDelete("{userId}/{listId}/{listItemId}")]
         public async Task<IActionResult> DeleteSavedFromList(

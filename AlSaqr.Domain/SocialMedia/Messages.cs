@@ -6,7 +6,6 @@ namespace  AlSaqr.Domain.SocialMedia
     {
         public class MessageFormDto
         {
-            public string MessageType { get; set; }
             public Guid SenderId { get; set; }
             public string SenderProfileImg { get; set; }
             public string SenderUsername { get; set; }
@@ -15,7 +14,7 @@ namespace  AlSaqr.Domain.SocialMedia
             public string RecipientUsername { get; set; }
 
             public string Text { get; set; }
-            public string Image { get; set; }
+            public string? Image { get; set; }
         }
 
 

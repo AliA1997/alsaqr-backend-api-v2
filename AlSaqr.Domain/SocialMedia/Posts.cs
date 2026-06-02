@@ -24,14 +24,10 @@ namespace  AlSaqr.Domain.SocialMedia
 
         public class CreateCommentDto
         {
-            public string Id { get; set; }
             public string Text { get; set; }
-            public string? CommentToCommentOnId { get; set; }
             public Guid PostId { get; set; }
             public Guid UserId { get; set; }
             public string? Image { get; set; }
-            public string? CreatedAt { get; set; }
-            public string? UpdatedAt { get; set; }
         }
     }
 

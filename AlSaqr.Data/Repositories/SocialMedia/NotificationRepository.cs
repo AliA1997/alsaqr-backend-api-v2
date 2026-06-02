@@ -38,7 +38,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
                 if (!string.IsNullOrEmpty(getAll) && getAll.ToLower() == "true")
                 {
-                    parameters.Add("p_read", true);
+                    parameters.Add("p_read", null);
                 }
                 else if (!string.IsNullOrEmpty(getAll) && getAll.ToLower() == "false")
                 {
@@ -70,18 +70,15 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                                     .From<VwNotificationDetails>()
                                     .Where(x => x.UserId == userId);
 
-                if (!string.IsNullOrEmpty(getAll) && getAll.ToLower() == "true")
-                {
-                    dataQuery = dataQuery.Where(x => x.IsRead == true);
-                }
-                else if (!string.IsNullOrEmpty(getAll) && getAll.ToLower() == "false")
+
+                if (!string.IsNullOrEmpty(getAll) && getAll.ToLower() == "false")
                 {
                     dataQuery = dataQuery.Where(x => x.IsRead == false);
                 }
 
                 if (!string.IsNullOrEmpty(searchTerm))
                 {
-                    dataQuery = dataQuery.Filter("content", Operator.ILike, $"%{searchTerm ?? string.Empty}%");
+                    dataQuery = dataQuery.Where(x => x.NotificationMessage.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
                 }
 
                 var pageResult = await dataQuery

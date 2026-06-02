@@ -23,10 +23,10 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
         public bool IsRead { get; set; }
 
         [Column("notification_created_at")]
-        public DateTimeOffset NotificationCreatedAt { get; set; }
+        public DateTime NotificationCreatedAt { get; set; }
 
         [Column("notification_updated_at")]
-        public DateTimeOffset? NotificationUpdatedAt { get; set; }
+        public DateTime? NotificationUpdatedAt { get; set; }
 
         // Actor
         [Column("logged_in_user_id")]

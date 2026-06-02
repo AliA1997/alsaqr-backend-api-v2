@@ -29,7 +29,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
             if (userId == Guid.Empty)
                 return BadRequest("You need to be logged in, in order to access your notifications.");
 
-            var result = _notificationRepository.GetNotifications(_supabase, userId, all, null, currentPage, itemsPerPage);
+            var result = await _notificationRepository.GetNotifications(_supabase, userId, all, null, currentPage, itemsPerPage);
 
             _logger.LogInformation("Notifications retrieved successfully for user {UserId}", userId);
 

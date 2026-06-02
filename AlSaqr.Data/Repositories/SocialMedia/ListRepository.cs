@@ -33,7 +33,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 using var cts = new CancellationTokenSource();
                 CancellationToken ct = cts.Token;
 
-                var baseQuery = supabase.From<VwListDetails>().Where(x => x.ListId != null);
+                var baseQuery = supabase.From<VwListDetails>().Where(x => x.UserId == userId);
                 var totalParams = new Dictionary<string, dynamic>()
                 {
                     { "p_user_id", userId }
@@ -43,7 +43,6 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 {
                     totalParams.Add("p_search_term", searchTerm);
                     baseQuery = baseQuery.Where(x => x.ListName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
-                    //baseQuery = baseQuery.Filter("content", Operator.ILike, $"%{searchTerm ?? string.Empty}%");
                 }
 
                 var result = await SupabaseHelper.CallFunction(supabase, "get_all_lists_count", totalParams);
@@ -112,7 +111,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     .Insert(list, new QueryOptions
                     {
                         Returning = ReturnType.Representation
-                    });
+                    }, ct);
 
                 if (inserted?.Model == null)
                     throw new Exception("Error creating list");
@@ -159,13 +158,13 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 if (listToDelete == null)
                     throw new Exception("Can't delete the list");
 
-                var deleted = await supabase.From<Entities.SocialMedia.List>().Delete(listToDelete, new QueryOptions() { Returning = ReturnType.Minimal }, ct);
+                var deleted = await supabase.From<Entities.SocialMedia.List>().Delete(listToDelete, new QueryOptions() { Returning = ReturnType.Representation }, ct);
 
                 if (deleted == null || deleted.Model == null)
                     throw new Exception("Issue deleting list");
 
 
-                await DeleteListItemsToList(supabase, listId);
+                await DeleteListItemsToList(supabase, listId, ct);
 
                 await CreateListNotification(
                     supabase,
@@ -191,15 +190,18 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
         private async Task DeleteListItemsToList(
             Supabase.Client supabase,
-            Guid listId)
+            Guid listId,
+            CancellationToken ct)
         {
             Guid currentListItemIdToRemove = Guid.Empty; 
             try
             {
-                var listItemsToRemove = (await supabase
+                var listItemsToRemoveResponse = await supabase
                                             .From<ListItem>()
                                             .Where(li => li.ListId == listId)
-                                            .Get()).Models.Select(l => l.Id);
+                                            .Get(ct);
+
+                var listItemsToRemove = listItemsToRemoveResponse.Models.Select(l => l.Id);
 
                 foreach(var listItmId in listItemsToRemove)
                 {
@@ -208,7 +210,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     await supabase
                         .From<ListItem>()
                         .Where(li => li.Id == listItmId)
-                        .Delete(new QueryOptions() { Returning = ReturnType.Minimal });     
+                        .Delete(new QueryOptions() { Returning = ReturnType.Minimal }, ct);     
                 }
 
             }

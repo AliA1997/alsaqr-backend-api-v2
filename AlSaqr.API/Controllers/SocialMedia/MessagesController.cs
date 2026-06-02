@@ -36,8 +36,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
         [HttpGet("{userId}")]
         public async Task<IActionResult> GetMessageThreads(
                 Guid userId,
-                [FromQuery] Guid receiverId,
-                [FromQuery] Guid senderId,
                 [FromQuery] int currentPage = 1,
                 [FromQuery] int itemsPerPage = 10
             )

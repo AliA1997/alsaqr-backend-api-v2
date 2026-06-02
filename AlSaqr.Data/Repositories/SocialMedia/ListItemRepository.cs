@@ -177,7 +177,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 if (listItemToDelete == null)
                     throw new Exception("Can't delete the list item");
 
-                var deleted = await supabase.From<ListItem>().Delete(listItemToDelete, new QueryOptions() {  Returning = ReturnType.Minimal }, ct);
+                var deleted = await supabase.From<ListItem>().Delete(listItemToDelete, new QueryOptions() {  Returning = ReturnType.Representation }, ct);
 
                 if (deleted == null || deleted.Model == null)
                     throw new Exception("Issue deleting list item");
@@ -274,7 +274,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             var existing = await supabase
                 .From<ListItem>()
                 .Where(li => li.ListId == listId && li.CommunityId == communityId)
-                .Filter("item_type", Operator.Equals, COMMUNITY_ITEM_TYPE)
+                .Where(li => li.ItemType == COMMUNITY_ITEM_TYPE)
                 .Single(ct);
 
             if (existing != null)

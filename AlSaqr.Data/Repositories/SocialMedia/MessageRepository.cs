@@ -62,7 +62,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
                 if (!string.IsNullOrEmpty(searchTerm))
                 {
-                    dataQuery = dataQuery.Filter("content", Operator.ILike, $"%{searchTerm ?? string.Empty}%");
+                    dataQuery = dataQuery.Where(x => x.MessageContent.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
                 }
 
                 var pageResult = await dataQuery
@@ -104,7 +104,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 SenderId = data.SenderId,
                 RecipientId = data.RecipientId,
                 Content = data.Text,
-                Image = data.Image,
+                Media = data.Image,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -113,7 +113,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 .Insert(message, new QueryOptions
                 {
                     Returning = ReturnType.Representation
-                });
+                }, ct);
 
             if (inserted?.Model == null)
                 throw new Exception("Error creating message");
@@ -137,19 +137,6 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             string recipientUsername,
             CancellationToken ct)
         {
-            var senderMessage = await supabase
-                .From<Message>()
-                .Where(m => m.Id == senderId)
-                .Single(ct);
-            var recipientMessage = await supabase
-                .From<Message>()
-                .Where(m => m.Id == recipientId)
-                .Single(ct);
-
-            if (senderMessage == null || recipientMessage == null)
-                return;
-
-
             var senderNotificationMsg = $"You sent a message to {recipientUsername}";
             var recipientNotificationMsg = $"{senderUsername} sent a message to you";
 
@@ -183,14 +170,14 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
             var createdSender = await supabase
                 .From<Notification>()
-                .Insert(senderNotification, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+                .Insert(senderNotification, new QueryOptions { Returning = ReturnType.Representation }, ct);
 
             if (createdSender == null)
                 throw new Exception("Error creating notification");
 
             var createdRecipient = await supabase
                 .From<Notification>()
-                .Insert(recipientNotification, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+                .Insert(recipientNotification, new QueryOptions { Returning = ReturnType.Representation }, ct);
 
             if (createdRecipient == null)
                 throw new Exception("Error creating notification");
