@@ -94,8 +94,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
             }
             catch (Exception err)
             {
-                _logger.LogError(err, "Fetch Post error!");
-                return StatusCode(500, new { message = "Fetch Post error!", success = false });
+                _logger.LogError(err, "Fetch User Signin error!");
+                return StatusCode(500, new { message = "Fetch User Signin error!", success = false });
             }
         }
 

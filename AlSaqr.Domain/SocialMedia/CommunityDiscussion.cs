@@ -8,7 +8,12 @@ namespace  AlSaqr.Domain.SocialMedia
 {
     public static class CommunityDiscussion
     {
-
+        public class CreateCommunityDiscussionMessageForm
+        {
+            public Guid CreatorId { get; set; }
+            public string Content { get; set; }
+            public string Media { get; set; }
+        }
         public class CreateCommunityDiscussionForm
         {
             public string Name { get; set; }

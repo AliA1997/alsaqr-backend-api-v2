@@ -50,6 +50,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid userId,
             [FromBody] User.UpdateUserDto data)
         {
+            using var cts = new CancellationTokenSource();
+            var ct = cts.Token;
+
             if (userId == Guid.Empty || string.IsNullOrEmpty(userId.ToString()))
             {
                 return BadRequest("User ID is required for updating your user.");
@@ -57,7 +60,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
             
             try
             {
-                await _userRepository.UpdateUser(_supabase, userId, data);
+                await _userRepository.UpdateUser(_supabase, userId, data, ct);
 
                 return Ok(new { succcess = true });
             }

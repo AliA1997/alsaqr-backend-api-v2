@@ -24,7 +24,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
             Supabase.Client client,
             Guid userId,
             Guid communityId,
-            UpdateCommunityForm updatedCommunity);
+            UpdateCommunityForm updatedCommunity,
+            CancellationToken ct);
 
         Task<Guid> DeleteCommunity(
             Supabase.Client supabase,

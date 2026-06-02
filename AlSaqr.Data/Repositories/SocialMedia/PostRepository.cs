@@ -207,30 +207,42 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             Guid userId,
             Posts.CreatePostDto data)
         {
-            var post = new Post
+            try
             {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                Content = data.Text,
-                BannerImage = data.Image ?? string.Empty,
-                Tags = data.Tags ?? Array.Empty<string>(),
-                RelatedPostId = null,
-                PostType = "post",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-            };
-
-            var inserted = await supabase
-                .From<Post>()
-                .Insert(post, new Supabase.Postgrest.QueryOptions
+                var post = new Post
                 {
-                    Returning = Supabase.Postgrest.QueryOptions.ReturnType.Representation
-                });
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Content = data.Text,
+                    BannerImage = data.Image ?? string.Empty,
+                    Tags = data.Tags ?? Array.Empty<string>(),
+                    RelatedPostId = null,
+                    PostType = "post",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
 
-            if (inserted?.Model == null)
-                throw new Exception("Error creating post");
+                var inserted = await supabase
+                    .From<Post>()
+                    .Insert(post, new Supabase.Postgrest.QueryOptions
+                    {
+                        Returning = Supabase.Postgrest.QueryOptions.ReturnType.Representation
+                    });
 
-            return inserted.Model.Id;
+                if (inserted?.Model == null)
+                    throw new Exception("Error creating post");
+
+                return inserted.Model.Id;
+            }
+            catch(CreatePostException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new CreatePostException(userId, ex);
+            }
+
         }
 
         public async Task<Guid> DeletePost(

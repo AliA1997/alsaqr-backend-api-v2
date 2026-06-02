@@ -4,6 +4,7 @@ using AlSaqr.Data.Entities.SocialMedia.Views;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Domain.SocialMedia;
+using AlSaqr.Domain.SocialMedia.Exceptions;
 using Supabase.Postgrest;
 using static AlSaqr.Domain.Utils.Common;
 using static Supabase.Postgrest.Constants;
@@ -87,38 +88,50 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             Guid postId,
             Posts.CreateCommentDto data)
         {
-            var comment = new Post
+            try
             {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                Content = data.Text,
-                BannerImage = data.Image ?? string.Empty,
-                PostType = "comment",
-                Tags = Array.Empty<string>(),
-                RelatedPostId = postId,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-            };
+                var comment = new Post
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Content = data.Text,
+                    BannerImage = data.Image ?? string.Empty,
+                    PostType = "comment",
+                    Tags = Array.Empty<string>(),
+                    RelatedPostId = postId,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
 
-            var inserted = await supabase
-                            .From<Post>()
-                            .Insert(comment, new QueryOptions
-                            {
-                                Returning = ReturnType.Representation
-                            });
+                var inserted = await supabase
+                                .From<Post>()
+                                .Insert(comment, new QueryOptions
+                                {
+                                    Returning = ReturnType.Representation
+                                });
 
-            if (inserted?.Model == null)
-                throw new Exception("Error creating post");
+                if (inserted?.Model == null)
+                    throw new Exception("Error creating post");
 
-            await CreateNotificationAfterUpsert(
-                supabase,
-                originalPostId: postId,
-                commentId: inserted.Model.Id,
-                userId,
-                "Post commented by",
-                "comment_on_post" );
+                await CreateNotificationAfterUpsert(
+                    supabase,
+                    originalPostId: postId,
+                    commentId: inserted.Model.Id,
+                    userId,
+                    "Post commented by",
+                    "comment_on_post");
 
-            return inserted.Model.Id;
+                return inserted.Model.Id;
+            }
+            catch(CreateCommentException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new CreateCommentException(postId, ex);
+            }
+ 
         }
 
         private async Task CreateNotificationAfterUpsert(

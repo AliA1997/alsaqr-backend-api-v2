@@ -9,7 +9,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
     public interface IUserRepository
     {
         Task<AlSaqrUser> CreateInitialUser(Supabase.Client supabase, CreateInitialUserDto newUser);
-        Task<Guid> UpdateUser(Supabase.Client supabase, Guid userId, UpdateUserDto updatedUser);
+        Task<Guid> UpdateUser(Supabase.Client supabase, Guid userId, UpdateUserDto updatedUser, CancellationToken ct);
 
         Task<Guid> CompleteRegistration(
             Supabase.Client supabase,

@@ -1,6 +1,4 @@
-﻿using AlSaqr.Data.Helpers;
-using AlSaqr.Data.Repositories.SocialMedia;
-using AlSaqr.Data.Repositories.SocialMedia.Impl;
+﻿using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Infrastructure.SocialMediaCache;
 using Microsoft.AspNetCore.Mvc;
 using static AlSaqr.Domain.SocialMedia.Community;
@@ -120,6 +118,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
             [FromBody] AlSaqrUpsertRequest<UpdateCommunityForm> request)
         {
             var data = request.Values;
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
 
             if (userId == Guid.Empty)
             {
@@ -130,7 +130,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return BadRequest("Community ID is required for updating your user.");
             }
 
-            await _communityRepository.UpdateCommunity(_supabase, userId, communityId, data);
+            await _communityRepository.UpdateCommunity(_supabase, userId, communityId, data, ct);
 
             return Ok(new { succcess = true });
         }
@@ -238,26 +238,26 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// </summary>
         [HttpPost("{userId}/{communityId}/request-join")]
         public async Task<IActionResult> PostRequestJoin(
-            string userId,
-            string communityId,
+            Guid userId,
+            Guid communityId,
             [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request)
         {
             var data = request.Values;
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
-            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId)
+            if (userId == Guid.Empty || communityId == Guid.Empty
                 || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
             {
                 return BadRequest("Missing required fields");
             }
 
-            if (!Guid.TryParse(userId, out var userGuid) || !Guid.TryParse(communityId, out var communityGuid))
+            if (userId == Guid.Empty || communityId == Guid.Empty)
                 return BadRequest("User ID and Community ID must be valid GUIDs");
 
             try
             {
-                await _communityMemberRepository.RequestJoinCommunity(_supabase, userGuid, communityGuid, ct);
+                await _communityMemberRepository.RequestJoinCommunity(_supabase, userId, communityId, ct);
                 return Ok(new { success = true, message = "Request to join community successfully." });
             }
             catch (Exception err)

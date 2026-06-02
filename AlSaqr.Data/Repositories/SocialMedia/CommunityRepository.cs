@@ -3,6 +3,7 @@ using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Entities.SocialMedia.Views;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.SocialMedia.Impl;
+using AlSaqr.Domain.SocialMedia.Exceptions;
 using AlSaqr.Domain.Utils;
 using Supabase.Postgrest;
 using static AlSaqr.Domain.SocialMedia.Community;
@@ -118,39 +119,51 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
-            var community = new Community
+            try
             {
-                FounderId = userId,
-                Name = data.Name,
-                Description = data.Description,
-                Avatar = data.AvatarOrBannerImage,
-                Tags = data.Tags ?? Array.Empty<string>(),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-            };
-
-            var inserted = await supabase
-                .From<Community>()
-                .Insert(community, new QueryOptions
+                var community = new Community
                 {
-                    Returning = ReturnType.Representation
-                }, ct);
+                    FounderId = userId,
+                    Name = data.Name,
+                    Description = data.Description,
+                    Avatar = data.AvatarOrBannerImage,
+                    Tags = data.Tags ?? Array.Empty<string>(),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
 
-            if (inserted?.Model == null)
-                throw new Exception("Error creating community");
-            var communityId = inserted.Model.Id;
+                var inserted = await supabase
+                    .From<Community>()
+                    .Insert(community, new QueryOptions
+                    {
+                        Returning = ReturnType.Representation
+                    }, ct);
 
-            await AddUsersToCommunity(supabase, communityId, data.UsersAdded.ToList(), ct);
+                if (inserted?.Model == null)
+                    throw new Exception("Error creating community");
+                var communityId = inserted.Model.Id;
 
-            await CreateCommunityNotification(
-                supabase,
-                userId,
-                communityId,
-                "You created the community of {community}",
-                "community_created",
-                ct);
+                await AddUsersToCommunity(supabase, communityId, data.UsersAdded.ToList(), ct);
 
-            return communityId;
+                await CreateCommunityNotification(
+                    supabase,
+                    userId,
+                    communityId,
+                    "You created the community of {community}",
+                    "community_created",
+                    ct);
+
+                return communityId;
+            }
+            catch(CreateCommunityException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new CreateCommunityException(userId, ex);
+            }
+
         }
 
 
@@ -158,33 +171,42 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             Supabase.Client supabase, 
             Guid userId, 
             Guid communityId,
-            UpdateCommunityForm updatedCommunity)
+            UpdateCommunityForm updatedCommunity,
+            CancellationToken ct)
         {
-            using var cts = new CancellationTokenSource();
-            CancellationToken ct = cts.Token;
+            try
+            {
+                // Check if the community to update is the founder, if it isn't return an exception.
+                Community? communityToUpdate = (await supabase.From<Community>()
+                                                            .Where(c => c.FounderId == userId && c.Id == communityId).Single());
+                if (communityToUpdate == null)
+                    throw new Exception("Can't update the community");
 
-            // Check if the community to update is the founder, if it isn't return an exception.
-            Community? communityToUpdate = (await supabase.From<Community>()
-                                                        .Where(c => c.FounderId == userId && c.Id == communityId).Single());
-            if (communityToUpdate == null)
-                throw new Exception("Can't update the community");
+                communityToUpdate.Name = Common.AssignStringValue(communityToUpdate.Name, updatedCommunity?.Name);
+                communityToUpdate.Description = Common.AssignStringValue(communityToUpdate.Description, updatedCommunity?.Description);
+                communityToUpdate.Avatar = Common.AssignStringValue(communityToUpdate.Avatar, updatedCommunity?.Avatar);
+                communityToUpdate.Tags = updatedCommunity?.Tags ?? new string[] { };
 
-            communityToUpdate.Name = Common.AssignStringValue(communityToUpdate.Name, updatedCommunity?.Name);
-            communityToUpdate.Description = Common.AssignStringValue(communityToUpdate.Description, updatedCommunity?.Description);
-            communityToUpdate.Avatar = Common.AssignStringValue(communityToUpdate.Avatar, updatedCommunity?.Avatar);
-            communityToUpdate.Tags = updatedCommunity?.Tags ?? new string[] { };
+                await supabase.From<Community>().Where(c => c.Id == communityToUpdate.Id).Upsert(communityToUpdate, null, ct);
 
-            await supabase.From<Community>().Where(c => c.Id == communityToUpdate.Id).Upsert(communityToUpdate, null, ct);
+                await CreateCommunityNotification(
+                    supabase,
+                    userId,
+                    communityId,
+                    "You updated the community {community}",
+                    "community_updated",
+                    ct);
 
-            await CreateCommunityNotification(
-                supabase,
-                userId,
-                communityId,
-                "You updated the community {community}",
-                "community_updated",
-                ct);
-
-            return communityToUpdate.Id;
+                return communityToUpdate.Id;
+            }
+            catch (UpdateCommunityException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new UpdateCommunityException(communityId, ex);
+            }
         }
 
         /// <summary>

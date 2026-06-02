@@ -2,6 +2,7 @@
 using AlSaqr.Data.Entities.SocialMedia.Views;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.SocialMedia.Impl;
+using AlSaqr.Domain.SocialMedia.Exceptions;
 using Supabase.Postgrest;
 using static AlSaqr.Domain.SocialMedia.Community;
 using static AlSaqr.Domain.SocialMedia.CommunityDiscussion;
@@ -182,39 +183,100 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
-            var communityDiscussion = new CommunityDiscussion
+            try
             {
 
-                Id = Guid.NewGuid(),
-                CommunityId = communityId,
-                CreatorId = userId,
-                Title = data.Name,
-                Content = data.Description,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            var inserted = await supabase
-                .From<CommunityDiscussion>()
-                .Insert(communityDiscussion, new QueryOptions
+                var communityDiscussion = new CommunityDiscussion
                 {
-                    Returning = ReturnType.Representation
-                });
 
-            if (inserted?.Model == null)
-                throw new Exception("Error creating community discussion");
+                    Id = Guid.NewGuid(),
+                    CommunityId = communityId,
+                    CreatorId = userId,
+                    Title = data.Name,
+                    Content = data.Description,
+                    CreatedAt = DateTime.UtcNow
+                };
 
-            await AddUsersToCommunityDiscussion(supabase, inserted.Model.Id, data.UsersAdded.ToList());
+                var inserted = await supabase
+                    .From<CommunityDiscussion>()
+                    .Insert(communityDiscussion, new QueryOptions
+                    {
+                        Returning = ReturnType.Representation
+                    });
 
-            await CreateCommunityDiscussionNotification(
-                supabase,
-                userId,
-                inserted.Model.Id,
-                "You created the community discussion of {communityDiscussion}",
-                "community_discussion_created",
-                ct);
+                if (inserted?.Model == null)
+                    throw new Exception("Error creating community discussion");
 
-            return inserted.Model.Id;
+                await AddUsersToCommunityDiscussion(supabase, inserted.Model.Id, data.UsersAdded.ToList());
+
+                await CreateCommunityDiscussionNotification(
+                    supabase,
+                    userId,
+                    inserted.Model.Id,
+                    "You created the community discussion of {communityDiscussion}",
+                    "community_discussion_created",
+                    ct);
+
+                return inserted.Model.Id;
+            }
+            catch(CreateCommunityDiscussionException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new CreateCommunityDiscussionException(communityId, ex);
+            }
+
         }
+
+        public async Task<Guid> CreateCommunityDiscussionMessage(
+            Supabase.Client supabase,
+            Guid userId,
+            Guid communityDiscussionId,
+            CreateCommunityDiscussionMessageForm data)
+        {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            try
+            {
+                var communityDiscussionMsg = new CommunityDiscussionMessage
+                {
+
+                    Id = Guid.NewGuid(),
+                    CommunityDiscussionId = communityDiscussionId,
+                    CreatorId = userId,
+                    Content = data.Content,
+                    Media = data.Media,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var inserted = await supabase
+                    .From<CommunityDiscussionMessage>()
+                    .Insert(communityDiscussionMsg, new QueryOptions
+                    {
+                        Returning = ReturnType.Representation
+                    });
+
+                if (inserted?.Model == null)
+                    throw new Exception("Error creating community discussion");
+
+
+                return inserted.Model.Id;
+            }
+            catch(CreateCommunityDiscussionMessageException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new CreateCommunityDiscussionMessageException(communityDiscussionId, ex);
+            }
+
+   
+        }
+
 
         private async Task AddUsersToCommunityDiscussion(
             Supabase.Client supabase,

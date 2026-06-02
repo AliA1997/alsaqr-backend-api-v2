@@ -315,14 +315,14 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid userId,
             Guid communityId,
             Guid communityDiscussionId,
-            [FromBody] CommunityDiscussion.CommunityDiscussionMessageDto request)
+            [FromBody] CommunityDiscussion.CreateCommunityDiscussionMessageForm request)
         {
-            if (userId == Guid.Empty || communityId == Guid.Empty || communityDiscussionId == Guid.Empty || string.IsNullOrEmpty(request.MessageText))
+            if (userId == Guid.Empty || communityId == Guid.Empty || communityDiscussionId == Guid.Empty || string.IsNullOrEmpty(request.Content))
             {
                 return BadRequest("Missing required fields");
             }
 
-            //await _communityDiscussionMessageRepository.Create
+            await _communityDiscussionRepository.CreateCommunityDiscussionMessage(_supabase, userId, communityDiscussionId, request);
 
             return Ok(new { success = true, message = "Sent community discussion message successfully!:)" });
         }

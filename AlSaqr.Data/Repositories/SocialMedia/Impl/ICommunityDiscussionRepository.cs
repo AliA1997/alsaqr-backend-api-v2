@@ -28,5 +28,11 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
             Supabase.Client supabase,
             Guid userId,
             Guid communityDiscussionId);
+
+        Task<Guid> CreateCommunityDiscussionMessage(
+            Supabase.Client supabase,
+            Guid userId,
+            Guid communityDiscussionId,
+            CreateCommunityDiscussionMessageForm data);
     }
 }

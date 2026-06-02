@@ -130,27 +130,43 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             return insertedUser!;
         }
 
-        public async Task<Guid> UpdateUser(Supabase.Client client, Guid userId, UpdateUserDto updatedUser)
+        public async Task<Guid> UpdateUser(
+            Supabase.Client client, 
+            Guid userId, 
+            UpdateUserDto updatedUser,
+            CancellationToken ct)
         {
-            AlSaqrUser? userToUpdate = (await client.From<AlSaqrUser>().Where(u => u.Id == userId).Single());
-            if (userToUpdate == null)
-                throw new Exception("User not found");
+            try
+            {
+                AlSaqrUser? userToUpdate = (await client.From<AlSaqrUser>().Where(u => u.Id == userId).Single());
+                if (userToUpdate == null)
+                    throw new Exception("User not found");
 
-            userToUpdate.FirstName = Common.AssignStringValue(userToUpdate!.FirstName, updatedUser?.FirstName);
-            userToUpdate.LastName = Common.AssignStringValue(userToUpdate!.LastName, updatedUser?.LastName);
+                userToUpdate.FirstName = Common.AssignStringValue(userToUpdate!.FirstName, updatedUser?.FirstName);
+                userToUpdate.LastName = Common.AssignStringValue(userToUpdate!.LastName, updatedUser?.LastName);
 
-            userToUpdate.Username = Common.AssignStringValue(userToUpdate.Username, updatedUser?.Username);
-            userToUpdate.Avatar = Common.AssignStringValue(userToUpdate!.Avatar, updatedUser?.Avatar?.ToString());
-            userToUpdate.Bio = Common.AssignStringValue(userToUpdate!.Bio, updatedUser?.Bio);
-            userToUpdate.Hobbies = updatedUser?.Hobbies ?? new string[] { };
-            userToUpdate.MaritalStatus = Common.AssignStringValue(userToUpdate.MaritalStatus, updatedUser?.MaritalStatus);
-            userToUpdate.PreferredMadhab = Common.AssignStringValue(userToUpdate.PreferredMadhab, updatedUser?.PreferredMadhab);
-            userToUpdate.IslamicStudyTopics = updatedUser?.IslamicStudyTopics ?? new string[] { };
-            userToUpdate.FavoriteIslamicScholars = updatedUser?.FavoriteIslamicScholars ?? new string[] { }; ;
-            userToUpdate.FavoriteQuranReciters = updatedUser?.FavoriteQuranReciters ?? new string[] { }; ;
+                userToUpdate.Username = Common.AssignStringValue(userToUpdate.Username, updatedUser?.Username);
+                userToUpdate.Avatar = Common.AssignStringValue(userToUpdate!.Avatar, updatedUser?.Avatar?.ToString());
+                userToUpdate.Bio = Common.AssignStringValue(userToUpdate!.Bio, updatedUser?.Bio);
+                userToUpdate.Hobbies = updatedUser?.Hobbies ?? new string[] { };
+                userToUpdate.MaritalStatus = Common.AssignStringValue(userToUpdate.MaritalStatus, updatedUser?.MaritalStatus);
+                userToUpdate.PreferredMadhab = Common.AssignStringValue(userToUpdate.PreferredMadhab, updatedUser?.PreferredMadhab);
+                userToUpdate.IslamicStudyTopics = updatedUser?.IslamicStudyTopics ?? new string[] { };
+                userToUpdate.FavoriteIslamicScholars = updatedUser?.FavoriteIslamicScholars ?? new string[] { }; ;
+                userToUpdate.FavoriteQuranReciters = updatedUser?.FavoriteQuranReciters ?? new string[] { }; ;
 
-            await client.From<AlSaqrUser>().Where(u => u.Id == userToUpdate!.Id).Upsert(userToUpdate);
-            return userToUpdate.Id;
+                await client.From<AlSaqrUser>().Where(u => u.Id == userToUpdate!.Id).Upsert(userToUpdate);
+                return userToUpdate.Id;
+            }
+            catch(UpdateUserException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new UpdateUserException(userId, ex);
+            }
+
         }
 
         public async Task<Guid> CompleteRegistration(
@@ -158,34 +174,46 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             Guid userId,
             UserRegisterFormDto data)
         {
-            AlSaqrUser? userToUpdate = await supabase
-                .From<AlSaqrUser>()
-                .Where(u => u.Id == userId)
-                .Single();
+            try
+            {
+                AlSaqrUser? userToUpdate = await supabase
+                    .From<AlSaqrUser>()
+                    .Where(u => u.Id == userId)
+                    .Single();
 
-            if (userToUpdate == null)
-                throw new Exception("User not found");
+                if (userToUpdate == null)
+                    throw new Exception("User not found");
 
-            userToUpdate.Username = Common.AssignStringValue(userToUpdate.Username, data.Username);
-            userToUpdate.Avatar = Common.AssignStringValue(userToUpdate.Avatar, data.Avatar?.ToString());
-            userToUpdate.BannerImage = Common.AssignStringValue(userToUpdate.BannerImage, data.BgThumbnail);
-            userToUpdate.Bio = Common.AssignStringValue(userToUpdate.Bio, data.Bio);
-            userToUpdate.FirstName = Common.AssignStringValue(userToUpdate.FirstName, data.FirstName);
-            userToUpdate.LastName = Common.AssignStringValue(userToUpdate.LastName, data.LastName);
-            userToUpdate.DateOfBirth = data.DateOfBirth ?? userToUpdate.DateOfBirth;
-            userToUpdate.MaritalStatus = Common.AssignStringValue(userToUpdate.MaritalStatus, data.MaritalStatus);
-            userToUpdate.Religion = Common.AssignStringValue(userToUpdate.Religion, data.Religion);
-            userToUpdate.CountryOfOrigin = Common.AssignStringValue(userToUpdate.CountryOfOrigin, data.CountryOfOrigin);
-            userToUpdate.Hobbies = data.Hobbies ?? userToUpdate.Hobbies ?? new string[] { };
-            userToUpdate.IsCompleted = true;
-            userToUpdate.UpdatedAt = DateTime.UtcNow;
+                userToUpdate.Username = Common.AssignStringValue(userToUpdate.Username, data.Username);
+                userToUpdate.Avatar = Common.AssignStringValue(userToUpdate.Avatar, data.Avatar?.ToString());
+                userToUpdate.BannerImage = Common.AssignStringValue(userToUpdate.BannerImage, data.BgThumbnail);
+                userToUpdate.Bio = Common.AssignStringValue(userToUpdate.Bio, data.Bio);
+                userToUpdate.FirstName = Common.AssignStringValue(userToUpdate.FirstName, data.FirstName);
+                userToUpdate.LastName = Common.AssignStringValue(userToUpdate.LastName, data.LastName);
+                userToUpdate.DateOfBirth = data.DateOfBirth ?? userToUpdate.DateOfBirth;
+                userToUpdate.MaritalStatus = Common.AssignStringValue(userToUpdate.MaritalStatus, data.MaritalStatus);
+                userToUpdate.Religion = Common.AssignStringValue(userToUpdate.Religion, data.Religion);
+                userToUpdate.CountryOfOrigin = Common.AssignStringValue(userToUpdate.CountryOfOrigin, data.CountryOfOrigin);
+                userToUpdate.Hobbies = data.Hobbies ?? userToUpdate.Hobbies ?? new string[] { };
+                userToUpdate.IsCompleted = true;
+                userToUpdate.UpdatedAt = DateTime.UtcNow;
 
-            await supabase
-                .From<AlSaqrUser>()
-                .Where(u => u.Id == userToUpdate.Id)
-                .Upsert(userToUpdate);
+                await supabase
+                    .From<AlSaqrUser>()
+                    .Where(u => u.Id == userToUpdate.Id)
+                    .Upsert(userToUpdate);
 
-            return userToUpdate.Id;
+                return userToUpdate.Id;
+
+            }
+            catch(CompleteRegistrationException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new CompleteRegistrationException(userId, ex);
+            }
         }
 
         public async Task<Guid> DeleteUser(Supabase.Client client, Guid userId)
