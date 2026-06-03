@@ -86,7 +86,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             Supabase.Client supabase,
             Guid userId,
             Guid postId,
-            Posts.CreateCommentDto data)
+            Posts.CreateCommentDto data,
+            CancellationToken ct)
         {
             try
             {
@@ -108,7 +109,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                                 .Insert(comment, new QueryOptions
                                 {
                                     Returning = ReturnType.Representation
-                                });
+                                }, ct);
 
                 if (inserted?.Model == null)
                     throw new Exception("Error creating post");
@@ -119,7 +120,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     commentId: inserted.Model.Id,
                     userId,
                     "Post commented by",
-                    "comment_on_post");
+                    "comment_on_post",
+                    ct);
 
                 return inserted.Model.Id;
             }
@@ -140,11 +142,12 @@ namespace AlSaqr.Data.Repositories.SocialMedia
               Guid commentId,
               Guid userId,
               string notificationMsgPrefix,
-              string notificationType)
+              string notificationType,
+              CancellationToken ct)
         {
             if (originalPostId != Guid.Empty)
             {
-                var originalPost = await supabase.From<Post>().Where(p => p.Id == originalPostId).Single();
+                var originalPost = await supabase.From<Post>().Where(p => p.Id == originalPostId).Single(ct);
 
                 if(originalPost == null)
                 {
@@ -153,30 +156,31 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
                 var repostingUser = await supabase
                    .From<AlSaqrUser>()
-                   .Where(u => u.Id == originalPost.UserId)
-                   .Single();
+                   .Where(u => u.Id == userId)
+                   .Single(ct);
 
                 var username = repostingUser?.Username ?? "Someone";
 
                 var notification = new Notification()
                 {
                     Id = Guid.NewGuid(),
-                    UserId = userId,
+                    UserId = originalPost.UserId,
                     Read = false,
                     CreatedAt = DateTime.UtcNow,
                     Message = $"{notificationMsgPrefix} {username}",
                     NotificationType = notificationType,
                     ItemType = "post",
                     PostId = commentId,
+                    RelatedUserId = userId,
                     Link = $"/status/{commentId}"
                 };
 
 
                 var newNotification = await supabase.From<Notification>().Insert(notification, new QueryOptions()
                 {
-                    Returning = ReturnType.Minimal
+                    Returning = ReturnType.Representation
 
-                });
+                }, ct);
 
                 if (newNotification == null)
                 {

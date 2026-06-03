@@ -2,6 +2,7 @@
 using AlSaqr.Domain.SocialMedia;
 using global::AlSaqr.Data.Entities.SocialMedia;
 using global::AlSaqr.Data.Entities.SocialMedia.Views;
+using static AlSaqr.Domain.SocialMedia.Session;
 using static Supabase.Postgrest.Constants;
 
 namespace AlSaqr.Data.Repositories.SocialMedia
@@ -16,6 +17,31 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         const string RELATION_REPLIED = "replied";
 
         public ProfileRepository() { }
+
+        public async Task<SessionUser> GetSessionInfo(
+            Supabase.Client supabase,
+            Guid userId)
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource();
+                CancellationToken ct = cts.Token;
+
+                var sessionUserInfo = await supabase
+                    .From<VwSessionUser>()
+                    .Where(x => x.Id == userId)
+                    .Single(ct);
+
+                if (sessionUserInfo == null)
+                    throw new Exception($"User Profile with a user ID of {userId} not found");
+
+                return new SessionUser(sessionUserInfo);
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
 
         /// <summary>
         /// Gets profile info for a username: user details, bookmark ids,

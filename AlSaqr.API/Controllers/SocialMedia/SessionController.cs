@@ -16,17 +16,20 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
         private readonly ILogger<SessionController> _logger;
         private readonly IUserRepository _userRepository;
+        private readonly IProfileRepository _profileRepository;
         private readonly Supabase.Client _supabase;
         private readonly IUserCacheService _userCacheService;
 
         public SessionController(
             ILogger<SessionController> logger,  
             IUserRepository userRepository,
+            IProfileRepository profileRepository,
             Supabase.Client supabase,
             IUserCacheService userCacheService)
         {
             _logger = logger;
             _userRepository = userRepository;
+            _profileRepository = profileRepository;
             _supabase = supabase;
             _userCacheService = userCacheService;
         }
@@ -113,42 +116,34 @@ namespace AlSaqr.API.Controllers.SocialMedia
             {
                 return BadRequest("Enail is required");
             }
-
+            var cts = new CancellationTokenSource();
+            var ct = cts.Token;
 
             try
             {
-                var userProfileResult = await _supabase.From<VwUserProfileInfo>()
-                                            .Filter("email", Supabase.Postgrest.Constants.Operator.Equals, data.Email)
-                                            .Limit(1)
-                                            .Get(); 
-                var userProfilePosts = await _supabase.From<VwUserProfilePosts>()
-                                            .Filter("email", Supabase.Postgrest.Constants.Operator.Equals, data.Email)
-                                            .Get();
+                var (userId, username) = await _userRepository.GetUserIdAndUsernameByEmail(_supabase, data.Email);
+                
+                var sessionUserResult = await _profileRepository.GetSessionInfo(_supabase, userId);
 
-                VwUserProfileInfo? userRes = userProfileResult?.Models.FirstOrDefault();
-                List<VwUserProfilePosts>? userPostsRes = userProfilePosts.Models;
-
-                if (userRes == null)
-                    return BadRequest($"User not found for {data.Email}");
+                //var userProfilePosts = await _profileRepository.GetProfilePosts(_supabase, username, 1, 25);
 
                 _logger.LogInformation("User signed in successfully!");
 
 
-                var sessionUser = new SessionUser(userRes)
-                {
+                //var sessionUser = new SessionUser(userProfileResult)
+                //{
 
-                    Bookmarks = userRes.BookmarkIds.ToArray(),
-                    Reposts = userPostsRes.Where(u => u.PostRelationType == "repost").Select(u => u.PostId).ToArray(),
-                    LikedPosts = userPostsRes.Where(u => u.PostRelationType == "liked").Select(u => u.PostId).ToArray()
-                };
-                var userId = sessionUser.Id;
+                //    Bookmarks = userProfileResult.Bookmarks.ToArray(),
+                //    Reposts = userProfilePosts.RepostedPosts.Select(rp => rp.PostId).ToArray(),
+                //    LikedPosts = userProfilePosts.LikedPosts.Select(u => u.PostId).ToArray()
+                //};
 
-                if (sessionUser.Id == Guid.Empty || sessionUser.Id == null)
+                if (sessionUserResult.Id == Guid.Empty || sessionUserResult.Id == null)
                     return BadRequest("Invalid user retrieved");
 
-                _userCacheService.SetLoggedInUser(sessionUser);
+                _userCacheService.SetLoggedInUser(sessionUserResult);
 
-                return Ok(new {  result = sessionUser });
+                return Ok(new {  result = sessionUserResult });
             }
             catch (Exception err)
             {

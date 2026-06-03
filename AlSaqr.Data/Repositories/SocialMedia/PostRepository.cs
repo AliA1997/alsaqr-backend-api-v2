@@ -205,7 +205,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         public async Task<Guid> CreatePost(
             Supabase.Client supabase,
             Guid userId,
-            Posts.CreatePostDto data)
+            Posts.CreatePostDto data,
+            CancellationToken ct)
         {
             try
             {
@@ -218,16 +219,15 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     Tags = data.Tags ?? Array.Empty<string>(),
                     RelatedPostId = null,
                     PostType = "post",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow
                 };
 
                 var inserted = await supabase
                     .From<Post>()
-                    .Insert(post, new Supabase.Postgrest.QueryOptions
+                    .Insert(post, new QueryOptions
                     {
-                        Returning = Supabase.Postgrest.QueryOptions.ReturnType.Representation
-                    });
+                        Returning = QueryOptions.ReturnType.Representation
+                    }, ct);
 
                 if (inserted?.Model == null)
                     throw new Exception("Error creating post");

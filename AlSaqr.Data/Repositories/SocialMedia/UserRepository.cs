@@ -18,6 +18,21 @@ namespace AlSaqr.Data.Repositories.SocialMedia
     {
         public UserRepository() { }
 
+        public async Task<(Guid userId, string username)> GetUserIdAndUsernameByEmail(Supabase.Client supabase, string email)
+        {
+            try
+            {
+                var userInfo = await supabase.From<AlSaqrUser>().Where(u => u.Email == email).Single();
+                if (userInfo == null)
+                    throw new Exception("User not found");
+
+                return (userInfo.Id, userInfo.Username);
+            } catch(Exception ex)
+            {
+                throw ex;
+            }
+        }
+
         public async Task<PaginatedResult<UsersToAddDto>> GetUsersToAdd(
             Supabase.Client supabase, 
             Guid userGuid, 

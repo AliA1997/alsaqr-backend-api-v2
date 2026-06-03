@@ -45,22 +45,16 @@ namespace  AlSaqr.Domain.Utils
 
         public class BookmarkRequest
         {
-            public Guid StatusId { get; set; }
-            public Guid UserId { get; set; }
             public bool Bookmarked { get; set; }
         }
 
         public class LikeRequest
         {
-            public Guid StatusId { get; set; }
-            public Guid UserId { get; set; }
             public bool Liked { get; set; }
         }
 
         public class RePostRequest
         {
-            public Guid StatusId { get; set; }
-            public Guid UserId { get; set; }
             public bool Reposted { get; set; }
         }
     }

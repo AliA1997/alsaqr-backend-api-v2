@@ -39,10 +39,10 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
         public string[]? Tags { get; set; }
 
         [Column("post_created_at")]
-        public DateTimeOffset PostCreatedAt { get; set; }
+        public DateTime PostCreatedAt { get; set; }
 
         [Column("post_updated_at")]
-        public DateTimeOffset? PostUpdatedAt { get; set; }
+        public DateTime? PostUpdatedAt { get; set; }
 
         // Author
         [Column("username")]
@@ -51,21 +51,20 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
         [Column("profile_img")]
         public string? ProfileImg { get; set; }
 
-        // Engagement (JSONB → string, deserialized in mapper)
         [Column("likers")]
-        public string Likers { get; set; } = "[]";
+        public IDictionary<string, object>[]? Likers { get; set; }
 
         [Column("reposters")]
-        public string Reposters { get; set; } = "[]";
+        public IDictionary<string, object>[]? Reposters { get; set; }
 
         [Column("bookmarkers")]
-        public string Bookmarkers { get; set; } = "[]";
+        public IDictionary<string, object>[]? Bookmarkers { get; set; }
 
         [Column("comments")]
-        public string Comments { get; set; } = "[]";
+        public IDictionary<string, object>[]? Comments { get; set; }
 
         [Column("commenters")]
-        public string Commenters { get; set; } = "[]";
+        public IDictionary<string, object>[]? Commenters { get; set; }
 
         // Counts
         [Column("like_count")]

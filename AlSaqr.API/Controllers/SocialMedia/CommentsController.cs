@@ -59,11 +59,14 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return Unauthorized("User must be logged in, in order to create a comment.");
             }
 
+            var cts = new CancellationTokenSource();
+            var ct = cts.Token;
             await _commentsRepository.CreateComment(
                 _supabase,
                 loggedInUser?.Id ?? Guid.Empty,
                 data.PostId,
-                data
+                data,
+                ct
             );
 
             _logger.LogInformation("Comment created Successfully for Post {postId}", data.PostId);

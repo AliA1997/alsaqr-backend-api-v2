@@ -163,10 +163,19 @@ namespace  AlSaqr.Domain.SocialMedia
         public int TotalItems { get; set; }
     }
 
-    /// <summary>
-    /// Profile info DTO. Mirrors the Neo4j return shape
-    /// (user, bookmarks, following, followers) sourced from vw_user_profile_info.
-    /// </summary>
+    public sealed class UserSummaryFollowDto
+    {
+        [JsonPropertyName("user_id")]
+        public Guid UserId { get; set; }
+        [JsonPropertyName("username")]
+        public string Username { get; set; }
+        [JsonPropertyName("avatar")]
+        public string Avatar { get; set; }
+        [JsonPropertyName("bio")]
+        public string Bio { get; set; }
+        
+    }
+
     public class ProfileInfoDto
     {
         [JsonProperty("userId")]
@@ -182,10 +191,10 @@ namespace  AlSaqr.Domain.SocialMedia
         public string? Bio { get; set; }
 
         [JsonProperty("createdAt")]
-        public DateTimeOffset CreatedAt { get; set; }
+        public DateTime CreatedAt { get; set; }
 
         [JsonProperty("updatedAt")]
-        public DateTimeOffset? UpdatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
 
         [JsonProperty("bookmarks")]
         public Guid[] Bookmarks { get; set; } = Array.Empty<Guid>();
@@ -194,13 +203,13 @@ namespace  AlSaqr.Domain.SocialMedia
         public long BookmarkCount { get; set; }
 
         [JsonProperty("following")]
-        public JArray Following { get; set; } = new JArray();
+        public IDictionary<string, object>[]? Following { get; set; }
 
         [JsonProperty("followingCount")]
         public long FollowingCount { get; set; }
 
         [JsonProperty("followers")]
-        public JArray Followers { get; set; } = new JArray();
+        public IDictionary<string, object>[]? Followers { get; set; }
 
         [JsonProperty("followerCount")]
         public long FollowerCount { get; set; }
@@ -219,26 +228,11 @@ namespace  AlSaqr.Domain.SocialMedia
             Bookmarks = view.BookmarkIds ?? Array.Empty<Guid>();
             BookmarkCount = view.BookmarkCount;
 
-            Following = ParseJsonArray(view.Following);
+            Following = view.Following;
             FollowingCount = view.FollowingCount;
 
-            Followers = ParseJsonArray(view.Followers);
+            Followers = view.Followers;
             FollowerCount = view.FollowerCount;
-        }
-
-        private static JArray ParseJsonArray(string? json)
-        {
-            if (string.IsNullOrWhiteSpace(json))
-                return new JArray();
-
-            try
-            {
-                return JArray.Parse(json);
-            }
-            catch
-            {
-                return new JArray();
-            }
         }
     }
 
@@ -277,10 +271,10 @@ namespace  AlSaqr.Domain.SocialMedia
         public string[]? Tags { get; set; }
 
         [JsonProperty("postCreatedAt")]
-        public DateTimeOffset PostCreatedAt { get; set; }
+        public DateTime PostCreatedAt { get; set; }
 
         [JsonProperty("postUpdatedAt")]
-        public DateTimeOffset? PostUpdatedAt { get; set; }
+        public DateTime? PostUpdatedAt { get; set; }
 
         [JsonProperty("username")]
         public string Username { get; set; } = string.Empty;
@@ -289,31 +283,31 @@ namespace  AlSaqr.Domain.SocialMedia
         public string? ProfileImg { get; set; }
 
         [JsonProperty("likers")]
-        public JArray Likers { get; set; } = new JArray();
+        public IDictionary<string, object>[]? Likers { get; set; }
 
         [JsonProperty("reposters")]
-        public JArray Reposters { get; set; } = new JArray();
+        public IDictionary<string, object>[]? Reposters { get; set; }
 
         [JsonProperty("bookmarkers")]
-        public JArray Bookmarkers { get; set; } = new JArray();
+        public IDictionary<string, object>[]? Bookmarkers { get; set; }
 
         [JsonProperty("comments")]
-        public JArray Comments { get; set; } = new JArray();
+        public IDictionary<string, object>[]? Comments { get; set; }
 
         [JsonProperty("commenters")]
-        public JArray Commenters { get; set; } = new JArray();
+        public IDictionary<string, object>[]? Commenters { get; set; }
 
         [JsonProperty("likeCount")]
-        public long LikeCount { get; set; }
+        public long? LikeCount { get; set; }
 
         [JsonProperty("repostCount")]
-        public long RepostCount { get; set; }
+        public long? RepostCount { get; set; }
 
         [JsonProperty("bookmarkCount")]
-        public long BookmarkCount { get; set; }
+        public long? BookmarkCount { get; set; }
 
         [JsonProperty("commentCount")]
-        public long CommentCount { get; set; }
+        public long? CommentCount { get; set; }
 
         public ProfilePostDto() { }
 
@@ -333,31 +327,16 @@ namespace  AlSaqr.Domain.SocialMedia
             Username = view.Username;
             ProfileImg = view.ProfileImg;
 
-            Likers = ParseJsonArray(view.Likers);
-            Reposters = ParseJsonArray(view.Reposters);
-            Bookmarkers = ParseJsonArray(view.Bookmarkers);
-            Comments = ParseJsonArray(view.Comments);
-            Commenters = ParseJsonArray(view.Commenters);
+            Likers = view.Likers;
+            Reposters = view.Reposters;
+            Bookmarkers = view.Bookmarkers;
+            Comments = view.Comments;
+            Commenters = view.Commenters;
 
             LikeCount = view.LikeCount;
             RepostCount = view.RepostCount;
             BookmarkCount = view.BookmarkCount;
             CommentCount = view.CommentCount;
-        }
-
-        private static JArray ParseJsonArray(string? json)
-        {
-            if (string.IsNullOrWhiteSpace(json))
-                return new JArray();
-
-            try
-            {
-                return JArray.Parse(json);
-            }
-            catch
-            {
-                return new JArray();
-            }
         }
     }
 

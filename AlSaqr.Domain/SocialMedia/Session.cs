@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -24,7 +25,7 @@ namespace  AlSaqr.Domain.SocialMedia
             public string? Name { get; set; }
 
             [JsonPropertyName("picture")]
-            [JsonIgnore] // We'll handle picture through our custom logic
+            [System.Text.Json.Serialization.JsonIgnore] // We'll handle picture through our custom logic
             public object? Picture { get; set; }
 
             // Additional image URL property for Discord
@@ -81,16 +82,16 @@ namespace  AlSaqr.Domain.SocialMedia
             public string? ShortName { get; set; }
 
             // Computed properties with your image detection logic
-            [JsonIgnore]
+            [System.Text.Json.Serialization.JsonIgnore]
             public string? ProfileAvatar => GetProfileAvatar();
 
-            [JsonIgnore]
+            [System.Text.Json.Serialization.JsonIgnore]
             public string? DisplayName => !string.IsNullOrEmpty(Username) ? $"{Username}#{Discriminator}" : Name;
 
-            [JsonIgnore]
+            [System.Text.Json.Serialization.JsonIgnore]
             public string? Provider { get; set; }
 
-            [JsonIgnore]
+            [System.Text.Json.Serialization.JsonIgnore]
             private bool IsDiscordAccount => !string.IsNullOrEmpty(ImageUrl) && ImageUrl.Contains("discord");
 
             private string GetProfileAvatar()
@@ -235,29 +236,41 @@ namespace  AlSaqr.Domain.SocialMedia
 
         public class SessionUser
         {
+
             public SessionUser(dynamic sessionData)
             {
-                this.Id = sessionData.Id != null ? Guid.Parse(sessionData.Id.ToString()) : Guid.Empty;
-                this.Username = sessionData.Username != null ? sessionData.Username.ToString() : "";
-                this.CountryOfOrigin = sessionData.CountryOfOrigin != null ? sessionData.CountryOfOrigin.ToString() : "";
-                this.FirstName = sessionData.FirstName != null ? sessionData.FirstName.ToString() : "";
-                this.LastName = sessionData.LastName != null ? sessionData.LastName.ToString() : "";
-                this.Bio = sessionData.Bio != null ? sessionData.Bio.ToString() : "";
-                this.Email = sessionData.Email != null ? sessionData.Email.ToString() : "";
-                this.Phone = sessionData.Phone != null ? sessionData.Phone.ToString() : "";
-                this.BgThumbnail = sessionData.BgThumbnail != null ? sessionData.BgThumbnail.ToString() : "";
-                this.Avatar = sessionData.Avatar != null ? sessionData.Avatar.ToString() : "";
-                // For properties that require casting, TryGetValue might be safer
-                this.DateOfBirth = sessionData.DateOfBirth != null ? (dynamic)sessionData.DateOfBirth : null;
-                this.GeoId = sessionData.GeoId != null ? sessionData.GeoId.ToString() : "";
-                this.MaritalStatus = sessionData.MaritalStatus != null ? sessionData.MaritalStatus.ToString() : "";
-                this.Religion = sessionData.Religion != null ? sessionData.Religion.ToString() : "";
-                this.PreferredMadhab = sessionData.PreferredMadhab != null ? sessionData.PreferredMadhab.ToString() : "";
-                this.Hobbies = sessionData.Hobbies != null ? (dynamic)sessionData.Hobbies : new string[] { };
-                this.FrequentMasjid = sessionData.FrequentMasjid != null ? sessionData.FrequentMasjid.ToString() : "";
-                this.FavoriteQuranReciters = sessionData.FavoriteQuranReciters != null ? (dynamic)sessionData.FavoriteQuranReciters : new string[] { };
-                this.FavoriteIslamicScholars = sessionData.FavoriteIslamicScholars != null ? (dynamic)sessionData.FavoriteIslamicScholars : new string[] { };
-                this.IslamicStudyTopics = sessionData.IslamicStudyTopics != null ? (dynamic)sessionData.IslamicStudyTopics : new string[] { };
+                this.Id = sessionData.Id;
+                this.Username = sessionData.Username;
+                this.Avatar = sessionData.Avatar;
+                this.BgThumbnail = sessionData.BgThumbnail;
+                this.Bio = sessionData.Bio;
+                this.CreatedAt = sessionData.CreatedAt;
+                this.UpdatedAt = sessionData.UpdatedAt;
+                this.CountryOfOrigin = sessionData.CountryOfOrigin;
+                this.Email = sessionData.Email;
+                this.FirstName = sessionData.FirstName;
+                this.LastName = sessionData.LastName;
+                this.Phone = sessionData.Phone;
+                this.DateOfBirth = sessionData.DateOfBirth;
+                this.GeoId = sessionData.GeoId;
+                this.MaritalStatus = sessionData.MaritalStatus;
+                this.Religion = sessionData.Religion;
+                this.PreferredMadhab = sessionData.PreferredMadhab;
+                this.FrequentMasjid = sessionData.FrequentMasjid;
+                this.Verified = sessionData.Verified;
+                this.IsCompleted = sessionData.IsCompleted;
+                this.Hobbies = sessionData.Hobbies;
+                this.FavoriteQuranReciters = sessionData.FavoriteQuranReciters;
+                this.FavoriteIslamicScholars = sessionData.FavoriteIslamicScholars;
+                this.IslamicStudyTopics = sessionData.IslamicStudyTopics;
+
+                this.Bookmarks = sessionData.Bookmarks;
+                this.Reposts = sessionData.Reposts;
+                this.LikedPosts = sessionData.LikedPosts;
+                this.Following = sessionData.Following;
+                this.FollowingCount = sessionData.FollowingCount;
+                this.Followers = sessionData.Followers;
+                this.FollowerCount = sessionData.FollowerCount;
             }
             public Guid? Id { get; set; }
             public dynamic? CreatedAt { get; set; }
@@ -283,6 +296,13 @@ namespace  AlSaqr.Domain.SocialMedia
             public dynamic? IslamicStudyTopics { get; set; }
             public bool? Verified { get; set; }
             public bool? IsCompleted { get; set; }
+            public IDictionary<string, object>[]? Following { get; set; }
+
+            public long FollowingCount { get; set; }
+
+            public IDictionary<string, object>[]? Followers { get; set; }
+
+            public long FollowerCount { get; set; }
             public Guid[] Bookmarks { get; set; }
             public Guid[] Reposts { get; set; }
             public Guid[] LikedPosts { get; set; }

@@ -15,6 +15,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
             Supabase.Client supabase,
             Guid userId,
             Guid postId,
-            Posts.CreateCommentDto data);
+            Posts.CreateCommentDto data,
+            CancellationToken ct);
     }
 }

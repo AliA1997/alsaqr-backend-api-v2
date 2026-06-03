@@ -19,10 +19,10 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
         public string? Bio { get; set; }
 
         [Column("user_created_at")]
-        public DateTimeOffset UserCreatedAt { get; set; }
+        public DateTime UserCreatedAt { get; set; }
 
         [Column("user_updated_at")]
-        public DateTimeOffset? UserUpdatedAt { get; set; }
+        public DateTime? UserUpdatedAt { get; set; }
 
         // Bookmarks
         [Column("bookmark_ids")]
@@ -33,13 +33,13 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
 
         // Following / Followers (JSONB → string, deserialized in mapper)
         [Column("following")]
-        public string Following { get; set; } = "[]";
+        public IDictionary<string, object>[]? Following { get; set; }
 
         [Column("following_count")]
         public long FollowingCount { get; set; }
 
         [Column("followers")]
-        public string Followers { get; set; } = "[]";
+        public IDictionary<string, object>[]? Followers { get; set; }
 
         [Column("follower_count")]
         public long FollowerCount { get; set; }

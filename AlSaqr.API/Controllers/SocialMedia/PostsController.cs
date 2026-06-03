@@ -65,14 +65,17 @@ namespace AlSaqr.API.Controllers.SocialMedia
         {
             var data = request.Values;
             var loggedInUser = _userCacheService.GetLoggedInUser();
+            var cts = new CancellationTokenSource();
+            var ct = cts.Token;
 
             if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
                 return Unauthorized("User must be logged in to create a post.");
 
-            if (data.UserId == Guid.Empty)
+            if (loggedInUser.Id == Guid.Empty)
             {
                 return BadRequest("User ID is required");
             }
+            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
 
             if (string.IsNullOrEmpty(data?.Text))
             {
@@ -80,11 +83,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
             }
 
             
-            await _postRepository.CreatePost(
-                _supabase,
-                loggedInUser.Id ?? Guid.Empty,
-                data
-            );
+            await _postRepository.CreatePost(_supabase, userId, data, ct);
 
             _socialMediaCacheService.ClearInitialPosts();
 
@@ -124,9 +123,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
         {
             // Input validation
             if (postId == Guid.Empty)
-            {
                 return BadRequest("Post ID is required");
-            }
 
             var result = await _commentRepository.GetComments(_supabase, postId, currentPage, itemsPerPage);
 
@@ -141,7 +138,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <returns></returns>
         [HttpPatch("{postId}/bookmark")]
         public async Task<IActionResult> BookmarkPost(
-            string postId,
+            Guid postId,
             [FromBody] AlSaqrUpsertRequest<BookmarkRequest> request)
         {
             using var cts = new CancellationTokenSource();
@@ -154,12 +151,10 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             var userId = user.Id;
             // Input validation
-            if (data.StatusId == Guid.Empty)
-            {
+            if (postId == Guid.Empty)
                 return BadRequest("Post ID is required");
-            }
 
-            await _postStatusRepository.BookmarkPost(_supabase, userId ?? Guid.Empty, data.StatusId, data.Bookmarked, ct);
+            await _postStatusRepository.BookmarkPost(_supabase, userId ?? Guid.Empty, postId, data.Bookmarked, ct);
 
             return Ok(new { success = true });
         }
@@ -172,7 +167,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <returns></returns>
         [HttpPatch("{postId}/liked")]
         public async Task<IActionResult> LikedPost(
-            string postId, 
+            Guid postId, 
             [FromBody] AlSaqrUpsertRequest<LikeRequest> request)
         {
             using var cts = new CancellationTokenSource();
@@ -180,10 +175,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             var data = request.Values;
 
-            if (data.StatusId == Guid.Empty)
-            {
+            if (postId == Guid.Empty)
                 return BadRequest("Post ID is required");
-            }
             
             var user = _userCacheService.GetLoggedInUser();
             if (user == null)
@@ -191,7 +184,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             var userId = user.Id;
             
-            await _postStatusRepository.LikePost(_supabase, userId ?? Guid.Empty, data.StatusId, data.Liked, ct);
+            await _postStatusRepository.LikePost(_supabase, userId ?? Guid.Empty, postId, data.Liked, ct);
 
             return Ok(new { success = true });
    
@@ -204,7 +197,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <returns></returns>
         [HttpPatch("{postId}/repost")]
         public async Task<IActionResult> RePostPost(
-            string postId, 
+            Guid postId, 
             [FromBody] AlSaqrUpsertRequest<RePostRequest> request)
         {
             using var cts = new CancellationTokenSource();
@@ -212,17 +205,16 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             var data = request.Values;
             // Input validation
-            if (data.StatusId == Guid.Empty)
-            {
+            if (postId == Guid.Empty)
                 return BadRequest("Post ID is required");
-            }
+
             var user = _userCacheService.GetLoggedInUser();
             if (user == null)
                 return Unauthorized("Must be logged in to repost a post.");
 
             var userId = user.Id;
 
-            await _postStatusRepository.RepostPost(_supabase, userId ?? Guid.Empty, data.StatusId, data.Reposted, ct);
+            await _postStatusRepository.RepostPost(_supabase, userId ?? Guid.Empty, postId, data.Reposted, ct);
 
             return Ok(new { success = true });
             

@@ -38,7 +38,7 @@ namespace AlSaqr.Infrastructure
         private static MemoryCacheEntryOptions CacheOptions => new()
         {
             SlidingExpiration = TimeSpan.FromMinutes(30),
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(2)
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(14)
         };
 
         public void SetProductCategory(Guid productCategoryId, ProductCategoryDto productCategory)

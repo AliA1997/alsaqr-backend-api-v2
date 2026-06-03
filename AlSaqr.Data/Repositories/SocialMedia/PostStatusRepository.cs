@@ -51,7 +51,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
                     await CreateNotificationAfterUpsert(
                         supabase,
-                        userId: post.UserId,
+                        userId: userId,
                         post: post,
                         notificationMsgPrefix: "Post bookmarked by",
                         notificationType: "bookmarked_post",
@@ -78,9 +78,9 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     {
                         await supabase
                             .From<Notification>()
-                            .Where(n => n.UserId == post.UserId
-                                     && n.PostId == postId
-                                     && n.NotificationType == "bookmarked_post")
+                            .Where(n => n.UserId == post.UserId)
+                            .Where(n => n.PostId == postId)
+                             .Where(n => n.NotificationType == "bookmarked_post")
                             .Delete(null, ct);
                     }
                 }
@@ -130,7 +130,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
                     await CreateNotificationAfterUpsert(
                         supabase,
-                        userId: post.UserId,
+                        userId: userId,
                         post: post,
                         notificationMsgPrefix: "Post liked by",
                         notificationType: "liked_post",
@@ -144,7 +144,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     await supabase
                         .From<PostStatus>()
                         .Where(ps => ps.UserId == userId && ps.PostId == postId)
-                        .Filter("action", Operator.Equals, "liked")
+                        .Where(ps => ps.Action == "liked")
                         .Delete(null, ct);
 
                     var post = await supabase
@@ -156,9 +156,9 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     {
                         await supabase
                             .From<Notification>()
-                            .Where(n => n.UserId == post.UserId
-                                     && n.PostId == postId
-                                     && n.NotificationType == "liked_post")
+                            .Where(n => n.UserId == post.UserId)
+                            .Where(n => n.PostId == postId)
+                            .Where(n => n.NotificationType == "liked_post")
                             .Delete(null, ct);
                     }
                 }
@@ -210,7 +210,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
                     await CreateNotificationAfterUpsert(
                         supabase,
-                        userId: post.UserId,
+                        userId: userId,
                         post: post,
                         notificationMsgPrefix: "Post reposted by",
                         notificationType: "reposted_post",
@@ -223,7 +223,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     await supabase
                         .From<PostStatus>()
                         .Where(ps => ps.UserId == userId && ps.PostId == postId)
-                        .Filter("action", Operator.Equals, "reposted")
+                        .Where(ps => ps.Action == "reposted")
                         .Delete(null, ct);
 
                     var post = await supabase
@@ -235,9 +235,9 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     {
                         await supabase
                             .From<Notification>()
-                            .Where(n => n.UserId == post.UserId
-                                     && n.PostId == postId
-                                     && n.NotificationType == "reposted_post")
+                            .Where(n => n.UserId == post.UserId)
+                            .Where(n => n.PostId == postId)
+                            .Where(n => n.NotificationType == "reposted_post")
                             .Delete(null, ct);
                     }
                 }
@@ -273,20 +273,21 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 var notification = new Notification()
                 {
                     Id = Guid.NewGuid(),
-                    UserId = userId,
+                    UserId = post.UserId,
                     Read = false,
                     CreatedAt = DateTime.UtcNow,
                     Message = $"{notificationMsgPrefix} {username}",
                     NotificationType = notificationType,
                     ItemType = "post",
                     PostId = post.Id,
+                    RelatedUserId = userId,
                     Link = $"/status/{post.Id}"
                 };
 
 
                 var newNotification = await supabase.From<Notification>().Insert(notification, new QueryOptions()
                 {
-                    Returning = ReturnType.Minimal
+                    Returning = ReturnType.Representation
 
                 }, ct);
 
