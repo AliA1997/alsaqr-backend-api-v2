@@ -14,18 +14,19 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
         Task<Guid> CompleteRegistration(
             Supabase.Client supabase,
             Guid userId,
-            UserRegisterFormDto data);
+            UserRegisterFormDto data,
+            CancellationToken ct);
 
         Task<Guid> DeleteUser(Supabase.Client supabase, Guid userId);
 
-        Task<PaginatedResult<UsersToAddDto>> GetUsersToAdd(
+        Task<PaginatedResult<UserToAdd>> GetUsersToAdd(
             Supabase.Client supabase,
             Guid userGuid,
             string? searchTerm,
             int currentPage,
             int itemsPerPage);
 
-        Task<PaginatedResult<PostsToAddDto>> GetPostsToAdd(
+        Task<PaginatedResult<PostsToAdd>> GetPostsToAdd(
             Supabase.Client supabase,
             Guid userGuid,
             string? searchTerm,

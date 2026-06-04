@@ -33,14 +33,14 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             }
         }
 
-        public async Task<PaginatedResult<UsersToAddDto>> GetUsersToAdd(
+        public async Task<PaginatedResult<UserToAdd>> GetUsersToAdd(
             Supabase.Client supabase, 
             Guid userGuid, 
             string? searchTerm, 
             int currentPage, 
             int itemsPerPage)
         {
-            var usersToAdd = new List<UsersToAddDto>();
+            var usersToAdd = new List<UserToAdd>();
             Pagination? pagination = null;
             var functionName = "get_users_to_add";
 
@@ -53,9 +53,10 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     itemsPerPage: itemsPerPage
                 );
 
-                usersToAdd = JsonConvert.DeserializeObject<List<UsersToAddDto>>(
+                var usersToAddDtos = JsonConvert.DeserializeObject<List<UsersToAddDto>>(
                     await SupabaseHelper.CallFunction(supabase, functionName, functionParams)
                 ) ?? new List<UsersToAddDto>();
+                usersToAdd = usersToAddDtos.Select(u => new UserToAdd(u)).ToList();
 
                 int totalItems = usersToAdd.FirstOrDefault()?.TotalItems ?? 0;
 
@@ -72,18 +73,18 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 throw ex;
             }
 
-            return new PaginatedResult<UsersToAddDto>(usersToAdd, pagination!);
+            return new PaginatedResult<UserToAdd>(usersToAdd, pagination!);
 
         }
 
-        public async Task<PaginatedResult<PostsToAddDto>> GetPostsToAdd(
+        public async Task<PaginatedResult<PostsToAdd>> GetPostsToAdd(
             Supabase.Client supabase,
             Guid userGuid,
             string? searchTerm,
             int currentPage,
             int itemsPerPage)
         {
-            var postsToAdd = new List<PostsToAddDto>();
+            var postsToAdd = new List<PostsToAdd>();
             Pagination? pagination = null;
             var functionName = "get_posts_to_add";
 
@@ -96,9 +97,10 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     itemsPerPage: itemsPerPage
                 );
 
-                postsToAdd = JsonConvert.DeserializeObject<List<PostsToAddDto>>(
+                var postsToAddDto = JsonConvert.DeserializeObject<List<PostsToAddDto>>(
                     await SupabaseHelper.CallFunction(supabase, functionName, functionParams)
                 ) ?? new List<PostsToAddDto>();
+                postsToAdd = postsToAddDto.Select(p => new PostsToAdd(p)).ToList();
 
                 int totalItems = postsToAdd.FirstOrDefault()?.TotalItems ?? 0;
 
@@ -115,7 +117,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 throw ex;
             }
 
-            return new PaginatedResult<PostsToAddDto>(postsToAdd, pagination!);
+            return new PaginatedResult<PostsToAdd>(postsToAdd, pagination!);
         }
         public async Task<AlSaqrUser> CreateInitialUser(Supabase.Client client, CreateInitialUserDto newUser)
         {
@@ -165,12 +167,15 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 userToUpdate.Bio = Common.AssignStringValue(userToUpdate!.Bio, updatedUser?.Bio);
                 userToUpdate.Hobbies = updatedUser?.Hobbies ?? new string[] { };
                 userToUpdate.MaritalStatus = Common.AssignStringValue(userToUpdate.MaritalStatus, updatedUser?.MaritalStatus);
-                userToUpdate.PreferredMadhab = Common.AssignStringValue(userToUpdate.PreferredMadhab, updatedUser?.PreferredMadhab);
-                userToUpdate.IslamicStudyTopics = updatedUser?.IslamicStudyTopics ?? new string[] { };
-                userToUpdate.FavoriteIslamicScholars = updatedUser?.FavoriteIslamicScholars ?? new string[] { }; ;
-                userToUpdate.FavoriteQuranReciters = updatedUser?.FavoriteQuranReciters ?? new string[] { }; ;
+                userToUpdate.PreferredMadhab = !string.IsNullOrEmpty(userToUpdate.PreferredMadhab) ? userToUpdate.PreferredMadhab 
+                                                    :  userToUpdate.PreferredMadhab?.ToString() == string.Empty ? null 
+                                                        : updatedUser?.PreferredMadhab; // Go back to original value, if value is invalid. 
 
-                await client.From<AlSaqrUser>().Where(u => u.Id == userToUpdate!.Id).Upsert(userToUpdate);
+                userToUpdate.IslamicStudyTopics = updatedUser?.IslamicStudyTopics ?? new string[] { };
+                userToUpdate.FavoriteIslamicScholars = updatedUser?.FavoriteIslamicScholars ?? new string[] { }; 
+                userToUpdate.FavoriteQuranReciters = updatedUser?.FavoriteQuranReciters ?? new string[] { };
+
+                await client.From<AlSaqrUser>().Where(u => u.Id == userToUpdate!.Id).Upsert(userToUpdate, null, ct);
                 return userToUpdate.Id;
             }
             catch(UpdateUserException ex)
@@ -187,7 +192,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         public async Task<Guid> CompleteRegistration(
             Supabase.Client supabase,
             Guid userId,
-            UserRegisterFormDto data)
+            UserRegisterFormDto data,
+            CancellationToken ct)
         {
             try
             {
@@ -216,7 +222,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 await supabase
                     .From<AlSaqrUser>()
                     .Where(u => u.Id == userToUpdate.Id)
-                    .Upsert(userToUpdate);
+                    .Upsert(userToUpdate, null, ct);
 
                 return userToUpdate.Id;
 
@@ -263,9 +269,9 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 return true;
 
             }
-            catch (DeletePostException)
+            catch (DeletePostException ex)
             {
-                throw; // re-throw if it's already the right type
+                throw ex; // re-throw if it's already the right type
             }
             catch (Exception ex)
             {
@@ -287,9 +293,9 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 }
                 return true;
             }
-            catch (DeletePostStatusException)
+            catch (DeletePostStatusException ex)
             {
-                throw; // re-throw if it's already the right type
+                throw ex; // re-throw if it's already the right type
             }
             catch (Exception ex)
             {
@@ -313,9 +319,9 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 }
                 return true;
             }
-            catch (DeleteCommunityMemberException)
+            catch (DeleteCommunityMemberException ex)
             {
-                throw; // re-throw if it's already the right type
+                throw ex; // re-throw if it's already the right type
             }
             catch (Exception ex)
             {
@@ -344,9 +350,9 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 }
                 return true;
             }
-            catch (DeleteCommunityDiscussionMemberException)
+            catch (DeleteCommunityDiscussionMemberException ex)
             {
-                throw; // re-throw if it's already the right type
+                throw ex; // re-throw if it's already the right type
             }
             catch (Exception ex)
             {

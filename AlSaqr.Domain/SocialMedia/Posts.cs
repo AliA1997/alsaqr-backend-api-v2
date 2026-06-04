@@ -178,8 +178,39 @@ namespace  AlSaqr.Domain.SocialMedia
         public object? Avatar { get; set; }
     }
 
-    public class PostsToAddDto
+    public class PostsToAdd
     {
+        public PostsToAdd(PostsToAddDto details)
+        {
+            this.PostId = details.PostId;
+            this.UserId = details.UserId;
+            this.Content = details.Content;
+            this.PostType = details.PostType;
+            this.RelatedPostId = details.RelatedPostId;
+            this.PostAvatar = details.PostAvatar;
+            this.PostBannerImage = details.PostBannerImage;
+            this.PostTags = details.PostTags;
+            this.PostCreatedAt = details.PostCreatedAt;
+            this.PostUpdatedAt = details.PostUpdatedAt;
+            this.Username = details.Username;
+            this.ProfileImg = details.ProfileImg;
+            this.AuthorBio = details.AuthorBio;
+            this.Comments = details.Comments;
+            this.Commenters = details.Commenters;
+            this.CommentCount = details.CommentCount;
+
+            this.Reposters = details.Reposters;
+            this.RepostCount = details.RepostCount;
+
+            this.Likers = details.Likers;
+            this.LikeCount = details.LikeCount;
+
+            this.Bookmarkers = details.Bookmarkers;
+            this.BookmarkCount = details.BookmarkCount;
+
+            this.TotalItems = details.TotalItems;
+        }
+
         [JsonProperty("postId")] 
         public Guid PostId { get; set; }
         [JsonProperty("userId")] 
@@ -225,6 +256,56 @@ namespace  AlSaqr.Domain.SocialMedia
         [JsonProperty("bookmarkCount")] 
         public long BookmarkCount { get; set; }
         [JsonProperty("totalItems")] 
+        public int TotalItems { get; set; }
+   }
+
+    public class PostsToAddDto
+    {
+        [JsonProperty("post_id")]
+        public Guid PostId { get; set; }
+        [JsonProperty("user_id")]
+        public Guid UserId { get; set; }
+        [JsonProperty("content")]
+        public string Content { get; set; }
+        [JsonProperty("post_type")]
+        public string PostType { get; set; }
+        [JsonProperty("related_post_id")]
+        public Guid? RelatedPostId { get; set; }
+        [JsonProperty("post_avatar")]
+        public string? PostAvatar { get; set; }
+        [JsonProperty("post_banner_image")]
+        public string? PostBannerImage { get; set; }
+        [JsonProperty("post_tags")]
+        public List<string> PostTags { get; set; } = new();
+        [JsonProperty("post_created_at")]
+        public DateTime PostCreatedAt { get; set; }
+        [JsonProperty("post_updated_at")]
+        public DateTime? PostUpdatedAt { get; set; }
+        [JsonProperty("username")]
+        public string Username { get; set; }
+        [JsonProperty("profile_img")]
+        public string? ProfileImg { get; set; }
+        [JsonProperty("author_bio")]
+        public string? AuthorBio { get; set; }
+        [JsonProperty("comments")]
+        public JArray Comments { get; set; } = new();
+        [JsonProperty("commenters")]
+        public JArray Commenters { get; set; } = new();
+        [JsonProperty("comment_count")]
+        public long CommentCount { get; set; }
+        [JsonProperty("reposters")]
+        public JArray Reposters { get; set; } = new();
+        [JsonProperty("repost_count")]
+        public long RepostCount { get; set; }
+        [JsonProperty("likers")]
+        public JArray Likers { get; set; } = new();
+        [JsonProperty("like_count")]
+        public long LikeCount { get; set; }
+        [JsonProperty("bookmarkers")]
+        public JArray Bookmarkers { get; set; } = new();
+        [JsonProperty("bookmark_count")]
+        public long BookmarkCount { get; set; }
+        [JsonProperty("total_items")]
         public int TotalItems { get; set; }
     }
 }

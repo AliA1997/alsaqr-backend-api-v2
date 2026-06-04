@@ -70,17 +70,5 @@ namespace AlSaqr.Data.Entities.SocialMedia
         [Column("deleted_at")]
         public DateTime? DeletedAt { get; set; }
 
-        // Navigation properties
-        public ICollection<UserFollow> FollowedBy { get; set; } = new List<UserFollow>();
-        public ICollection<UserFollow> Following { get; set; } = new List<UserFollow>();
-        public ICollection<Post> Posts { get; set; } = new List<Post>();
-        public ICollection<PostStatus> PostStatuses { get; set; } = new List<PostStatus>();
-        public ICollection<List> Lists { get; set; } = new List<List>();
-        public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
-        public ICollection<Community> CommunitiesAsFounder { get; set; } = new List<Community>();
-        public ICollection<CommunityMember> CommunityMemberships { get; set; } = new List<CommunityMember>();
-        public ICollection<CommunityDiscussion> CommunityDiscussions { get; set; } = new List<CommunityDiscussion>();
-        public ICollection<CommunityDiscussionMember> DiscussionMemberships { get; set; } = new List<CommunityDiscussionMember>();
-        public ICollection<CommunityDiscussionMessage> DiscussionMessages { get; set; } = new List<CommunityDiscussionMessage>();
     }
 }

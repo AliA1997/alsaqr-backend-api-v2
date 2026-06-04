@@ -112,56 +112,65 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             string notificationType,
             string link,
             string entityType,
-            Guid relatedEntityId)
+            Guid relatedEntityId,
+            CancellationToken ct = default)
         {
-            var notification = new Notification()
+            try
             {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                Read = false,
-                CreatedAt = DateTime.UtcNow,
-                Message = notificationMsg,
-                NotificationType = notificationType,
-                Link = link
-            };
 
-            switch(entityType)
-            {
-                case "post":
-                    notification.PostId = relatedEntityId;
-                    break;
-                case "community":
-                    notification.CommunityId = relatedEntityId;
-                    break;
-                case "community_discussion":
-                    notification.CommunityDiscussionId = relatedEntityId;
-                    break;
-                case "community_discussion_message":
-                    notification.CommunityDiscussionMessageId = relatedEntityId;
-                    break;
-                case "list":
-                    notification.ListId = relatedEntityId;
-                    break;
-                case "user":
-                    notification.RelatedUserId = relatedEntityId;
-                    break;
-                default:
-                    throw new ArgumentException($"Unsupported entity type: {entityType}");
-            }
+                var notification = new Notification()
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Read = false,
+                    CreatedAt = DateTime.UtcNow,
+                    Message = notificationMsg,
+                    NotificationType = notificationType,
+                    ItemType = entityType,
+                    Link = link
+                };
+
+                switch(entityType)
+                {
+                    case "post":
+                        notification.PostId = relatedEntityId;
+                        break;
+                    case "community":
+                        notification.CommunityId = relatedEntityId;
+                        break;
+                    case "community_discussion":
+                        notification.CommunityDiscussionId = relatedEntityId;
+                        break;
+                    case "community_discussion_message":
+                        notification.CommunityDiscussionMessageId = relatedEntityId;
+                        break;
+                    case "list":
+                        notification.ListId = relatedEntityId;
+                        break;
+                    case "user":
+                        notification.RelatedUserId = relatedEntityId;
+                        break;
+                    default:
+                        throw new ArgumentException($"Unsupported entity type: {entityType}");
+                }
 
  
-            var newNotification = await supabase.From<Notification>().Insert(notification, new QueryOptions()
-            {
-                Returning = ReturnType.Representation
+                var newNotification = await supabase.From<Notification>().Insert(notification, new QueryOptions()
+                {
+                    Returning = ReturnType.Representation
 
-            });
+                }, ct);
 
-            if (newNotification == null)
+                if (newNotification == null)
+                {
+                    throw new Exception($"Error creating notification");
+                }
+
+                return newNotification.Model.Id;
+            } catch(Exception ex)
             {
-                throw new Exception($"Error creating notification");
+                throw ex;
             }
-
-            return newNotification.Model.Id;
         }
     }
 }

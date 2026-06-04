@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace  AlSaqr.Domain.Utils
+namespace AlSaqr.Domain.Utils
 {
     public static class Common
     {

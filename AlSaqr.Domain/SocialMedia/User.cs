@@ -80,7 +80,7 @@ namespace  AlSaqr.Domain.SocialMedia
 
         public class UserRegisterFormDto
         {
-            public string[] FollowingUsers { get; set; }
+            public string[]? FollowingUsers { get; set; }
             public string? Bio { get; set; }
             public string? Username { get; set; }
             public string? Avatar { get; set; }
@@ -129,38 +129,80 @@ namespace  AlSaqr.Domain.SocialMedia
     }
     public class UsersToAddDto
     {
-        [JsonProperty("id")] 
+        [JsonProperty("id")]
         public Guid Id { get; set; }
-        [JsonProperty("username")] 
+        [JsonProperty("username")]
         public string Username { get; set; }
-        [JsonProperty("avatar")] 
+        [JsonProperty("avatar")]
         public string? Avatar { get; set; }
-        [JsonProperty("bio")] 
+        [JsonProperty("bio")]
         public string? Bio { get; set; }
-        [JsonProperty("firstName")] 
+        [JsonProperty("first_name")]
         public string? FirstName { get; set; }
-        [JsonProperty("lastName")] 
+        [JsonProperty("last_name")]
         public string? LastName { get; set; }
-        [JsonProperty("bannerImage")] 
+        [JsonProperty("banner_image")]
         public string? BannerImage { get; set; }
-        [JsonProperty("countryOfOrigin")] 
+        [JsonProperty("country_of_origin")]
         public string? CountryOfOrigin { get; set; }
-        [JsonProperty("preferredMadhab")] 
+        [JsonProperty("preferred_madhab")]
         public string? PreferredMadhab { get; set; }
-        [JsonProperty("hobbies")] 
+        [JsonProperty("hobbies")]
         public List<string> Hobbies { get; set; } = new();
-        [JsonProperty("favoriteQuranReciters")] 
+        [JsonProperty("favorite_quran_reciters")]
         public List<string> FavoriteQuranReciters { get; set; } = new();
-        [JsonProperty("favoriteIslamicScholars")] 
+        [JsonProperty("favorite_islamic_scholars")]
         public List<string> FavoriteIslamicScholars { get; set; } = new();
-        [JsonProperty("islamicStudyTopics")] 
+        [JsonProperty("islamic_study_topics")]
         public List<string> IslamicStudyTopics { get; set; } = new();
-        [JsonProperty("followerCount")] 
+        [JsonProperty("follower_count")]
         public long FollowerCount { get; set; }
-        [JsonProperty("followingCount")] 
+        [JsonProperty("following_count")]
         public long FollowingCount { get; set; }
-        [JsonProperty("totalItems")] 
+        [JsonProperty("total_items")]
         public int TotalItems { get; set; }
+    }
+
+    public class UserToAdd
+    {
+        public Guid Id { get; set; }
+        public string Username { get; set; }
+        public string? Avatar { get; set; }
+        public string? Bio { get; set; }
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? BannerImage { get; set; }
+        public string? CountryOfOrigin { get; set; }
+        public string? PreferredMadhab { get; set; }
+        public List<string> Hobbies { get; set; } = new();
+        public List<string> FavoriteQuranReciters { get; set; } = new();
+        public List<string> FavoriteIslamicScholars { get; set; } = new();
+        public List<string> IslamicStudyTopics { get; set; } = new();
+        public long FollowerCount { get; set; }
+        public long FollowingCount { get; set; }
+        public int TotalItems { get; set; }
+
+        public UserToAdd() { }
+
+        public UserToAdd(UsersToAddDto dto)
+        {
+            Id = dto.Id;
+            Username = dto.Username;
+            Avatar = dto.Avatar;
+            Bio = dto.Bio;
+            FirstName = dto.FirstName;
+            LastName = dto.LastName;
+            BannerImage = dto.BannerImage;
+            CountryOfOrigin = dto.CountryOfOrigin;
+            PreferredMadhab = dto.PreferredMadhab;
+            Hobbies = dto.Hobbies ?? new();
+            FavoriteQuranReciters = dto.FavoriteQuranReciters ?? new();
+            FavoriteIslamicScholars = dto.FavoriteIslamicScholars ?? new();
+            IslamicStudyTopics = dto.IslamicStudyTopics ?? new();
+            FollowerCount = dto.FollowerCount;
+            FollowingCount = dto.FollowingCount;
+            TotalItems = dto.TotalItems;
+        }
     }
 
     public sealed class UserSummaryFollowDto

@@ -21,6 +21,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
             string notificationType,
             string link,
             string entityType,
-            Guid relatedEntityId);
+            Guid relatedEntityId,
+            CancellationToken ct = default);
     }
 }

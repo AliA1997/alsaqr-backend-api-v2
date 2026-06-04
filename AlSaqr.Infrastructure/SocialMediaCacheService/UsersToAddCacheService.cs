@@ -8,23 +8,23 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
     {
         private const string usersToAddKeyPrefix = "initialUsersToAdd_";
 
-        public void ClearUsersToAdd(string userId)
+        public void ClearUsersToAdd(Guid userId)
         {
             _cache.Remove($"{usersToAddKeyPrefix}{userId}");
         }
-        public void SetUsersToAdd(PaginatedResult<UsersToAddDto> usersToAddPaginatedResult, string userId)
+        public void SetUsersToAdd(PaginatedResult<UserToAdd> usersToAddPaginatedResult, Guid userId)
         {
             _cache.Set($"{usersToAddKeyPrefix}{userId}", usersToAddPaginatedResult, CommonCacheOptions);
         }
-        public bool CheckIfInitialUsersToAddCanBeRetrieved(int currentPage, string userId)
+        public bool CheckIfInitialUsersToAddCanBeRetrieved(int currentPage, Guid userId)
         {
-            _cache.TryGetValue($"{usersToAddKeyPrefix}{userId}", out PaginatedResult<UsersToAddDto>? usersToAddPaginatedResult);
+            _cache.TryGetValue($"{usersToAddKeyPrefix}{userId}", out PaginatedResult<UserToAdd>? usersToAddPaginatedResult);
 
             return (usersToAddPaginatedResult != null && usersToAddPaginatedResult.Pagination.CurrentPage == currentPage);
         }
-        public PaginatedResult<UsersToAddDto>? GetInitialUsersToAdd(string userId)
+        public PaginatedResult<UserToAdd>? GetInitialUsersToAdd(Guid userId)
         {
-            _cache.TryGetValue($"{usersToAddKeyPrefix}{userId}", out PaginatedResult<UsersToAddDto>? usersToAddPaginatedResult);
+            _cache.TryGetValue($"{usersToAddKeyPrefix}{userId}", out PaginatedResult<UserToAdd>? usersToAddPaginatedResult);
 
             return usersToAddPaginatedResult;
         }

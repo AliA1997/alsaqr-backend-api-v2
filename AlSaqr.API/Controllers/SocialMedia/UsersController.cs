@@ -1,5 +1,6 @@
 ﻿using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Domain.SocialMedia;
+using AlSaqr.Infrastructure;
 using AlSaqr.Infrastructure.SocialMediaCache;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,6 +19,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
         private readonly IMessageRepository _messageRepository;
         private readonly INotificationRepository _notificationRepository;
         private readonly ISocialMediaCacheService _socialMediaCacheService;
+        private readonly IUserCacheService _userCacheService;
 
         public UsersController(
             ILogger<UsersController> logger,
@@ -26,7 +28,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
             IUserFollowRepository userFollowRepository,
             IMessageRepository messageRepository,
             INotificationRepository notificationRepository,
-            ISocialMediaCacheService socialMediaCacheService)
+            ISocialMediaCacheService socialMediaCacheService,
+            IUserCacheService userCacheService)
         {
             _logger = logger;
             _userRepository = userRepository;
@@ -35,6 +38,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
             _messageRepository = messageRepository;
             _notificationRepository = notificationRepository;
             _socialMediaCacheService = socialMediaCacheService;
+            _userCacheService = userCacheService;
         }
 
 
@@ -45,19 +49,17 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="data"></param>
         /// <returns></returns>
 
-        [HttpPut("{userId}")]
-        public async Task<IActionResult> UpdateUser(
-            Guid userId,
-            [FromBody] User.UpdateUserDto data)
+        [HttpPut]
+        public async Task<IActionResult> UpdateUser([FromBody] User.UpdateUserDto data)
         {
             using var cts = new CancellationTokenSource();
             var ct = cts.Token;
 
-            if (userId == Guid.Empty || string.IsNullOrEmpty(userId.ToString()))
-            {
-                return BadRequest("User ID is required for updating your user.");
-            }
-            
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
+                return Unauthorized("User must be logged in to update their user.");
+
+            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
             try
             {
                 await _userRepository.UpdateUser(_supabase, userId, data, ct);
@@ -73,18 +75,18 @@ namespace AlSaqr.API.Controllers.SocialMedia
         }
 
         /// <summary>
-        /// Delete user based on user id.
+        /// Delete user based on logged in user.
         /// </summary>
         /// <param name="userId"></param>
         /// <returns></returns>
-        [HttpDelete("{userId}")]
-        public async Task<IActionResult> DeleteUser(Guid userId)
+        [HttpDelete]
+        public async Task<IActionResult> DeleteUser()
         {
-            // Input validation
-            if (userId == Guid.Empty)
-            {
-                return BadRequest("User ID is required");
-            }
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
+                return Unauthorized("User must be logged in to delete their user.");
+
+            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
 
             try
             {
@@ -105,19 +107,20 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="userId"></param>
         /// <param name="request"></param>
         /// <returns></returns>
-        [HttpPatch("{userId}/follow")]
-        public async Task<IActionResult> Follow(
-            Guid userId,
-            [FromBody] User.FollowUserFormDto request)
+        [HttpPatch("follow")]
+        public async Task<IActionResult> Follow([FromBody] User.FollowUserFormDto request)
         {
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
+                return Unauthorized("User must be logged in to follow other users.");
+
+            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
 
             // Input validation
             if (userId == Guid.Empty)
-            {
                 return BadRequest("User ID is required for following someone.");
-            }
 
             try
             {
@@ -138,19 +141,19 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="userId"></param>
         /// <param name="request"></param>
         /// <returns></returns>
-        [HttpPatch("{userId}/unfollow")]
-        public async Task<IActionResult> UnFollow(
-            Guid userId,
-            [FromBody] User.UnFollowUserFormDto request)
+        [HttpPatch("unfollow")]
+        public async Task<IActionResult> UnFollow([FromBody] User.UnFollowUserFormDto request)
         {
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
+                return Unauthorized("User must be logged in to unfollow other users.");
 
+            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
             // Input validation
             if (userId == Guid.Empty)
-            {
                 return BadRequest("User ID is required for unfollowing someone.");
-            }
 
             try
             {
@@ -210,12 +213,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return BadRequest("User Id is required for getting users to add.");
 
 
-            if (_socialMediaCacheService.CheckIfInitialUsersToAddCanBeRetrieved(currentPage, userId.ToString()))
-                return Ok(_socialMediaCacheService.GetInitialUsersToAdd(userId.ToString()));
+            if (_socialMediaCacheService.CheckIfInitialUsersToAddCanBeRetrieved(currentPage, userId))
+                return Ok(_socialMediaCacheService.GetInitialUsersToAdd(userId));
 
             var result = await _userRepository.GetUsersToAdd(_supabase, userId, searchTerm, currentPage, itemsPerPage);
 
-            _socialMediaCacheService.SetUsersToAdd(result, userId.ToString());
+            _socialMediaCacheService.SetUsersToAdd(result, userId);
 
             return Ok(result);
 
@@ -254,22 +257,26 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 Guid userId,
                 [FromBody] User.UserRegisterFormDto data)
         {
+            var cts = new CancellationTokenSource();
+            var ct = cts.Token;
+
             if (userId == Guid.Empty)
             {
                 return BadRequest("User ID is required to complete registration");
             }
 
             try { 
-                await _userRepository.CompleteRegistration(_supabase, userId, data);
+                await _userRepository.CompleteRegistration(_supabase, userId, data, ct);
 
                 await _notificationRepository.CreateNotification(
                     _supabase,
                     userId: userId,
                     notificationMsg: "You Completed your account registration.",
-                    notificationType: "your_account",
+                    notificationType: "complete_registration",
                     link: $"/users/{data.Username}",
                     entityType: "user",
-                    relatedEntityId: userId
+                    relatedEntityId: userId,
+                    ct: ct
                 );
 
                 return Ok(new { success = true });

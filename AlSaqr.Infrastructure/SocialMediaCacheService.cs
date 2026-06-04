@@ -10,10 +10,10 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
 {
     public interface ISocialMediaCacheService
     {
-        void ClearUsersToAdd(string userId);
-        void SetUsersToAdd(PaginatedResult<UsersToAddDto> pagination, string userId);
-        bool CheckIfInitialUsersToAddCanBeRetrieved(int currentPage, string userId);
-        PaginatedResult<UsersToAddDto>? GetInitialUsersToAdd(string userId);
+        void ClearUsersToAdd(Guid userId);
+        void SetUsersToAdd(PaginatedResult<UserToAdd> pagination, Guid userId);
+        bool CheckIfInitialUsersToAddCanBeRetrieved(int currentPage, Guid userId);
+        PaginatedResult<UserToAdd>? GetInitialUsersToAdd(Guid userId);
 
         void ClearInitialCommunities(Guid userId);
         void SetInitialCommunities(PaginatedResult<CommunityDto> pagination, Guid userId);
