@@ -3,6 +3,7 @@ using AlSaqr.Domain.SocialMedia;
 using AlSaqr.Infrastructure;
 using AlSaqr.Infrastructure.SocialMediaCache;
 using Microsoft.AspNetCore.Mvc;
+using static AlSaqr.Domain.Utils.Common;
 
 
 namespace AlSaqr.API.Controllers.SocialMedia
@@ -50,8 +51,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <returns></returns>
 
         [HttpPut]
-        public async Task<IActionResult> UpdateUser([FromBody] User.UpdateUserDto data)
+        public async Task<IActionResult> UpdateUser([FromBody] AlSaqrUpsertRequest<User.UpdateUserDto> request)
         {
+            var data = request.Values;
             using var cts = new CancellationTokenSource();
             var ct = cts.Token;
 
@@ -255,8 +257,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
         [HttpPost("{userId}")]
         public async Task<IActionResult> CompleteRegistration(
                 Guid userId,
-                [FromBody] User.UserRegisterFormDto data)
+                [FromBody] AlSaqrUpsertRequest<User.UserRegisterFormDto> request)
         {
+            var data = request.Values;
             var cts = new CancellationTokenSource();
             var ct = cts.Token;
 
@@ -268,6 +271,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
             try { 
                 await _userRepository.CompleteRegistration(_supabase, userId, data, ct);
 
+                if((data.FollowingUsers?.Length ?? 0) > 0)
+                    await FollowerInitialUsers(userId, data.FollowingUsers, ct);
+                
                 await _notificationRepository.CreateNotification(
                     _supabase,
                     userId: userId,
@@ -289,5 +295,15 @@ namespace AlSaqr.API.Controllers.SocialMedia
             }
         }
 
+        private async Task FollowerInitialUsers(Guid userId, Guid[] usersToFollow, CancellationToken ct)
+        {
+            var tasks = usersToFollow.Select(uTF =>
+                                                    _userFollowRepository.AddUserFollow(_supabase, userId, new Domain.SocialMedia.User.FollowUserFormDto()
+                                                    {
+                                                        UserToFollowId = uTF
+                                                    }, ct))
+                                        .ToArray();
+            await Task.WhenAll(tasks);
+        }
     }
 }

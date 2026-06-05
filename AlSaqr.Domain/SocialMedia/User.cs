@@ -80,7 +80,7 @@ namespace  AlSaqr.Domain.SocialMedia
 
         public class UserRegisterFormDto
         {
-            public string[]? FollowingUsers { get; set; }
+            public Guid[]? FollowingUsers { get; set; }
             public string? Bio { get; set; }
             public string? Username { get; set; }
             public string? Avatar { get; set; }
@@ -228,6 +228,8 @@ namespace  AlSaqr.Domain.SocialMedia
 
         [JsonProperty("avatar")]
         public string? Avatar { get; set; }
+        [JsonProperty("bgThumbnail")]
+        public string? BgThumbnail { get; set; }
 
         [JsonProperty("bio")]
         public string? Bio { get; set; }

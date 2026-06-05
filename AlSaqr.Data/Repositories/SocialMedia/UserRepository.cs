@@ -126,7 +126,11 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             {
                 Id = newUser.Id,
                 Username = newUser.Username,
+                FirstName = newUser.FirstName,
+                LastName = newUser.LastName,
                 Avatar = newUser.Avatar.ToString(),
+                BannerImage = newUser.BgThumbnail,
+                DateOfBirth = newUser.DateOfBirth,
                 Email = newUser.Email,
                 CreatedAt = newUser.CreatedAt,
                 Hobbies = newUser.Hobbies,

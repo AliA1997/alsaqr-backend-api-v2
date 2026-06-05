@@ -62,21 +62,22 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 if (existingUser == null && !string.IsNullOrEmpty(data.Email))
                 {
 
-                    var isDiscordAccount = !string.IsNullOrEmpty(data.ImageUrl) ? data.ImageUrl.Contains("discord") : false;
+                    var isDiscordAccount = !string.IsNullOrEmpty(data.ProfileAvatar) ? data.ProfileAvatar.Contains("discord") : false;
 
                     var newUser = new CreateInitialUserDto()
                     {
                         Id = Guid.NewGuid(),
-                        FirstName = data.FirstName,
-                        LastName = data.LastName,
-                        Username = isDiscordAccount ? data.GlobalName : GetEmailUsername(data.Email ?? ""),
+                        FirstName = data.UserMetadata.FullName?.Split(' ')[0] ?? "",
+                        LastName = data.UserMetadata.FullName?.Split(' ').Length > 1 ? data.UserMetadata.FullName.Split(' ')[1] : null,
+                        Username = isDiscordAccount ? data.GlobalName : data.DisplayName ?? GetEmailUsername(data.Email ?? ""),
                         Email = data.Email!,
                         CreatedAt = DateTime.UtcNow,
                         Bio = "",
                         CountryOfOrigin = "United States",
-                        Phone = null,
-                        Avatar = data.Picture != null ? data.Picture : data?.ImageUrl,
-                        BgThumbnail = GetRandomCityImage(),
+                        Phone = data.Phone,
+                        Avatar = !string.IsNullOrEmpty(data.ProfileAvatar) ? data.ProfileAvatar
+                                    : !string.IsNullOrEmpty(data?.UserMetadata?.Picture) ? data.UserMetadata?.Picture : data?.UserMetadata?.AvatarUrl ?? "",
+                        BgThumbnail = CityBackgrounds.GetRandomCityImage(),
                         DateOfBirth = null,
                         Religion = "Muslim",
                         Hobbies = new string[] { },
@@ -125,18 +126,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 
                 var sessionUserResult = await _profileRepository.GetSessionInfo(_supabase, userId);
 
-                //var userProfilePosts = await _profileRepository.GetProfilePosts(_supabase, username, 1, 25);
-
                 _logger.LogInformation("User signed in successfully!");
-
-
-                //var sessionUser = new SessionUser(userProfileResult)
-                //{
-
-                //    Bookmarks = userProfileResult.Bookmarks.ToArray(),
-                //    Reposts = userProfilePosts.RepostedPosts.Select(rp => rp.PostId).ToArray(),
-                //    LikedPosts = userProfilePosts.LikedPosts.Select(u => u.PostId).ToArray()
-                //};
 
                 if (sessionUserResult.Id == Guid.Empty || sessionUserResult.Id == null)
                     return BadRequest("Invalid user retrieved");

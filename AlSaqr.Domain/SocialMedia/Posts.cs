@@ -16,6 +16,7 @@ namespace  AlSaqr.Domain.SocialMedia
         }
 
         public class CreateCommentDto
+
         {
             public string Text { get; set; }
             public Guid PostId { get; set; }
