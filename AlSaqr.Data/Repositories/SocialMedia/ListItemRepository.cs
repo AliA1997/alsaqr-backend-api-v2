@@ -5,6 +5,8 @@ using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Domain.SocialMedia;
 using AlSaqr.Domain.SocialMedia.Exceptions;
 using Supabase.Postgrest;
+using static AlSaqr.Domain.SocialMedia.Community;
+using static AlSaqr.Domain.SocialMedia.CommunityDiscussion;
 using static AlSaqr.Domain.SocialMedia.List;
 using static AlSaqr.Domain.Utils.Common;
 using static Supabase.Postgrest.Constants;
@@ -214,7 +216,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 .From<ListItem>()
                 .Insert(savedListItems, new QueryOptions
                 {
-                    Returning = ReturnType.Minimal
+                    Returning = ReturnType.Representation
                 });
             if (inserted == null)
                 throw new Exception("Error adding items to a list.");
@@ -223,6 +225,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             await CreateListItemNotification(
                 supabase,
                 listId,
+                inserted.Model.Id,
                 "Users have been added to your list {list}.",
                 "users_added_to_list",
                 ct);
@@ -249,7 +252,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 .From<ListItem>()
                 .Insert(savedListItems, new QueryOptions
                 {
-                    Returning = ReturnType.Minimal
+                    Returning = ReturnType.Representation
                 });
             if (inserted == null)
                 throw new Exception("Error adding items to a list.");
@@ -257,6 +260,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             await CreateListItemNotification(
                 supabase,
                 listId,
+                inserted.Model.Id,
                 "Posts have been added to your list {list}.",
                 "posts_added_to_list",
                 ct);
@@ -291,7 +295,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
             var inserted = await supabase
                 .From<ListItem>()
-                .Insert(listItem, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+                .Insert(listItem, new QueryOptions { Returning = ReturnType.Representation }, ct);
 
             if (inserted == null)
                 throw new Exception("Error adding community to list.");
@@ -299,6 +303,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             await CreateListItemNotification(
                 supabase,
                 listId,
+                inserted.Model.Id,
                 "A community has been added to your list {list}.",
                 "community_added_to_list",
                 ct);
@@ -331,7 +336,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
             var inserted = await supabase
                 .From<ListItem>()
-                .Insert(listItem, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+                .Insert(listItem, new QueryOptions { Returning = ReturnType.Representation }, ct);
 
             if (inserted == null)
                 throw new Exception("Error adding community discussion to list.");
@@ -339,6 +344,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             await CreateListItemNotification(
                 supabase,
                 listId,
+                inserted.Model.Id,
                 "A community discussion has been added to your list {list}.",
                 "community_discussion_added_to_list",
                 ct);
@@ -371,7 +377,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
             var inserted = await supabase
                 .From<ListItem>()
-                .Insert(listItem, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+                .Insert(listItem, new QueryOptions { Returning = ReturnType.Representation }, ct);
 
             if (inserted == null)
                 throw new Exception("Error adding community discussion message to list.");
@@ -379,6 +385,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             await CreateListItemNotification(
                 supabase,
                 listId,
+                inserted.Model.Id,
                 "A community discussion message has been added to your list {list}.",
                 "community_discussion_message_added_to_list",
                 ct);
@@ -388,6 +395,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         public async Task CreateListItemNotification(
             Supabase.Client supabase,
             Guid listId,
+            Guid listItemId,
             string messageTemplate,
             string notificationType,
             CancellationToken ct)
@@ -413,14 +421,15 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 CreatedAt = DateTime.UtcNow,
                 Message = message,
                 NotificationType = notificationType,
-                ItemType = "user",
+                ItemType = "list_item",
                 ListId = listId,
+                ListItemId = listItemId,
                 Link = $"/lists/{listId}",
             };
 
             var created = await supabase
                 .From<Notification>()
-                .Insert(notification, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+                .Insert(notification, new QueryOptions { Returning = ReturnType.Representation }, ct);
 
             if (created == null)
                 throw new Exception("Error creating notification");

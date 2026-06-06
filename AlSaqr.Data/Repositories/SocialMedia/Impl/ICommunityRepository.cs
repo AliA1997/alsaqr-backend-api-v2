@@ -7,12 +7,14 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
     {
         Task<PaginatedResult<CommunityDto>> GetCommunities(
             Supabase.Client supabase,
+            Guid userId,
             string? searchTerm,
             int currentPage,
             int itemsPerPage);
 
         Task<CommunityDto> GetCommunity(
             Supabase.Client supabase,
+            Guid userId,
             Guid commmunityId);
 
         Task<Guid> CreateCommunity(

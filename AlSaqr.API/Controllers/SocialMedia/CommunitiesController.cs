@@ -50,7 +50,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
             if (_socialMediaCacheService.CheckIfInitialCommunitiesCanBeRetrieved(currentPage, userId))
                 return Ok(_socialMediaCacheService.GetInitialCommunities(userId));
 
-            var result = await _communityRepository.GetCommunities(_supabase, searchTerm, currentPage, itemsPerPage);
+            var result = await _communityRepository.GetCommunities(_supabase, userId, searchTerm, currentPage, itemsPerPage);
             _socialMediaCacheService.SetInitialCommunities(result, userId);
 
             return Ok(result);
@@ -62,7 +62,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="communityId"></param>
         /// <returns></returns>
         [HttpGet("{userId}/{communityId}")]
-        public async Task<IActionResult> GetCommunity(Guid communityId)
+        public async Task<IActionResult> GetCommunity(Guid userId, Guid communityId)
         {
             // Input validation
             if (communityId == Guid.Empty)
@@ -70,7 +70,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return BadRequest("Community ID is required");
             }
 
-            var community = await _communityRepository.GetCommunity(_supabase, communityId);
+            var community = await _communityRepository.GetCommunity(_supabase, userId, communityId);
 
             return Ok(community);
         }

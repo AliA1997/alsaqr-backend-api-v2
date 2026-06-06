@@ -18,6 +18,8 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
 
         [Column("notification_message")]
         public string? NotificationMessage { get; set; }
+        [Column("link")]
+        public string? Link { get; set; }
 
         [Column("is_read")]
         public bool IsRead { get; set; }
@@ -39,6 +41,9 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
         public string? LoggedInUserAvatar { get; set; }
 
         // Referenced entities
+        [Column("related_user_id")]
+        public Guid? RelatedUserId { get; set; }
+
         [Column("post_id")]
         public Guid? PostId { get; set; }
 
@@ -47,5 +52,14 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
 
         [Column("community_discussion_id")]
         public Guid? CommunityDiscussionId { get; set; }
+
+        [Column("community_discussion_message_id")]
+        public Guid? CommunityDiscussionMessageId { get; set; }
+
+        [Column("list_id")]
+        public Guid? ListId { get; set; }
+
+        [Column("list_item_id")]
+        public Guid? ListItemId { get; set; }
     }
 }

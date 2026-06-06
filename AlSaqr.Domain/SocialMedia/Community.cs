@@ -19,10 +19,6 @@ namespace  AlSaqr.Domain.SocialMedia
                 this.FounderId = details.FounderId;
                 this.FounderUsername = details.FounderUsername;
                 this.FounderAvatar = details.FounderAvatar;
-                this.UserId = details.UserId;
-                this.UserRole = details.UserRole;
-                this.UserJoinedAt = details.UserJoinedAt;
-                this.RelationshipType = details.RelationshipType;
                 this.TotalMembers = details.TotalMembers ?? 0;
             }
 
@@ -60,15 +56,6 @@ namespace  AlSaqr.Domain.SocialMedia
             [JsonProperty("founderAvatar")]
             public string? FounderAvatar { get; set; }
 
-            // Requesting user context
-            [JsonProperty("userId")]
-            public Guid? UserId { get; set; }
-
-            [JsonProperty("userRole")]
-            public string? UserRole { get; set; }
-
-            [JsonProperty("userJoinedAt")]
-            public DateTime? UserJoinedAt { get; set; }
 
             [JsonProperty("relationshipType")]
             public string? RelationshipType { get; set; }

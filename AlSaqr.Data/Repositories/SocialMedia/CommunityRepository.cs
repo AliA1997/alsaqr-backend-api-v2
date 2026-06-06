@@ -3,9 +3,11 @@ using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Entities.SocialMedia.Views;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.SocialMedia.Impl;
+//using AlSaqr.Domain.SocialMedia;
 using AlSaqr.Domain.SocialMedia.Exceptions;
 using AlSaqr.Domain.Utils;
 using Supabase.Postgrest;
+using Supabase.Realtime.Converters;
 using static AlSaqr.Domain.SocialMedia.Community;
 using static AlSaqr.Domain.Utils.Common;
 using static Supabase.Postgrest.Constants;
@@ -19,6 +21,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
         public async Task<PaginatedResult<CommunityDto>> GetCommunities(
             Supabase.Client supabase,
+            Guid userId,
             string? searchTerm,
             int currentPage,
             int itemsPerPage)
@@ -69,6 +72,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                                 .Select(vwCommunity => new CommunityDto(vwCommunity))
                                 .ToList();
 
+                communities = await AssignUserRoles(supabase, userId, communities, ct);
+
                 pagination = new Pagination
                 {
                     ItemsPerPage = itemsPerPage,
@@ -82,11 +87,13 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 throw ex;
             }
 
+
             return new PaginatedResult<CommunityDto>(communities, pagination!);
         }
 
         public async Task<CommunityDto> GetCommunity(
             Supabase.Client supabase,
+            Guid userId,
             Guid commmunityId)
         {
 
@@ -102,7 +109,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     throw new Exception("Community not found");
                 }
 
-                return new CommunityDto(communityDetails);
+                var result = await AssignUserRoles(supabase, userId, new List<CommunityDto> { new CommunityDto(communityDetails) }, ct);
+                return result.First();
             }
             catch (Exception ex)
             {
@@ -110,6 +118,34 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             }
         }
 
+        private async Task<List<CommunityDto>> AssignUserRoles(
+            Supabase.Client supabase, 
+            Guid userId, 
+            List<CommunityDto> communities,
+            CancellationToken ct)
+        {
+            var communityIds = communities.Select(c => c.CommunityId).ToList();
+            List<(Guid communityId, string role)> result = new List<(Guid communityId, string role)>();
+            var userRoles = (await supabase.From<CommunityMember>()
+                                    .Where(cm => cm.UserId == userId)
+                                    .Filter("community_id", Operator.In, communityIds)
+                                    .Get(ct))
+                                    .Models.Select(cm => (cm.CommunityId, cm.Role));
+
+            foreach(var community in communities)
+            {
+                if(userRoles.Any(cm => cm.CommunityId == community.CommunityId))
+                {
+                    community.RelationshipType = userRoles.First(ur => ur.CommunityId == community.CommunityId).Role;
+                }
+                else
+                {
+                    community.RelationshipType = "none";
+                }
+            }
+
+            return communities;
+        }
 
         public async Task<Guid> CreateCommunity(
               Supabase.Client supabase,

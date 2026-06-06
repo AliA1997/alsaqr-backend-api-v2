@@ -42,6 +42,9 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
         [Column("post_avatar")]
         public string? PostAvatar { get; set; }
 
+        [Column("post_banner_image")]
+        public string? PostBannerImage { get; set; }
+
         // Community
         [Column("community_id")]
         public Guid? CommunityId { get; set; }
@@ -60,6 +63,12 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
 
         [Column("community_tags")]
         public string[]? CommunityTags { get; set; }
+
+        [Column("community_created_at")]
+        public DateTime? CommunityCreatedAt { get; set; }
+
+        [Column("community_total_members")]
+        public long CommunityTotalMembers { get; set; }
 
         [Column("community_founder_username")]
         public string? CommunityFounderUsername { get; set; }

@@ -31,6 +31,9 @@ namespace AlSaqr.Domain.SocialMedia
         [JsonPropertyName("notificationMessage")]
         public string? NotificationMessage { get; set; }
 
+        [JsonPropertyName("link")]
+        public string? Link { get; set; }
+
         [JsonPropertyName("isRead")]
         public bool IsRead { get; set; }
 
@@ -40,8 +43,10 @@ namespace AlSaqr.Domain.SocialMedia
         [JsonPropertyName("notificationUpdatedAt")]
         public DateTime? NotificationUpdatedAt { get; set; }
 
-        //[JsonPropertyName("triggered_by")]
-        //public NotificationActorDto? TriggeredBy { get; set; }
+
+
+        [JsonPropertyName("relatedUserId")]
+        public Guid? RelatedUserId { get; set; }
 
         [JsonPropertyName("postId")]
         public Guid? PostId { get; set; }
@@ -51,6 +56,12 @@ namespace AlSaqr.Domain.SocialMedia
 
         [JsonPropertyName("communityDiscussionId")]
         public Guid? CommunityDiscussionId { get; set; }
+
+        [JsonPropertyName("communityDiscussionMessageId")]
+        public Guid? CommunityDiscussionMessageId { get; set; }
+
+        [JsonPropertyName("listId")]
+        public Guid? ListId { get; set; }
     }
 
     /// <summary>

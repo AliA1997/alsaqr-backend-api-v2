@@ -16,6 +16,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
 
         Task<CommunityDiscussionDto> GetCommunityDiscussion(
             Supabase.Client supabase,
+            Guid userId,
             Guid communityDiscussionId);
 
         Task<Guid> CreateCommunityDiscussion(

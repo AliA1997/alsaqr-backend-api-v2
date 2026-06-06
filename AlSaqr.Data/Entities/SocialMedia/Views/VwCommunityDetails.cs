@@ -40,16 +40,6 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
         [Column("founder_avatar")]
         public string? FounderAvatar { get; set; }
 
-        // Requesting user context
-        [Column("user_id")]
-        public Guid? UserId { get; set; }
-
-        [Column("user_role")]
-        public string? UserRole { get; set; }
-
-        [Column("user_joined_at")]
-        public DateTime? UserJoinedAt { get; set; }
-
         [Column("relationship_type")]
         public string? RelationshipType { get; set; }
 

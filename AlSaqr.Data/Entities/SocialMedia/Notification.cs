@@ -32,6 +32,8 @@ namespace AlSaqr.Data.Entities.SocialMedia
         public Guid? CommunityDiscussionMessageId { get; set; }
         [Column("list_id")]
         public Guid? ListId { get; set; }
+        [Column("list_item_id")]
+        public Guid? ListItemId { get; set; }
         [Column("link")]
         public string? Link { get; set; }
         [Column("created_at")]

@@ -4,7 +4,6 @@ using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Domain.SocialMedia.Exceptions;
 using Supabase.Postgrest;
-using static AlSaqr.Domain.SocialMedia.Community;
 using static AlSaqr.Domain.SocialMedia.CommunityDiscussion;
 using static AlSaqr.Domain.Utils.Common;
 using static Supabase.Postgrest.Constants;
@@ -73,6 +72,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                                 .Select(vwCommunity => new CommunityDiscussionDto(vwCommunity))
                                 .ToList();
 
+                communityDiscussions = await AssignUserRoles(supabase, userId, communityDiscussions, ct);
+
                 pagination = new Pagination
                 {
                     ItemsPerPage = itemsPerPage,
@@ -91,6 +92,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
         public async Task<CommunityDiscussionDto> GetCommunityDiscussion(
             Supabase.Client supabase,
+            Guid userId,
             Guid communityDiscussionId)
         {
 
@@ -105,8 +107,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 {
                     throw new Exception("Community Discussion not found");
                 }
-
-                return new CommunityDiscussionDto(communityDiscussionDetails);
+                var result = await AssignUserRoles(supabase, userId, new List<CommunityDiscussionDto> { new CommunityDiscussionDto(communityDiscussionDetails) }, ct);
+                return result.First();
             }
             catch (Exception ex)
             {
@@ -115,7 +117,34 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         }
 
 
+        private async Task<List<CommunityDiscussionDto>> AssignUserRoles(
+          Supabase.Client supabase,
+          Guid userId,
+          List<CommunityDiscussionDto> communityDiscussions,
+          CancellationToken ct)
+        {
+            var communityDiscussionIds = communityDiscussions.Select(c => c.CommunityId).ToList();
+            List<(Guid communityDiscussionId, string role)> result = new List<(Guid communityDiscussionId, string role)>();
+            var userRoles = (await supabase.From<CommunityDiscussionMember>()
+                                    .Where(cm => cm.UserId == userId)
+                                    .Filter("community_discussion_id", Operator.In, communityDiscussionIds)
+                                    .Get(ct))
+                                    .Models.Select(cm => (cm.CommunityDiscussionId, cm.Role));
 
+            foreach (var communityDiscussion in communityDiscussions)
+            {
+                if (userRoles.Any(cdm => cdm.CommunityDiscussionId == communityDiscussion.DiscussionId))
+                {
+                    communityDiscussion.RelationshipType = userRoles.First(ur => ur.CommunityDiscussionId == communityDiscussion.DiscussionId).Role;
+                }
+                else
+                {
+                    communityDiscussion.RelationshipType = "none";
+                }
+            }
+
+            return communityDiscussions;
+        }
         /// <summary>
         /// Retrieves admin information for a single community discussion: the
         /// discussion details, its founder, whether the caller is the founder,

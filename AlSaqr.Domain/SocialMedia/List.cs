@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
 
 namespace  AlSaqr.Domain.SocialMedia
@@ -24,6 +25,7 @@ namespace  AlSaqr.Domain.SocialMedia
                 this.ListUpdatedAt = details.ListUpdatedAt;
                 this.Owner = new ListOwnerDto()
                 {
+                    UserId = details.UserId,
                     OwnerUsername = details.OwnerUsername,
                     OwnerAvatar = details.OwnerAvatar
                 };
@@ -180,6 +182,8 @@ namespace  AlSaqr.Domain.SocialMedia
 
             [JsonProperty("postAvatar")]
             public string? PostAvatar { get; set; }
+            [Column("postBannerImage")]
+            public string? PostBannerImage { get; set; }
 
             // Community
             [JsonProperty("communityId")]
@@ -205,6 +209,10 @@ namespace  AlSaqr.Domain.SocialMedia
 
             [JsonProperty("communityFounderAvatar")]
             public string? CommunityFounderAvatar { get; set; }
+            [JsonProperty("communityCreatedAt")]
+            public DateTime? CommunityCreatedAt { get; set; }
+            [JsonProperty("communityTotalMembers")]
+            public long CommunityTotalMembers { get; set; } = 0;
 
             // Saved user
             [JsonProperty("savedUserId")]
@@ -257,6 +265,9 @@ namespace  AlSaqr.Domain.SocialMedia
             [JsonProperty("communityDiscussionMessageAvatar")]
             public string? CommunityDiscussionMessageAvatar { get; set; }
 
+            [JsonProperty("relatedEntity")]
+            public dynamic? RelatedEntity { get; set; }
+
             public ListItemDto() { }
 
             public ListItemDto(dynamic view)
@@ -274,6 +285,7 @@ namespace  AlSaqr.Domain.SocialMedia
                 PostCreatedAt = view.PostCreatedAt;
                 PostUsername = view.PostUsername;
                 PostAvatar = view.PostAvatar;
+                PostBannerImage = view.PostBannerImage;
 
                 // Community
                 CommunityId = view.CommunityId;
@@ -284,6 +296,8 @@ namespace  AlSaqr.Domain.SocialMedia
                 CommunityTags = view.CommunityTags;
                 CommunityFounderUsername = view.CommunityFounderUsername;
                 CommunityFounderAvatar = view.CommunityFounderAvatar;
+                CommunityCreatedAt = view.CommunityCreatedAt;
+                CommunityTotalMembers = view.CommunityTotalMembers;
 
                 // Saved user
                 SavedUserId = view.SavedUserId;
