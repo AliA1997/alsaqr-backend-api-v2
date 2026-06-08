@@ -70,11 +70,13 @@ namespace  AlSaqr.Domain.SocialMedia
 
         public class FollowUserFormDto
         {
+            [JsonPropertyName("userToFollowId")]
             public Guid UserToFollowId { get; set; }
         }
 
         public class UnFollowUserFormDto
         {
+            [JsonPropertyName("userToUnFollowId")]
             public Guid UserToUnFollowId { get; set; }
         }
 
@@ -230,9 +232,19 @@ namespace  AlSaqr.Domain.SocialMedia
         public string? Avatar { get; set; }
         [JsonProperty("bgThumbnail")]
         public string? BgThumbnail { get; set; }
+        [JsonProperty("bannerImage")]
+        public string? BannerImage { get; set; }
 
         [JsonProperty("bio")]
         public string? Bio { get; set; }
+
+        [JsonProperty("firstName")]
+        public string? FirstName { get; set; }
+
+        [JsonProperty("lastName")]
+        public string? LastName { get; set; }
+        [JsonProperty("dateOfBirth")]
+        public DateTime? DateOfBirth { get; set; }
 
         [JsonProperty("createdAt")]
         public DateTime CreatedAt { get; set; }
@@ -265,7 +277,11 @@ namespace  AlSaqr.Domain.SocialMedia
             UserId = view.UserId;
             Username = view.Username;
             Avatar = view.Avatar;
+            BannerImage = view.BannerImage;
             Bio = view.Bio;
+            FirstName = view.FirstName;
+            LastName = view.LastName;
+            DateOfBirth = view.DateOfBirth;
             CreatedAt = view.UserCreatedAt;
             UpdatedAt = view.UserUpdatedAt;
 

@@ -88,6 +88,27 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         }
 
 
+        public async Task<ListDto> GetList(Supabase.Client supabase, Guid listId)
+        {
+            VwListDetails? list = null;
+            try
+            {
+                using var cts = new CancellationTokenSource();
+                CancellationToken ct = cts.Token;
+
+                list = await supabase.From<VwListDetails>().Where(l => l.ListId == listId).Single();
+
+                if (list == null)
+                    throw new Exception("List doesn't exist.");
+
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+            return new ListDto(list);
+        }
 
         public async Task<Guid> CreateList(
               Supabase.Client supabase,

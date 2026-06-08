@@ -19,6 +19,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         public async Task<PaginatedResult<MessageDto>> GetMessages(
              Supabase.Client supabase,
              Guid userId,
+             Guid receiverId,
              string? searchTerm,
              int currentPage,
              int itemsPerPage)
@@ -32,7 +33,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
                 var parameters = new Dictionary<string, dynamic>
                 {
-                    { "p_user_id", userId }
+                    { "p_user_id", userId },
+                    { "p_receiver_id", receiverId }
                 };
 
                 if (!string.IsNullOrEmpty(searchTerm))
@@ -58,7 +60,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
                 var dataQuery =  supabase
                                     .From<VwMessageDetails>()
-                                    .Where(x => x.SenderId == userId || x.RecipientId == userId);
+                                    .Where(x => x.SenderId == userId || x.RecipientId == userId)
+                                    .Where(x => x.RecipientId == receiverId || x.SenderId == receiverId);
 
                 if (!string.IsNullOrEmpty(searchTerm))
                 {
@@ -87,6 +90,78 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
             return new PaginatedResult<MessageDto>(messages, pagination!);
 
+        }
+
+        public async Task<PaginatedResult<MessageHistoryDto>> GetMessageThreads(
+             Supabase.Client supabase,
+             Guid userId,
+             string? searchTerm,
+             int currentPage,
+             int itemsPerPage)
+        {
+            var messageThreads = new List<MessageHistoryDto>();
+            Pagination? pagination = null;
+            var skip = (currentPage - 1) * itemsPerPage;
+
+            try
+            {
+
+                var parameters = new Dictionary<string, dynamic>
+                {
+                    { "p_user_id", userId }
+                };
+
+                if (!string.IsNullOrEmpty(searchTerm))
+                {
+                    parameters.Add("p_search_term", searchTerm);
+                }
+
+                var countResult = await SupabaseHelper.CallFunction(supabase, "get_message_history_count", parameters);
+                var totalItems = countResult != null ? long.Parse(countResult) : 0;
+                if (totalItems == 0)
+                {
+                    return new PaginatedResult<MessageHistoryDto>(
+                        messageThreads,
+                        new Pagination
+                        {
+                            ItemsPerPage = itemsPerPage,
+                            CurrentPage = currentPage,
+                            TotalItems = 0,
+                            TotalPages = 0
+                        }
+                    );
+                }
+
+                var dataQuery = supabase
+                                    .From<VwMessageHistory>()
+                                    .Where(x => x.ViewerId == userId);
+
+                if (!string.IsNullOrEmpty(searchTerm))
+                {
+                    dataQuery = dataQuery.Where(x => x.ReceiverUsername.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
+                }
+
+                var pageResult = await dataQuery
+                    .Order(x => x.LastMessageDate, Ordering.Descending)
+                    .Range(skip, skip + itemsPerPage - 1)
+                    .Get();
+
+                messageThreads = pageResult.Models.Select(vwMsg => new MessageHistoryDto(vwMsg)).ToList();
+
+                pagination = new Pagination
+                {
+                    ItemsPerPage = itemsPerPage,
+                    CurrentPage = currentPage,
+                    TotalItems = (int)totalItems,
+                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
+                };
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+            return new PaginatedResult<MessageHistoryDto>(messageThreads, pagination!);
         }
 
 

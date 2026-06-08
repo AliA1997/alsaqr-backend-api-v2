@@ -1,8 +1,10 @@
-﻿using AlSaqr.Infrastructure.SocialMediaCache;
+﻿using AlSaqr.Data.Repositories.SocialMedia.Impl;
+using AlSaqr.Domain.SocialMedia;
+using AlSaqr.Infrastructure;
+using AlSaqr.Infrastructure.SocialMediaCache;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using static AlSaqr.Domain.Utils.Common;
-using AlSaqr.Domain.SocialMedia;
-using AlSaqr.Data.Repositories.SocialMedia.Impl;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {
@@ -16,19 +18,22 @@ namespace AlSaqr.API.Controllers.SocialMedia
         private readonly IListRepository _listRepository;
         private readonly IListItemRepository _listItemRepository;
         private readonly ISocialMediaCacheService _socialMediaCacheService;
+        private readonly IUserCacheService _userCacheService;
 
         public ListsController(
             ILogger<ListsController> logger, 
             Supabase.Client supabase,
             IListRepository listRepository,
             IListItemRepository listItemRepository,
-            ISocialMediaCacheService socialMediaCacheService)
+            ISocialMediaCacheService socialMediaCacheService,
+            IUserCacheService userCacheService)
         {
             _logger = logger;
             _supabase = supabase;
             _listRepository = listRepository;
             _listItemRepository = listItemRepository;
             _socialMediaCacheService = socialMediaCacheService;
+            _userCacheService = userCacheService;
         }
 
         /// <summary>
@@ -55,6 +60,31 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             var result = await _listRepository.GetLists(_supabase, userId, searchTerm, currentPage, itemsPerPage);
             _socialMediaCacheService.SetInitialLists(result, userId);
+
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Get the list based on the list id
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <param name="currentPage"></param>
+        /// <param name="itemsPerPage"></param>
+        /// <param name="searchTerm"></param>
+        /// <returns></returns>
+        [HttpGet("{listId}/details")]
+        public async Task<IActionResult> GetListDetails(Guid listId)
+        {
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+
+            if (loggedInUser == null)
+                return BadRequest("Must be logged in to view this list.");
+
+            if (listId == Guid.Empty)
+                return BadRequest("List ID is required.");
+
+
+            var result = await _listRepository.GetList(_supabase, listId);
 
             return Ok(result);
         }
@@ -134,8 +164,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
             if (listId == Guid.Empty)
                 return BadRequest("Must have a list id to get saved list items.");
 
+            if (_socialMediaCacheService.CheckIfInitialListItemForListCanBeRetrieved(currentPage, userId, listId))
+                return Ok(_socialMediaCacheService.GetInitialListItemsForList(userId, listId, currentPage));
+
             var result = await _listItemRepository.GetListItems(_supabase, userId, listId, currentPage, itemsPerPage);
 
+            _socialMediaCacheService.SetInitialListItemForList(result, userId, listId, currentPage);
             return Ok(result);
         }
 
@@ -169,6 +203,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
             {
                 await _listItemRepository.SaveItemToList(_supabase, userId, listId, data, cts.Token);
 
+                _socialMediaCacheService.ClearInitialListItemsForList(userId, listId, 1);
+
                 return Ok(new { success = true, message = "Saved item to list Successfully" });
             }
             catch (Exception err)
@@ -197,7 +233,10 @@ namespace AlSaqr.API.Controllers.SocialMedia
             }
 
             await _listRepository.DeleteList(_supabase, userId, listId);
-  
+
+            _socialMediaCacheService.ClearInitialLists(userId);
+
+
             return Ok(new { success = true });
     
         }
@@ -224,6 +263,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
 
             await _listItemRepository.DeleteListItem(_supabase, listId, listItemId);
+
+            _socialMediaCacheService.ClearInitialListItemsForList(userId, listId, 1);
 
             return Ok(new { success = true });
         }

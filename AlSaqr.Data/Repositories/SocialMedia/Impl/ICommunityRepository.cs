@@ -17,6 +17,12 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
             Guid userId,
             Guid commmunityId);
 
+        Task<AdminCommunityDto> GetAdminCommunityInfo(
+                    Supabase.Client supabase,
+                    Guid userId,
+                    Guid commmunityId);
+
+
         Task<Guid> CreateCommunity(
               Supabase.Client supabase,
               Guid userId,

@@ -17,6 +17,8 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
 
         [Column("message_content")]
         public string MessageContent { get; set; } = string.Empty;
+        [Column("message_media")]
+        public string MessageMedia { get; set; } = string.Empty;
 
         [Column("is_read")]
         public bool IsRead { get; set; }

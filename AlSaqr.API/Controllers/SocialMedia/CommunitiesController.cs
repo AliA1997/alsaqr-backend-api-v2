@@ -61,6 +61,25 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// </summary>
         /// <param name="communityId"></param>
         /// <returns></returns>
+        [HttpGet("{userId}/{communityId}/admin")]
+        public async Task<IActionResult> GetAdminCommunity(Guid userId, Guid communityId)
+        {
+            // Input validation
+           if (communityId == Guid.Empty)
+            {
+                return BadRequest("Community ID is required for retrieving admin community information");
+            }
+
+            var community = await _communityRepository.GetAdminCommunityInfo(_supabase, userId, communityId);
+
+            return Ok(community);
+        }
+
+        /// <summary>
+        /// Returns community admin info
+        /// </summary>
+        /// <param name="communityId"></param>
+        /// <returns></returns>
         [HttpGet("{userId}/{communityId}")]
         public async Task<IActionResult> GetCommunity(Guid userId, Guid communityId)
         {
@@ -100,6 +119,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
             var result = await _communityRepository.CreateCommunity(_supabase, userId, data);
 
             _socialMediaCacheService.ClearInitialCommunities(userId);
+
 
             return Ok(new { success = true });
         }

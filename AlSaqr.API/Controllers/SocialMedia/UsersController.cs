@@ -110,8 +110,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpPatch("follow")]
-        public async Task<IActionResult> Follow([FromBody] User.FollowUserFormDto request)
+        public async Task<IActionResult> Follow([FromBody] AlSaqrUpsertRequest<User.FollowUserFormDto> request)
         {
+            var data = request.Values;
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
             var loggedInUser = _userCacheService.GetLoggedInUser();
@@ -126,7 +127,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             try
             {
-                await _userFollowRepository.AddUserFollow(_supabase, userId, request, ct);
+                await _userFollowRepository.AddUserFollow(_supabase, userId, data, ct);
 
                 return Ok(new { success = true });
             }
@@ -144,8 +145,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpPatch("unfollow")]
-        public async Task<IActionResult> UnFollow([FromBody] User.UnFollowUserFormDto request)
+        public async Task<IActionResult> UnFollow([FromBody] AlSaqrUpsertRequest<User.UnFollowUserFormDto> request)
         {
+            var data = request.Values;
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
             var loggedInUser = _userCacheService.GetLoggedInUser();
@@ -159,7 +161,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             try
             {
-                await _userFollowRepository.RemoveUserFollow(_supabase, userId, request, ct);
+                await _userFollowRepository.RemoveUserFollow(_supabase, userId, data, ct);
 
                 return Ok(new { success = true });
             }
@@ -229,21 +231,52 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <summary>
         /// Get message history items or message thread for a loggedin user.
         /// </summary>
-        /// <param name="userId"></param>
+        /// <param name="receiverId"></param>
         /// <param name="currentPage"></param>
         /// <param name="itemsPerPage"></param>
         /// <returns></returns>
-        [HttpGet("{userId}/messages")]
+        [HttpGet("messages")]
         public async Task<IActionResult> Messages(
-            Guid userId,
+            [FromQuery] Guid receiverId,
             [FromQuery] int currentPage = 1,
             [FromQuery] int itemsPerPage = 10
         )
         {
-            if (userId == Guid.Empty)
-                return BadRequest("You need to be logged in, in order to access your direct messages.");
+            var loggedInUser = _userCacheService.GetLoggedInUser();
 
-            var result = await _messageRepository.GetMessages(_supabase, userId, null, currentPage, itemsPerPage);
+            if (loggedInUser == null)
+                return Unauthorized("Need to be logged in to view your messages");
+
+            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
+
+            if (receiverId == Guid.Empty)
+                return BadRequest("You need a receiver in order to retrieve messages");
+
+            var result = await _messageRepository.GetMessages(_supabase, userId, receiverId, null, currentPage, itemsPerPage);
+
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Get Message threads for a logged in user.
+        /// </summary>
+        /// <param name="currentPage"></param>
+        /// <param name="itemsPerPage"></param>
+        /// <returns></returns>
+        [HttpGet("messageThreads")]
+        public async Task<IActionResult> MessageThreads(
+            [FromQuery] int currentPage = 1,
+            [FromQuery] int itemsPerPage = 10
+        )
+        {
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+
+            if (loggedInUser == null)
+                return Unauthorized("Need to be logged in to view your messages");
+
+            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
+
+            var result = await _messageRepository.GetMessageThreads(_supabase, userId, null, currentPage, itemsPerPage);
 
             return Ok(result);
         }

@@ -14,9 +14,17 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
 
         [Column("avatar")]
         public string? Avatar { get; set; }
-
+        [Column("banner_image")]
+        public string? BannerImage { get; set; }
         [Column("bio")]
         public string? Bio { get; set; }
+
+        [Column("first_name")]
+        public string FirstName { get; set; }
+        [Column("last_name")]
+        public string LastName { get; set; }
+        [Column("date_of_birth")]
+        public DateTime? DateOfBirth { get; set; }
 
         [Column("user_created_at")]
         public DateTime UserCreatedAt { get; set; }

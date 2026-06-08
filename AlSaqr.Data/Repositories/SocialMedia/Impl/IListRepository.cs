@@ -13,6 +13,10 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
            int currentPage,
            int itemsPerPage);
 
+        Task<ListDto> GetList(
+            Supabase.Client supabase,
+            Guid listId);
+
         Task<Guid> CreateList(
               Supabase.Client supabase,
               Guid userId,

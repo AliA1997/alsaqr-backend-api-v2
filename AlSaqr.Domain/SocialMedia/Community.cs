@@ -4,6 +4,23 @@ namespace  AlSaqr.Domain.SocialMedia
 {
     public static class Community
     {
+        public class AdminCommunityDto : CommunityDto
+        {
+            public AdminCommunityDto(dynamic details) : base((object)details)
+            {
+                this.InviteRequestedUsers = details.InviteRequestedUsers;
+                this.InvitedCount = details.InvitedCount;
+                this.JoinedCount = details.JoinedCount;
+                this.ModeratorCount = details.ModeratorCount;
+            }
+
+            public dynamic InviteRequestedUsers { get;set; }
+            public long InvitedCount { get; set; }
+            public long JoinedCount { get; set; }
+            public long ModeratorCount { get; set; }
+
+        }
+
         public class CommunityDto
         {
             public CommunityDto(dynamic details) 

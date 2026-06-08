@@ -1,5 +1,6 @@
 ﻿using AlSaqr.Data.Repositories.SocialMedia.Impl;
-using AlSaqr.Domain.SocialMedia;
+using AlSaqr.Infrastructure;
+using AlSaqr.Infrastructure.SocialMediaCache;
 using Microsoft.AspNetCore.Mvc;
 using static AlSaqr.Domain.SocialMedia.CommunityDiscussion;
 using static AlSaqr.Domain.Utils.Common;
@@ -16,20 +17,25 @@ namespace AlSaqr.API.Controllers.SocialMedia
         private readonly ICommunityDiscussionRepository _communityDiscussionRepository;
         private readonly ICommunityDiscussionMessageRepository _communityDiscussionMessageRepository;
         private readonly ICommunityDiscussionMemberRepository _communityDiscussionMemberRepository;
-
+        private readonly ISocialMediaCacheService _socialMediaCacheService;
+        private readonly IUserCacheService _userCacheService;
 
         public CommunityDiscussionController(
             ILogger<CommunityDiscussionController> logger,
             Supabase.Client supabase,
             ICommunityDiscussionRepository communityDiscussionRepository,
             ICommunityDiscussionMessageRepository communityDiscussionMessageRepository,
-            ICommunityDiscussionMemberRepository communityDiscussionMemberRepository)
+            ICommunityDiscussionMemberRepository communityDiscussionMemberRepository,
+            ISocialMediaCacheService socialMediaCacheService,
+            IUserCacheService userCacheService)
         {
             _logger = logger;
             _supabase = supabase;
             _communityDiscussionRepository = communityDiscussionRepository;
             _communityDiscussionMessageRepository = communityDiscussionMessageRepository;
             _communityDiscussionMemberRepository = communityDiscussionMemberRepository;
+            _socialMediaCacheService = socialMediaCacheService;
+            _userCacheService = userCacheService;
         }
 
         /// <summary>
@@ -40,14 +46,24 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <returns></returns>
         [HttpGet("{userId}/{communityId}")]
         public async Task<IActionResult> GetCommunityDiscussions(
-            Guid userId,
             Guid communityId,
             [FromQuery] int currentPage = 1,
             [FromQuery] int itemsPerPage = 10,
             [FromQuery] string? searchTerm = null)
         {
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to retrieve community discussions");
+            if (communityId == Guid.Empty)
+                return BadRequest("Community ID is required to retrieve community discussions");
+            Guid.TryParse(loggedInUser.Id?.ToString(), out Guid userId);
+
+            if (_socialMediaCacheService.CheckIfInitialCommunityDiscussionsCanBeRetrieved(userId, communityId))
+                return Ok(_socialMediaCacheService.GetInitialCommunityDiscussions(userId, communityId));
 
             var result = await _communityDiscussionRepository.GetCommunityDiscussions(_supabase, userId, communityId, searchTerm, currentPage, itemsPerPage);
+
+            _socialMediaCacheService.SetInitialCommunityDiscussions(result, userId, communityId);
 
             return Ok(result);
         }
@@ -59,21 +75,19 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="communityId"></param>
         /// <param name="communityDiscussionId"></param>
         /// <returns></returns>
-        [HttpGet("{userId}/{communityId}/{communityDiscussionId}")]
+        [HttpGet("{communityId}/{communityDiscussionId}")]
         public async Task<IActionResult> GetCommunityDiscussionInfo(
-            Guid userId,
             Guid communityId,
             Guid communityDiscussionId)
         {
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to retrieve community discussions");
             if (communityId == Guid.Empty)
-            {
-                return BadRequest("Community Discussion must have an community id");
-            }
-                
+                return BadRequest("Community Discussion must have an community id");   
             if (communityDiscussionId == Guid.Empty)
-            {
                 return BadRequest("Community Discussion must have an id");
-            }
+            Guid.TryParse(loggedInUser.Id?.ToString(), out Guid userId);
 
             var result = await _communityDiscussionRepository.GetCommunityDiscussion(_supabase, userId, communityDiscussionId);
 
@@ -89,12 +103,16 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpPatch("{userId}/{communityId}/{communityDiscussionId}/join")]
-        public async Task<IActionResult> JoinCommunity(
+        public async Task<IActionResult> JoinCommunityDiscussion(
             Guid userId,
             Guid communityId,
             Guid communityDiscussionId,
-            [FromBody] AlSaqrUpsertRequest<CommunityDiscussion.CommunityDiscussionInviteConfirmationDto> request)
+            [FromBody] AlSaqrUpsertRequest<CommunityDiscussionInviteConfirmationDto> request)
         {
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to join a community discussion");
+            
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
@@ -121,12 +139,16 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpPatch("{userId}/{communityId}/{communityDiscussionId}/unjoin")]
-        public async Task<IActionResult> UnJoinCommunity(
+        public async Task<IActionResult> UnJoinCommunityDiscussion(
             Guid userId,
             Guid communityId,
             Guid communityDiscussionId,
-            [FromBody] AlSaqrUpsertRequest<CommunityDiscussion.CommunityDiscussionInviteConfirmationDto> request)
+            [FromBody] AlSaqrUpsertRequest<CommunityDiscussionInviteConfirmationDto> request)
         {
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged unjoin from a community discussion.");
+
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
@@ -150,29 +172,23 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="communityId"></param>
         /// <param name="request"></param>
         /// <returns></returns>
-        [HttpPost("{userId}/{communityId}")]
+        [HttpPost("{communityId}")]
         public async Task<IActionResult> CreateCommunityDiscussion(
-            [FromRoute] Guid userId,
-            [FromRoute] Guid communityId,
+            Guid communityId,
             [FromBody] AlSaqrUpsertRequest<CreateCommunityDiscussionForm> request)
         {
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to retrieve community discussions");
+            if (communityId == Guid.Empty)
+                return BadRequest("Community ID is required");
+            Guid.TryParse(loggedInUser.Id?.ToString(), out Guid userId);
 
             var data = request.Values;
-
-            if (userId == Guid.Empty)
-            {
-                return BadRequest("User ID is required");
-            }
-
-            if (communityId == Guid.Empty)
-            {
-                return BadRequest("Community ID is required");
-            }
-
             if (string.IsNullOrEmpty(data?.Name))
-            {
                 return BadRequest("Name of Community Discussion is required");
-            }
+
+
 
             await _communityDiscussionRepository.CreateCommunityDiscussion(_supabase, userId, communityId, data);
 
@@ -188,12 +204,16 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpPost("{userId}/{communityId}/{communityDiscussionId}/request-join")]
-        public async Task<IActionResult> PostRequestJoin(
+        public async Task<IActionResult> PostRequestJoinCommunityDiscussion(
             Guid userId,
             Guid communityId,
             Guid communityDiscussionId,
             [FromBody] AlSaqrUpsertRequest<CommunityDiscussionInviteConfirmationDto> request)
         {
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to request to join a community discussion.");
+
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
@@ -220,12 +240,16 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpPatch("{userId}/{communityId}/{communityDiscussionId}/request-join")]
-        public async Task<IActionResult> RespondToRequestJoin(
+        public async Task<IActionResult> RespondToRequestJoinCommunityDiscussion(
             Guid userId,
             Guid communityId,
             Guid communityDiscussionId,
             [FromBody] AlSaqrUpsertRequest<AcceptOrDenyCommunityDiscussionInviteConfirmationDto> request)
         {
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to respond to a join request to a community discussion.");
+
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
@@ -248,22 +272,19 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="communityId"></param>
         /// <param name="communityDiscussionId"></param>
         /// <returns></returns>
-        [HttpGet("{userId}/{communityId}/{communityDiscussionId}/admin")]
+        [HttpGet("{communityId}/{communityDiscussionId}/admin")]
         public async Task<IActionResult> GetAdminCommunityDiscussionInfo(
-            Guid userId,
             Guid communityId,
             Guid communityDiscussionId)
         {
-
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to retrieve community discussions");
             if (communityId == Guid.Empty)
-            {
                 return BadRequest("Community Discussion must have an community id");
-            }
-
             if (communityDiscussionId == Guid.Empty)
-            {
                 return BadRequest("Community Discussion must have an id");
-            }
+            Guid.TryParse(loggedInUser.Id?.ToString(), out Guid userId);
 
             var result = await _communityDiscussionRepository.GetAdminCommunityDiscussionInfo(_supabase, userId, communityDiscussionId);
 
@@ -280,23 +301,29 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="itemsPerPage"></param>
         /// <param name="searchTerm"></param>
         /// <returns></returns>
-        [HttpGet("{userId}/{communityId}/{communityDiscussionId}/messages")]
+        [HttpGet("{communityId}/{communityDiscussionId}/messages")]
         public async Task<IActionResult> GetCommunityDiscussionMessages(
-            Guid userId,
             Guid communityId,
             Guid communityDiscussionId,
             [FromQuery] int currentPage = 1,
             [FromQuery] int itemsPerPage = 10,
             [FromQuery] string? searchTerm = null)
         {
-            if(communityId == Guid.Empty)
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to retrieve community discussion messages.");
+            if (communityId == Guid.Empty)
                 return BadRequest("Community ID is required");
-
             if(communityDiscussionId == Guid.Empty)
                 return BadRequest("Community Discussion ID is required");
+            Guid.TryParse(loggedInUser.Id?.ToString(), out Guid userId);
+
+            if (_socialMediaCacheService.CheckIfInitialCommunityDiscussionMessagesCanBeRetrieved(userId, communityId, communityDiscussionId))
+                return Ok(_socialMediaCacheService.GetInitialCommunityDiscussionMessages(userId, communityId, communityDiscussionId));
 
             var result = await _communityDiscussionMessageRepository.GetCommunityDiscussionMessages(_supabase, communityDiscussionId, searchTerm, currentPage, itemsPerPage);
 
+            _socialMediaCacheService.SetInitialCommunityDiscussionMessages(result, userId, communityId, communityDiscussionId);
             return Ok(result);
 
         }
@@ -315,12 +342,14 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid userId,
             Guid communityId,
             Guid communityDiscussionId,
-            [FromBody] CommunityDiscussion.CreateCommunityDiscussionMessageForm request)
+            [FromBody] CreateCommunityDiscussionMessageForm request)
         {
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to create a community discussion message.");
+
             if (userId == Guid.Empty || communityId == Guid.Empty || communityDiscussionId == Guid.Empty || string.IsNullOrEmpty(request.Content))
-            {
                 return BadRequest("Missing required fields");
-            }
 
             await _communityDiscussionRepository.CreateCommunityDiscussionMessage(_supabase, userId, communityDiscussionId, request);
 

@@ -91,6 +91,32 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             return new PaginatedResult<CommunityDto>(communities, pagination!);
         }
 
+        public async Task<AdminCommunityDto> GetAdminCommunityInfo(
+            Supabase.Client supabase,
+            Guid userId,
+            Guid commmunityId)
+        {
+
+            try
+            {
+                using var cts = new CancellationTokenSource();
+                CancellationToken ct = cts.Token;
+
+                var adminCommunityDetails = await supabase.From<VwAdminCommunityDetails>().Where(x => x.CommunityId == commmunityId).Single(ct);
+
+                if (adminCommunityDetails == null)
+                {
+                    throw new Exception("Admin Community not found");
+                }
+
+                return new AdminCommunityDto(adminCommunityDetails);
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
         public async Task<CommunityDto> GetCommunity(
             Supabase.Client supabase,
             Guid userId,
@@ -178,6 +204,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 if (inserted?.Model == null)
                     throw new Exception("Error creating community");
                 var communityId = inserted.Model.Id;
+
+                await AddFounderToCommunity(supabase, communityId, userId, ct);
 
                 await AddUsersToCommunity(supabase, communityId, data.UsersAdded.ToList(), ct);
 
@@ -295,6 +323,33 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             return communityId;
         }
 
+        private async Task AddFounderToCommunity(
+            Supabase.Client supabase,
+            Guid communityId,
+            Guid founderUserId,
+            CancellationToken ct)
+        {
+            var founderCommunityMember = new CommunityMember 
+            { 
+                Id = Guid.NewGuid(),
+                CommunityId = communityId,
+                UserId = founderUserId,
+                Role = "founder",
+                JoinedAt = DateTime.UtcNow
+            };
+
+            var inserted = await supabase.From<CommunityMember>()
+                                        .Insert(founderCommunityMember, new QueryOptions()
+                                        {
+                                            Returning = ReturnType.Representation
+                                        }, ct);
+
+            if(inserted == null)
+                throw new Exception("Error adding founder community member record to community");
+
+            return;
+        }
+
         private async Task AddUsersToCommunity(
             Supabase.Client supabase, 
             Guid communityId, 
@@ -312,9 +367,9 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
             var inserted = await supabase
                 .From<CommunityMember>()
-                .Insert(members, new Supabase.Postgrest.QueryOptions
+                .Insert(members, new QueryOptions
                 {
-                    Returning = Supabase.Postgrest.QueryOptions.ReturnType.Minimal
+                    Returning = ReturnType.Minimal
                 }, ct);
             if (inserted == null)
                 throw new Exception("Error adding members to community");

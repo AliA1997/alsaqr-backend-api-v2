@@ -28,5 +28,6 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
 
             return (userCommunitiesPaginatedResult != null && userCommunitiesPaginatedResult.Pagination.CurrentPage == currentPage);
         }
+
     }
 }

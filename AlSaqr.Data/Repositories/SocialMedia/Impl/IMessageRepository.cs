@@ -10,9 +10,19 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
         Task<PaginatedResult<MessageDto>> GetMessages(
              Supabase.Client supabase,
              Guid userId,
+             Guid recipientId,
              string? searchTerm,
              int currentPage,
              int itemsPerPage);
+
+        Task<PaginatedResult<MessageHistoryDto>> GetMessageThreads(
+             Supabase.Client supabase,
+             Guid userId,
+             string? searchTerm,
+             int currentPage,
+             int itemsPerPage);
+
+
 
         Task<Guid> SendMessage(
               Supabase.Client supabase,
