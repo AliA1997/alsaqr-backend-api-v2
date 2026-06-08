@@ -22,11 +22,11 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
 
             return userCommunitiesPaginatedResult;
         }
-        public bool CheckIfInitialCommunitiesCanBeRetrieved(int currentPage, Guid userId)
+        public bool CheckIfInitialCommunitiesCanBeRetrieved(Guid userId)
         {
             _cache.TryGetValue($"{communityKeyPrefix}{userId}", out PaginatedResult<CommunityDto>? userCommunitiesPaginatedResult);
 
-            return (userCommunitiesPaginatedResult != null && userCommunitiesPaginatedResult.Pagination.CurrentPage == currentPage);
+            return (userCommunitiesPaginatedResult != null);
         }
 
     }

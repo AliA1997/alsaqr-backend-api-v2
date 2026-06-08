@@ -47,7 +47,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
             )
         {
 
-            if (_socialMediaCacheService.CheckIfInitialCommunitiesCanBeRetrieved(currentPage, userId))
+            if (_socialMediaCacheService.CheckIfInitialCommunitiesCanBeRetrieved(userId))
                 return Ok(_socialMediaCacheService.GetInitialCommunities(userId));
 
             var result = await _communityRepository.GetCommunities(_supabase, userId, searchTerm, currentPage, itemsPerPage);

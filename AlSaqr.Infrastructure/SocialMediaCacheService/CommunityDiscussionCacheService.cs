@@ -10,7 +10,7 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
         private const string communityDiscussionMessagesKeyPrefix = "initialCommunityDiscussionMessages_";
 
 
-        public void ClearInitialCommunityDiscusssion(Guid userId, Guid communityId)
+        public void ClearInitialCommunityDiscussions(Guid userId, Guid communityId)
         {
             _cache.Remove($"{communityDiscussionsKeyPrefix}{userId}_{communityId}");
         }
@@ -34,7 +34,7 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
             return (communityDiscussionsPaginatedResult != null);
         }
 
-        public void ClearInitialCommunityDiscusssionMessages(Guid userId, Guid communityId, Guid communityDiscussionId)
+        public void ClearInitialCommunityDiscussionMessages(Guid userId, Guid communityId, Guid communityDiscussionId)
         {
             _cache.Remove($"{communityDiscussionMessagesKeyPrefix}{userId}_{communityId}_{communityDiscussionId}");
         }

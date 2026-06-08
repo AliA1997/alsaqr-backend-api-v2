@@ -25,7 +25,7 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
         void ClearInitialCommunities(Guid userId);
         void SetInitialCommunities(PaginatedResult<CommunityDto> pagination, Guid userId);
         PaginatedResult<CommunityDto>? GetInitialCommunities(Guid userId);
-        bool CheckIfInitialCommunitiesCanBeRetrieved(int currentPage, Guid userId);
+        bool CheckIfInitialCommunitiesCanBeRetrieved(Guid userId);
 
         void ClearInitialCommunityDiscussions(Guid userId, Guid communityId);
         void SetInitialCommunityDiscussions(
@@ -35,7 +35,7 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
         PaginatedResult<CommunityDiscussionDto>? GetInitialCommunityDiscussions(Guid userId, Guid communityId);
         bool CheckIfInitialCommunityDiscussionsCanBeRetrieved(Guid userId, Guid communityId);
 
-        void ClearInitialCommunityDiscusssionMessages(Guid userId, Guid communityId, Guid communityDiscussionId);
+        void ClearInitialCommunityDiscussionMessages(Guid userId, Guid communityId, Guid communityDiscussionId);
         void SetInitialCommunityDiscussionMessages(
             PaginatedResult<CommunityDiscussionMessageDto> communityDiscussionMessagesPagination,
             Guid userId,
