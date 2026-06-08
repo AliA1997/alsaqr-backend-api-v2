@@ -123,7 +123,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 using var cts = new CancellationTokenSource();
                 CancellationToken ct = cts.Token;
                 
-                var baseQuery = supabase.From<VwPostDetails>().Where(x => x.PostId != null);
+                var baseQuery = supabase.From<VwPostDetails>().Where(x => x.PostType == "post");
                 var totalParams = new Dictionary<string, dynamic>();
 
                 if (!string.IsNullOrEmpty(searchTerm))

@@ -125,7 +125,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
             if (postId == Guid.Empty)
                 return BadRequest("Post ID is required");
 
+            if (_socialMediaCacheService.CheckIfInitialCommentsCanBeRetrieved(postId))
+                return Ok(_socialMediaCacheService.GetInitialComments(postId));            
+
             var result = await _commentRepository.GetComments(_supabase, postId, currentPage, itemsPerPage);
+
+            _socialMediaCacheService.SetInitialComments(postId, result);
 
             return Ok(result);
         }

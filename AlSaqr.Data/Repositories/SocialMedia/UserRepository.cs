@@ -169,6 +169,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 userToUpdate.Username = Common.AssignStringValue(userToUpdate.Username, updatedUser?.Username);
                 userToUpdate.Avatar = Common.AssignStringValue(userToUpdate!.Avatar, updatedUser?.Avatar?.ToString());
                 userToUpdate.Bio = Common.AssignStringValue(userToUpdate!.Bio, updatedUser?.Bio);
+                userToUpdate.CountryOfOrigin = Common.AssignStringValue(userToUpdate!.CountryOfOrigin, updatedUser?.CountryOfOrigin);
                 userToUpdate.Hobbies = updatedUser?.Hobbies ?? new string[] { };
                 userToUpdate.MaritalStatus = Common.AssignStringValue(userToUpdate.MaritalStatus, updatedUser?.MaritalStatus);
                 userToUpdate.PreferredMadhab = !string.IsNullOrEmpty(userToUpdate.PreferredMadhab) ? userToUpdate.PreferredMadhab 

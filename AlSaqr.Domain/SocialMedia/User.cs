@@ -119,7 +119,7 @@ namespace  AlSaqr.Domain.SocialMedia
         }
         public sealed class UserSummaryDto
         {
-            [JsonPropertyName("user_id")]
+            [JsonPropertyName("userId")]
             public Guid UserId { get; set; }
 
             [JsonPropertyName("username")]
@@ -209,7 +209,7 @@ namespace  AlSaqr.Domain.SocialMedia
 
     public sealed class UserSummaryFollowDto
     {
-        [JsonPropertyName("user_id")]
+        [JsonPropertyName("userId")]
         public Guid UserId { get; set; }
         [JsonPropertyName("username")]
         public string Username { get; set; }

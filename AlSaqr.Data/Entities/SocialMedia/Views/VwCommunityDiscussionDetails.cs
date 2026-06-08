@@ -1,5 +1,6 @@
-﻿using Supabase.Postgrest.Models;
-using Supabase.Postgrest.Attributes;
+﻿using Supabase.Postgrest.Attributes;
+using Supabase.Postgrest.Models;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace AlSaqr.Data.Entities.SocialMedia.Views
 {
@@ -33,16 +34,6 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
 
         [Column("creator_avatar")]
         public string? CreatorAvatar { get; set; }
-
-        // Requesting user context
-        [Column("user_id")]
-        public Guid? UserId { get; set; }
-
-        [Column("user_role")]
-        public string? UserRole { get; set; }
-
-        [Column("user_joined_at")]
-        public DateTime? UserJoinedAt { get; set; }
 
         [Column("relationship_type")]
         public string? RelationshipType { get; set; }

@@ -61,6 +61,16 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
         void SetInitialPosts(PaginatedResult<Dictionary<string, object>> pagination);
         PaginatedResult<Dictionary<string, object>>? GetInitialPosts();
         bool CheckIfInitialPostsCanBeRetrieved(int currentPage);
+
+        void ClearInitialPostsToAdd(Guid userid);
+        void SetInitialPostsToAdd(Guid userid, PaginatedResult<PostsToAdd> postsToAddPaginatedResult);
+        bool CheckIfInitialPostsToAddCanBeRetrieved(Guid userid);
+        PaginatedResult<PostsToAdd>? GetInitialPostsToAdd(Guid userid);
+
+        void ClearInitialComments(Guid postId);
+        void SetInitialComments(Guid postId, PaginatedResult<PostDto> pagination);
+        PaginatedResult<PostDto>? GetInitialComments(Guid postId);
+        bool CheckIfInitialCommentsCanBeRetrieved(Guid postId);
     }
 
     public partial class SocialMediaCacheService : ISocialMediaCacheService

@@ -73,14 +73,39 @@ namespace  AlSaqr.Domain.SocialMedia
                 this.CreatorId = details.CreatorId;
                 this.CreatorUsername = details.CreatorUsername;
                 this.CreatorAvatar = details.CreatorAvatar;
-                this.UserId = details.UserId;
-                this.UserRole = details.UserRole;
-                this.UserJoinedAt = details.UserJoinedAt;
                 this.RelationshipType = details.RelationshipType;
-                this.JoinedUsers = details.JoinedUsers ?? new Dictionary<string, object>[] { };
-                this.ModeratorUsers = details.ModeratorUsers ?? new Dictionary<string, object>[] { };
-                this.InvitedUsers = details.InvitedUsers ?? new Dictionary<string, object>[] { };
-                this.RequestedUsers = details.RequestedUsers ?? new Dictionary<string, object>[] { };
+                this.JoinedUsers = ((IEnumerable<dynamic>)details.JoinedUsers)
+                    .Select(fl => new UserSummaryDto
+                    {
+                        UserId = Guid.Parse(fl["user_id"]?.ToString() ?? string.Empty),
+                        Avatar = fl["avatar"]?.ToString() ?? string.Empty,
+                        Username = fl["username"]?.ToString() ?? string.Empty
+                    })
+                    .ToArray();
+                this.ModeratorUsers = ((IEnumerable<dynamic>)details.ModeratorUsers)
+                    .Select(fl => new UserSummaryDto
+                    {
+                        UserId = Guid.Parse(fl["user_id"]?.ToString() ?? string.Empty),
+                        Avatar = fl["avatar"]?.ToString() ?? string.Empty,
+                        Username = fl["username"]?.ToString() ?? string.Empty
+                    })
+                    .ToArray();
+                this.InvitedUsers = ((IEnumerable<dynamic>)details.InvitedUsers)
+                    .Select(fl => new UserSummaryDto
+                    {
+                        UserId = Guid.Parse(fl["user_id"]?.ToString() ?? string.Empty),
+                        Avatar = fl["avatar"]?.ToString() ?? string.Empty,
+                        Username = fl["username"]?.ToString() ?? string.Empty
+                    })
+                    .ToArray();
+                this.RequestedUsers = ((IEnumerable<dynamic>)details.RequestedUsers)
+                     .Select(fl => new UserSummaryDto
+                     {
+                         UserId = Guid.Parse(fl["user_id"]?.ToString() ?? string.Empty),
+                         Avatar = fl["avatar"]?.ToString() ?? string.Empty,
+                         Username = fl["username"]?.ToString() ?? string.Empty
+                     })
+                     .ToArray();
                 this.MemberCount = details.MemberCount ?? 0;
                 this.ModeratorCount = details.ModeratorCount ?? 0;
                 this.InvitedCount = details.InvitedCount ?? 0;
@@ -120,30 +145,20 @@ namespace  AlSaqr.Domain.SocialMedia
             [JsonPropertyName("creatorAvatar")]
             public string? CreatorAvatar { get; set; }
 
-            // Requesting user context
-            [JsonPropertyName("userId")]
-            public Guid? UserId { get; set; }
-
-            [JsonPropertyName("userRole")]
-            public string? UserRole { get; set; }
-
-            [JsonPropertyName("userJoinedAt")]
-            public DateTime? UserJoinedAt { get; set; }
-
             [JsonPropertyName("relationshipType")]
             public string? RelationshipType { get; set; }
 
             // Aggregated member lists (JSONB → string; deserialize downstream)
             [JsonPropertyName("joinedUsers")]
-            public IDictionary<string, object>[]? JoinedUsers { get; set; }
+            public UserSummaryDto[]? JoinedUsers { get; set; }
 
             [JsonPropertyName("moderatorUsers")]
-            public IDictionary<string, object>[]? ModeratorUsers { get; set; }
+            public UserSummaryDto[]? ModeratorUsers { get; set; }
             [JsonPropertyName("invitedUsers")]
-            public IDictionary<string, object>[]? InvitedUsers { get; set; }
+            public UserSummaryDto[]? InvitedUsers { get; set; }
 
             [JsonPropertyName("requestedUsers")]
-            public IDictionary<string, object>[]? RequestedUsers { get; set; }
+            public UserSummaryDto[]? RequestedUsers { get; set; }
 
             // Counts
             [JsonPropertyName("memberCount")]

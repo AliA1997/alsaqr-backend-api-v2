@@ -29,6 +29,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             var skip = (currentPage - 1) * itemsPerPage;
 
 
+
             try
             {
                 using var cts = new CancellationTokenSource();
@@ -238,6 +239,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 if (inserted?.Model == null)
                     throw new Exception("Error creating community discussion");
 
+                await CreateFounderCommunityDiscussionMember(supabase, inserted.Model.Id, userId, ct);
+
                 await AddUsersToCommunityDiscussion(supabase, inserted.Model.Id, data.UsersAdded.ToList(), ct);
 
                 await CreateCommunityDiscussionNotification(
@@ -307,7 +310,33 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
    
         }
+        
+        private async Task CreateFounderCommunityDiscussionMember(
+            Supabase.Client supabase,
+            Guid communityDiscussionId,
+            Guid founderUserId,
+            CancellationToken ct)
+        {
+            var founderMemberRecord = new CommunityDiscussionMember
+            {
+                Id = Guid.NewGuid(),
+                CommunityDiscussionId = communityDiscussionId,
+                UserId = founderUserId,
+                Role = "founder",
+                JoinedAt = DateTime.UtcNow
+            };
 
+            var inserted = await supabase
+                .From<CommunityDiscussionMember>()
+                .Insert(founderMemberRecord, new QueryOptions
+                {
+                    Returning = ReturnType.Representation
+                }, ct);
+            if (inserted == null)
+                throw new Exception("Error adding founder member record to community discussion");
+
+            return;
+        }
 
         private async Task AddUsersToCommunityDiscussion(
             Supabase.Client supabase,

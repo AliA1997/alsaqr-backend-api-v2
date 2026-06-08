@@ -265,9 +265,25 @@ namespace  AlSaqr.Domain.SocialMedia
                 this.Bookmarks = sessionData.Bookmarks;
                 this.Reposts = sessionData.Reposts;
                 this.LikedPosts = sessionData.LikedPosts;
-                this.Following = sessionData.Following;
+                this.Following = ((IEnumerable<dynamic>)sessionData.Following)
+                    .Select(fl => new UserSummaryFollowDto
+                    {
+                        UserId = Guid.Parse(fl["user_id"]?.ToString() ?? string.Empty),
+                        Avatar = fl["avatar"]?.ToString() ?? string.Empty,
+                        Username = fl["username"]?.ToString() ?? string.Empty,
+                        Bio = fl["bio"]?.ToString() ?? string.Empty
+                    })
+                    .ToArray();
                 this.FollowingCount = sessionData.FollowingCount;
-                this.Followers = sessionData.Followers;
+                this.Followers = ((IEnumerable<dynamic>)sessionData.Followers)
+                    .Select(fl => new UserSummaryFollowDto
+                    {
+                        UserId = Guid.Parse(fl["user_id"]?.ToString() ?? string.Empty),
+                        Avatar = fl["avatar"]?.ToString() ?? string.Empty,
+                        Username = fl["username"]?.ToString() ?? string.Empty,
+                        Bio = fl["bio"]?.ToString() ?? string.Empty
+                    })
+                    .ToArray();
                 this.FollowerCount = sessionData.FollowerCount;
             }
             public Guid? Id { get; set; }
@@ -294,11 +310,11 @@ namespace  AlSaqr.Domain.SocialMedia
             public dynamic? IslamicStudyTopics { get; set; }
             public bool? Verified { get; set; }
             public bool? IsCompleted { get; set; }
-            public IDictionary<string, object>[]? Following { get; set; }
+            public UserSummaryFollowDto[]? Following { get; set; }
 
             public long FollowingCount { get; set; }
 
-            public IDictionary<string, object>[]? Followers { get; set; }
+            public UserSummaryFollowDto[]? Followers { get; set; }
 
             public long FollowerCount { get; set; }
             public Guid[] Bookmarks { get; set; }

@@ -1,4 +1,5 @@
-﻿using AlSaqr.Data.Repositories.SocialMedia.Impl;
+﻿using AlSaqr.Data.Repositories.SocialMedia;
+using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Domain.SocialMedia;
 using AlSaqr.Infrastructure;
 using AlSaqr.Infrastructure.SocialMediaCache;
@@ -16,6 +17,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
         private readonly ILogger<UsersController> _logger;
         private readonly Supabase.Client _supabase;
         private readonly IUserRepository _userRepository;
+        private readonly IProfileRepository _profileRepository;
         private readonly IUserFollowRepository _userFollowRepository;
         private readonly IMessageRepository _messageRepository;
         private readonly INotificationRepository _notificationRepository;
@@ -25,6 +27,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
         public UsersController(
             ILogger<UsersController> logger,
             IUserRepository userRepository,
+            IProfileRepository profileRepository,
             Supabase.Client supabase,
             IUserFollowRepository userFollowRepository,
             IMessageRepository messageRepository,
@@ -34,6 +37,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
         {
             _logger = logger;
             _userRepository = userRepository;
+            _profileRepository = profileRepository;
             _supabase = supabase;
             _userFollowRepository = userFollowRepository;
             _messageRepository = messageRepository;
@@ -46,7 +50,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <summary>
         /// Update user based on user id.
         /// </summary>
-        /// <param name="userId"></param>
         /// <param name="data"></param>
         /// <returns></returns>
 
@@ -65,6 +68,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
             try
             {
                 await _userRepository.UpdateUser(_supabase, userId, data, ct);
+                var sessionUserResult = await _profileRepository.GetSessionInfo(_supabase, userId);
+                _userCacheService.SetLoggedInUser(sessionUserResult);
 
                 return Ok(new { succcess = true });
             }
@@ -181,18 +186,24 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="itemsPerPage"></param>
         /// <param name="searchTerm"></param>
         /// <returns></returns>
-        [HttpGet("{userId}/postsToAdd")]
+        [HttpGet("postsToAdd")]
         public async Task<IActionResult> GetPostsToAdd(
-            Guid userId,
             [FromQuery] int currentPage = 1,
             [FromQuery] int itemsPerPage = 10,
             [FromQuery] string? searchTerm = null
         )
         {
-            if (userId == Guid.Empty)
-                return BadRequest("User Id is required for getting posts to add.");
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if(loggedInUser == null)
+                return Unauthorized("To get posts to add when upserting a record, you need to be logged in.");
+            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
 
+            if(_socialMediaCacheService.CheckIfInitialPostsToAddCanBeRetrieved(userId))
+                return Ok(_socialMediaCacheService.GetInitialPostsToAdd(userId));
+     
             var result = await _userRepository.GetPostsToAdd(_supabase, userId, searchTerm, currentPage, itemsPerPage);
+
+            _socialMediaCacheService.SetInitialPostsToAdd(userId, result);
 
             return Ok(result);
         }
@@ -205,17 +216,17 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="itemsPerPage"></param>
         /// <param name="searchTerm"></param>
         /// <returns></returns>
-        [HttpGet("{userId}/usersToAdd")]
+        [HttpGet("usersToAdd")]
         public async Task<IActionResult> GetUsersToAdd(
-                Guid userId,
                 [FromQuery] int currentPage = 1,
                 [FromQuery] int itemsPerPage = 10,
                 [FromQuery] string? searchTerm = null
             )
         {
-            if (userId == Guid.Empty)
-                return BadRequest("User Id is required for getting users to add.");
-
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("To get users to add when upserting a record, you need to be logged in.");
+            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
 
             if (_socialMediaCacheService.CheckIfInitialUsersToAddCanBeRetrieved(currentPage, userId))
                 return Ok(_socialMediaCacheService.GetInitialUsersToAdd(userId));
