@@ -1,4 +1,5 @@
-﻿using AlSaqr.Data.Repositories.SocialMedia.Impl;
+﻿using AlSaqr.Data.Repositories.SocialMedia;
+using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Infrastructure;
 using AlSaqr.Infrastructure.SocialMediaCache;
 using Microsoft.AspNetCore.Mvc;
@@ -176,7 +177,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
         {
             var loggedInUser = _userCacheService.GetLoggedInUser();
             if (loggedInUser == null)
-                return Unauthorized("Must be logged in to retrieve community discussions");
+                return Unauthorized("Must be logged in to create community discussions");
             if (communityId == Guid.Empty)
                 return BadRequest("Community ID is required");
             Guid.TryParse(loggedInUser.Id?.ToString(), out Guid userId);
@@ -192,6 +193,61 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             return Ok(new { success = true });
         }
+
+        /// <summary>
+        /// Update a community discussion
+        /// </summary>
+        /// <param name="communityDiscussionId"></param>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPut("{communityId}/{communityDiscussionId}")]
+        public async Task<IActionResult> UpdateCommunityDiscussion(
+            Guid communityId,
+            Guid communityDiscussionId,
+            [FromBody] AlSaqrUpsertRequest<UpdateCommunityDiscussionForm> request)
+        {
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to update community discussions");
+            if (communityDiscussionId == Guid.Empty)
+                return BadRequest("Community Discussion ID is required");
+            Guid.TryParse(loggedInUser.Id?.ToString(), out Guid userId);
+
+            var data = request.Values;
+
+            await _communityDiscussionRepository.UpdateCommunityDiscussion(_supabase, userId, communityDiscussionId, data);
+            _socialMediaCacheService.ClearInitialCommunityDiscussions(userId, communityId);
+
+            return Ok(new { success = true });
+        }
+
+        /// <summary>
+        /// Delete a community
+        /// </summary>
+        /// <param name="communityId"></param>
+        /// <param name="communityDiscussionId"></param>
+        /// <returns></returns>
+        [HttpDelete("{communityId}/{communityDiscussionId}")]
+        public async Task<IActionResult> DeleteCommunityDiscussion(
+            Guid communityId,
+            Guid communityDiscussionId)
+        {
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to delete community discussions");
+            Guid.TryParse(loggedInUser.Id?.ToString(), out var userId);
+
+            if (communityId == Guid.Empty)
+                return BadRequest("Community ID is required for deleting a community discussion.");
+            if (communityDiscussionId == Guid.Empty)
+                return BadRequest("Community discussion ID is required for deleting a community discussion.");
+
+
+            await _communityDiscussionRepository.DeleteCommunityDiscussion(_supabase, userId, communityDiscussionId);
+
+            return Ok(new { succcess = true });
+        }
+
 
         /// <summary>
         /// Create a request to join

@@ -24,6 +24,22 @@
         }
     }
 
+    public class UpdateCommunityDiscussionException : PutException
+    {
+        public Guid CommunityDiscussionId { get; }
+        public UpdateCommunityDiscussionException(Guid communityDiscussionId)
+            : base($"Failed to update community discussion with ID: {communityDiscussionId}.")
+        {
+            CommunityDiscussionId = communityDiscussionId;
+        }
+        public UpdateCommunityDiscussionException(Guid communityDiscussionId, Exception innerException)
+            : base($"Failed to update community discussion with ID: {communityDiscussionId}.", innerException)
+        {
+            CommunityDiscussionId = communityDiscussionId;
+        }
+    }
+
+
     public class UpdateUserException : PutException
     {
         public Guid UserId { get; }

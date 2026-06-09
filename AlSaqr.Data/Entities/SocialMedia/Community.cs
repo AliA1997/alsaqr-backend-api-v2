@@ -22,6 +22,8 @@ namespace AlSaqr.Data.Entities.SocialMedia
         public string? BannerImage { get; set; }
         [Column("tags")]
         public string[]? Tags { get; set; }
+        [Column("is_private")]
+        public bool IsPrivate { get; set; } = false;
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         [Column("updated_at")]

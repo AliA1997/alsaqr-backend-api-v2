@@ -25,6 +25,16 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
                     Guid communityId,
                     CreateCommunityDiscussionForm data);
 
+        Task<Guid> UpdateCommunityDiscussion(
+            Supabase.Client supabase,
+            Guid userId,
+            Guid communityId,
+            UpdateCommunityDiscussionForm data);
+        Task<Guid> DeleteCommunityDiscussion(
+            Supabase.Client supabase,
+            Guid userId,
+            Guid communityDiscussionId);
+
         Task<AdminCommunityDiscussionInfoDto?> GetAdminCommunityDiscussionInfo(
             Supabase.Client supabase,
             Guid userId,

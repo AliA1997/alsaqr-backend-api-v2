@@ -21,6 +21,8 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
 
         [Column("community_banner_image")]
         public string? CommunityBannerImage { get; set; }
+        [Column("community_is_private")]
+        public bool CommunityIsPrivate { get; set; } = false;
 
         [Column("community_tags")]
         public string[]? CommunityTags { get; set; }

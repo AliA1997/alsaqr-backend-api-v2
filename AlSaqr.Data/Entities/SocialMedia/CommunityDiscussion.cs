@@ -17,6 +17,10 @@ namespace AlSaqr.Data.Entities.SocialMedia
         public string Title { get; set; }
         [Column("content")]
         public string Content { get; set; }
+        [Column("tags")]
+        public string[]? Tags { get; set; } = new string[] { };
+        [Column("is_private")]
+        public bool IsPrivate { get; set; } = false;
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         [Column("updated_at")]

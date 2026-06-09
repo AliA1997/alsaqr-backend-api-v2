@@ -161,7 +161,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// </summary>
         /// <param name="userId"></param>
         /// <param name="communityId"></param>
-        /// <param name="request"></param>
         /// <returns></returns>
         [HttpDelete("{userId}/{communityId}")]
         public async Task<IActionResult> DeleteCommunity(

@@ -250,7 +250,13 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
 
             await RemoveUserPosts(client, userId);
+
+            await RemoveLists(client, userId);
+            await RemoveListItems(client, userId);
+
+            await RemoveCommunity(client, userId);
             await RemoveCommunityMember(client, userId);
+            await RemoveCommunityDiscussion(client, userId);
             await RemoveCommunityDiscussionMember(client, userId, Guid.Empty);
 
             await client.From<AlSaqrUser>().Where(u => u.Id == userId).Delete();
@@ -307,6 +313,85 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 throw new DeletePostStatusException(currentPostStatusBeingDeletedId, ex); // wrap the real exception
             }
         }
+        private async Task<bool> RemoveListItems(Supabase.Client client, Guid userId)
+        {
+            Guid currentListItemBeingDeletedId = Guid.Empty;
+            try
+            {
+                var listItemsToDelete = await client.From<Entities.SocialMedia.ListItem>().Where(l => l.UserId == userId).Get();
+                if (listItemsToDelete == null || listItemsToDelete.Models.Count == 0)
+                    return true;
+                foreach (var listItemToDelete in listItemsToDelete.Models)
+                {
+                    currentListItemBeingDeletedId = listItemToDelete.Id;
+                    await client.From<Entities.SocialMedia.ListItem>().Where(cm => cm.Id == listItemToDelete.Id).Delete();
+                }
+                return true;
+            }
+            catch (DeleteListItemException ex)
+            {
+                throw ex; // re-throw if it's already the right type
+            }
+            catch (Exception ex)
+            {
+                throw new DeleteListItemException(
+                            listItemId: currentListItemBeingDeletedId,
+                            innerException: ex); // wrap the real exception
+            }
+        }
+        private async Task<bool> RemoveLists(Supabase.Client client, Guid userId)
+        {
+            Guid currentListBeingDeletedId = Guid.Empty;
+            try
+            {
+                var listsToDelete = await client.From<Entities.SocialMedia.List>().Where(l => l.UserId == userId).Get();
+                if (listsToDelete == null || listsToDelete.Models.Count == 0)
+                    return true;
+                foreach (var listToDelete in listsToDelete.Models)
+                {
+                    currentListBeingDeletedId = listToDelete.Id;
+                    await client.From<Entities.SocialMedia.List>().Where(cm => cm.Id == listToDelete.Id).Delete();
+                }
+                return true;
+            }
+            catch (DeleteListException ex)
+            {
+                throw ex; // re-throw if it's already the right type
+            }
+            catch (Exception ex)
+            {
+                throw new DeleteListException(
+                            listId: currentListBeingDeletedId,
+                            innerException: ex); // wrap the real exception
+            }
+        }
+        private async Task<bool> RemoveCommunity(Supabase.Client client, Guid userId)
+        {
+            Guid currentCommunityBeingDeletedId = Guid.Empty;
+            try
+            {
+                var communitiesToDelete = await client.From<Entities.SocialMedia.Community>().Where(cm => cm.FounderId == userId).Get();
+                if (communitiesToDelete == null || communitiesToDelete.Models.Count == 0)
+                    return true;
+                foreach (var communityToDelete in communitiesToDelete.Models)
+                {
+                    currentCommunityBeingDeletedId = communityToDelete.Id;
+                    await client.From<Entities.SocialMedia.Community>().Where(cm => cm.Id == communityToDelete.Id).Delete();
+                }
+                return true;
+            }
+            catch (DeleteCommunityException ex)
+            {
+                throw ex; // re-throw if it's already the right type
+            }
+            catch (Exception ex)
+            {
+                throw new DeleteCommunityException(
+                            communityId: currentCommunityBeingDeletedId,
+                            userId: userId,
+                            innerException: ex); // wrap the real exception
+            }
+        }
         private async Task<bool> RemoveCommunityMember(Supabase.Client client, Guid userId)
         {
             Guid currentCommunityMemberBeingDeletedId = Guid.Empty;
@@ -333,6 +418,33 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 throw new DeleteCommunityMemberException(
                             communityMemberId: currentCommunityMemberBeingDeletedId,
                             communityId: currentCommunityMemberCommunityId,
+                            userId: userId,
+                            innerException: ex); // wrap the real exception
+            }
+        }
+        private async Task<bool> RemoveCommunityDiscussion(Supabase.Client client, Guid userId)
+        {
+            Guid currentCommunityDiscussionBeingDeletedId = Guid.Empty;
+            try
+            {
+                var communityDiscussionsToDelete = await client.From<Entities.SocialMedia.CommunityDiscussion>().Where(cd => cd.CreatorId == userId).Get();
+                if (communityDiscussionsToDelete == null || communityDiscussionsToDelete.Models.Count == 0)
+                    return true;
+                foreach (var communityDiscussionToDelete in communityDiscussionsToDelete.Models)
+                {
+                    currentCommunityDiscussionBeingDeletedId = communityDiscussionToDelete.Id;
+                    await client.From<Entities.SocialMedia.CommunityDiscussion>().Where(cm => cm.Id == communityDiscussionToDelete.Id).Delete();
+                }
+                return true;
+            }
+            catch (DeleteCommunityDiscussionException ex)
+            {
+                throw ex; // re-throw if it's already the right type
+            }
+            catch (Exception ex)
+            {
+                throw new DeleteCommunityDiscussionException(
+                            communityDiscussionId: currentCommunityDiscussionBeingDeletedId,
                             userId: userId,
                             innerException: ex); // wrap the real exception
             }

@@ -23,6 +23,11 @@ namespace AlSaqr.Data.Entities.SocialMedia.Views
         [Column("discussion_content")]
         public string? DiscussionContent { get; set; }
 
+        [Column("discussion_is_private")]
+        public bool DiscussionIsPrivate { get; set; }
+        [Column("discussion_tags")]
+        public string[]? DiscussionTags { get; set; }
+
         [Column("discussion_created_at")]
         public DateTime DiscussionCreatedAt { get; set; }
 

@@ -8,11 +8,13 @@ namespace  AlSaqr.Domain.SocialMedia
         {
             public AdminCommunityDto(dynamic details) : base((object)details)
             {
+                this.IsPrivate = details.CommunityIsPrivate;
                 this.InviteRequestedUsers = details.InviteRequestedUsers;
                 this.InvitedCount = details.InvitedCount;
                 this.JoinedCount = details.JoinedCount;
                 this.ModeratorCount = details.ModeratorCount;
             }
+            public bool IsPrivate { get; set; }
 
             public dynamic InviteRequestedUsers { get;set; }
             public long InvitedCount { get; set; }

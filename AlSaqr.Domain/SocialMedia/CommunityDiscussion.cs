@@ -19,7 +19,16 @@ namespace  AlSaqr.Domain.SocialMedia
             public string Name { get; set; }
             public string? Description { get; set; }
             public string IsPrivate { get; set; }
+            public string[]? Tags { get; set; }
             public Guid[] UsersAdded { get; set; }
+        }
+
+        public class UpdateCommunityDiscussionForm
+        {
+            public string Name { get; set; }
+            public string? Description { get; set; }
+            public string IsPrivate { get; set; }
+            public string[]? Tags { get; set; }
         }
 
         public class CommunityDiscussionInviteConfirmationDto
@@ -216,6 +225,8 @@ namespace  AlSaqr.Domain.SocialMedia
             public Guid CommunityId { get; set; }
             public string? Title { get; set; }
             public string? Content { get; set; }
+            public bool? IsPrivate { get; set; }
+            public string[]? Tags { get; set; }
             public DateTime CreatedAt { get; set; }
 
             public bool IsFounder { get; set; }
@@ -237,7 +248,8 @@ namespace  AlSaqr.Domain.SocialMedia
                 Title = details.DiscussionTitle;
                 Content = details.DiscussionContent;
                 CreatedAt = details.DiscussionCreatedAt;
-
+                Tags = details.DiscussionTags;
+                IsPrivate = details.DiscussionIsPrivate;
                 IsFounder = isFounder;
                 Founder = new UserSummaryDto
                 {

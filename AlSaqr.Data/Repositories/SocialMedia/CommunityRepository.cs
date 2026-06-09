@@ -286,41 +286,52 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
-            // Only the founder may delete the community.
-            Community? communityToDelete = await supabase
-                .From<Community>()
-                .Where(c => c.Id == communityId && c.FounderId == userId)
-                .Single(ct);
+            try 
+            {
+                // Only the founder may delete the community.
+                Community? communityToDelete = await supabase
+                    .From<Community>()
+                    .Where(c => c.Id == communityId && c.FounderId == userId)
+                    .Single(ct);
 
-            if (communityToDelete == null)
-                throw new Exception("Can't delete the community");
+                if (communityToDelete == null)
+                    throw new Exception("Can't delete the community");
 
-            // Remove dependent rows first.
-            await supabase
-                .From<CommunityMember>()
-                .Where(cm => cm.CommunityId == communityId)
-                .Delete(null, ct);
+                // Remove dependent rows first.
+                await supabase
+                    .From<CommunityMember>()
+                    .Where(cm => cm.CommunityId == communityId)
+                    .Delete(null, ct);
 
-            await supabase
-                .From<Notification>()
-                .Where(n => n.CommunityId == communityId)
-                .Delete(null, ct);
+                await supabase
+                    .From<Notification>()
+                    .Where(n => n.CommunityId == communityId)
+                    .Delete(null, ct);
 
-            // Delete the community itself.
-            await supabase
-                .From<Community>()
-                .Where(c => c.Id == communityId)
-                .Delete(null, ct);
+                // Delete the community itself.
+                await supabase
+                    .From<Community>()
+                    .Where(c => c.Id == communityId)
+                    .Delete(null, ct);
 
-            await CreateCommunityNotification(
-                supabase,
-                userId,
-                communityId,
-                "You deleted the community {community}",
-                "community_deleted",
-                ct);
+                await CreateCommunityNotification(
+                    supabase,
+                    userId,
+                    communityId,
+                    "You deleted the community {community}",
+                    "community_deleted",
+                    ct);
 
-            return communityId;
+                return communityId;
+            }
+            catch(DeleteCommunityException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new DeleteCommunityException(communityId, userId, ex);
+            }
         }
 
         private async Task AddFounderToCommunity(
@@ -390,7 +401,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 .Where(c => c.Id == communityId)
                 .Single(ct);
 
-            if (community == null || community.FounderId == userId)
+            if (community == null || community.FounderId != userId)
                 return;
 
             var actingUser = await supabase
@@ -405,7 +416,6 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
             var notification = new Notification
             {
-                Id = Guid.NewGuid(),
                 UserId = community.FounderId,
                 Read = false,
                 CreatedAt = DateTime.UtcNow,

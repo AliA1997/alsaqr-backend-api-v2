@@ -14,9 +14,13 @@ namespace AlSaqr.Domain.SocialMedia
             this.NotificationCreatedAt = details.NotificationCreatedAt;
             this.NotificationUpdatedAt = details.NotificationUpdatedAt;
             //this.TriggeredBy = details.TriggeredBy == null ? null : new NotificationActorDto(details.TriggeredBy);
+            this.RelatedUserId = details.RelatedUserId;
             this.PostId = details.PostId;
+            this.ListId = details.ListId;
+            this.ListItemId = details.ListItemId;
             this.CommunityId = details.CommunityId;
             this.CommunityDiscussionId = details.CommunityDiscussionId;
+            this.CommunityDiscussionMessageId = details.CommunityDiscussionMessageId;
         }
 
         [JsonPropertyName("notificationId")]
@@ -62,6 +66,8 @@ namespace AlSaqr.Domain.SocialMedia
 
         [JsonPropertyName("listId")]
         public Guid? ListId { get; set; }
+        [JsonPropertyName("listItemId")]
+        public Guid? ListItemId { get; set; }
     }
 
     /// <summary>

@@ -2,7 +2,9 @@
 using AlSaqr.Data.Entities.SocialMedia.Views;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.SocialMedia.Impl;
+using AlSaqr.Domain.SocialMedia;
 using AlSaqr.Domain.SocialMedia.Exceptions;
+using AlSaqr.Domain.Utils;
 using Supabase.Postgrest;
 using static AlSaqr.Domain.SocialMedia.CommunityDiscussion;
 using static AlSaqr.Domain.Utils.Common;
@@ -218,7 +220,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             try
             {
 
-                var communityDiscussion = new CommunityDiscussion
+                var communityDiscussion = new Entities.SocialMedia.CommunityDiscussion
                 {
 
                     Id = Guid.NewGuid(),
@@ -226,11 +228,13 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     CreatorId = userId,
                     Title = data.Name,
                     Content = data.Description,
+                    Tags = data.Tags ?? new string[] { },
+                    IsPrivate = data.IsPrivate.ToLower() == "private",
                     CreatedAt = DateTime.UtcNow
                 };
 
                 var inserted = await supabase
-                    .From<CommunityDiscussion>()
+                    .From<Entities.SocialMedia.CommunityDiscussion>()
                     .Insert(communityDiscussion, new QueryOptions
                     {
                         Returning = ReturnType.Representation
@@ -264,6 +268,106 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
         }
 
+
+        public async Task<Guid> UpdateCommunityDiscussion(
+            Supabase.Client supabase,
+            Guid userId,
+            Guid communityDiscussionId,
+            UpdateCommunityDiscussionForm data)
+        {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            try
+            {
+                // Check if the community discussion to update is the founder, if it isn't return an exception.
+                Entities.SocialMedia.CommunityDiscussion? communityDiscussionToUpdate = await supabase.From<Entities.SocialMedia.CommunityDiscussion>()
+                                                                                                        .Where(c => c.CreatorId == userId && c.Id == communityDiscussionId).Single();
+                if (communityDiscussionToUpdate == null)
+                    throw new Exception("Can't update the community discussion");
+
+                communityDiscussionToUpdate.Title = Common.AssignStringValue(communityDiscussionToUpdate.Title, data?.Name);
+                communityDiscussionToUpdate.Content = Common.AssignStringValue(communityDiscussionToUpdate.Content, data?.Description);
+                communityDiscussionToUpdate.IsPrivate = data != null ? data.IsPrivate.ToLower() == "private" : communityDiscussionToUpdate.IsPrivate;
+                communityDiscussionToUpdate.Tags = data?.Tags ?? communityDiscussionToUpdate.Tags;
+
+                await supabase.From<Entities.SocialMedia.CommunityDiscussion>().Where(c => c.Id == communityDiscussionToUpdate.Id).Upsert(communityDiscussionToUpdate, null, ct);
+
+                await CreateCommunityDiscussionNotification(
+                    supabase,
+                    userId,
+                    communityDiscussionId,
+                    "You updated the community discussion {communityDiscussion}",
+                    "community_discussion_updated",
+                    ct);
+
+                return communityDiscussionToUpdate.Id;
+
+            }
+            catch (UpdateCommunityDiscussionException ex)
+            {
+                throw ex;
+            }
+            catch (Exception ex)
+            {
+                throw new UpdateCommunityDiscussionException(communityDiscussionId, ex);
+            }
+        }
+
+        public async Task<Guid> DeleteCommunityDiscussion(
+            Supabase.Client supabase,
+            Guid userId,
+            Guid communityDiscussionId)
+        {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            try
+            {
+                // Only the founder may delete the community.
+                Entities.SocialMedia.CommunityDiscussion? communityToDelete = await supabase
+                    .From<Entities.SocialMedia.CommunityDiscussion>()
+                    .Where(c => c.Id == communityDiscussionId && c.CreatorId == userId)
+                    .Single(ct);
+
+                if (communityToDelete == null)
+                    throw new Exception("Can't delete the community");
+
+                // Remove dependent rows first.
+                await supabase
+                    .From<CommunityDiscussionMember>()
+                    .Where(cm => cm.CommunityDiscussionId == communityDiscussionId)
+                    .Delete(null, ct);
+
+                await supabase
+                    .From<Notification>()
+                    .Where(n => n.CommunityDiscussionId == communityDiscussionId)
+                    .Delete(null, ct);
+
+                // Delete the community itself.
+                await supabase
+                    .From<Entities.SocialMedia.CommunityDiscussion>()
+                    .Where(c => c.Id == communityDiscussionId)
+                    .Delete(null, ct);
+
+                await CreateCommunityDiscussionNotification(
+                    supabase,
+                    userId,
+                    communityDiscussionId,
+                    "You deleted the community discussion {communityDiscussion}",
+                    "community_discussion_deleted",
+                    ct);
+
+                return communityDiscussionId;
+            } catch(DeleteCommunityDiscussionException ex)
+            {
+                throw ex;
+            }
+            catch (Exception ex)
+            {
+                throw new DeleteCommunityDiscussionException(communityDiscussionId, userId, ex);
+            }
+        }
         public async Task<Guid> CreateCommunityDiscussionMessage(
             Supabase.Client supabase,
             Guid userId,
@@ -375,11 +479,11 @@ namespace AlSaqr.Data.Repositories.SocialMedia
           CancellationToken ct)
         {
             var communityDiscussion = await supabase
-                .From<CommunityDiscussion>()
+                .From<Entities.SocialMedia.CommunityDiscussion>()
                 .Where(c => c.Id == communityDiscussionId)
                 .Single(ct);
 
-            if (communityDiscussion == null || communityDiscussion.CreatorId == userId)
+            if (communityDiscussion == null || communityDiscussion.CreatorId != userId)
                 return;
 
             var actingUser = await supabase
@@ -394,14 +498,13 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
             var notification = new Notification
             {
-                Id = Guid.NewGuid(),
                 UserId = communityDiscussion.CreatorId,
                 Read = false,
                 CreatedAt = DateTime.UtcNow,
                 Message = message,
                 NotificationType = notificationType,
                 ItemType = "community_discussion",
-                CommunityId = communityDiscussionId,
+                CommunityDiscussionId = communityDiscussionId,
                 Link = $"/communityDiscussions/{communityDiscussionId}",
             };
 

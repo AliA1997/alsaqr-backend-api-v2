@@ -169,7 +169,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     CreatedAt = DateTime.UtcNow,
                     Message = $"{notificationMsgPrefix} {username}",
                     NotificationType = notificationType,
-                    ItemType = "post",
+                    ItemType = "comment",
                     PostId = commentId,
                     RelatedUserId = userId,
                     Link = $"/status/{commentId}"
