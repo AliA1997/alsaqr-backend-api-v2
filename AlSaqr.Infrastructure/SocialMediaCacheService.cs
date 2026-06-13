@@ -57,12 +57,12 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
         PaginatedResult<ListItemDto>? GetInitialListItemsForList(Guid userId, Guid listId, int currentPage);
         bool CheckIfInitialListItemForListCanBeRetrieved(int currentPage, Guid userId, Guid listId);
 
-        void ClearInitialPosts();
-        void SetInitialPosts(PaginatedResult<Dictionary<string, object>> pagination);
-        PaginatedResult<Dictionary<string, object>>? GetInitialPosts();
-        bool CheckIfInitialPostsCanBeRetrieved(int currentPage);
+        void ClearInitialPosts(Guid userId, int currentPage);
+        void SetInitialPosts(Guid userId, int currentPage, PaginatedResult<PostDto> pagination);
+        PaginatedResult<PostDto>? GetInitialPosts(Guid userId, int currentPage);
+        bool CheckIfInitialPostsCanBeRetrieved(Guid userId, int currentPage);
 
-        void ClearInitialPostsToAdd(Guid userid);
+        void ClearInitialPostsToAdd(Guid userId);
         void SetInitialPostsToAdd(Guid userid, PaginatedResult<PostsToAdd> postsToAddPaginatedResult);
         bool CheckIfInitialPostsToAddCanBeRetrieved(Guid userid);
         PaginatedResult<PostsToAdd>? GetInitialPostsToAdd(Guid userid);

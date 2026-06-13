@@ -42,7 +42,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 if (!string.IsNullOrEmpty(searchTerm))
                 {
                     totalParams.Add("p_search_term", searchTerm);
-                    baseQuery = baseQuery.Where(x => x.ListName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
+                    baseQuery = baseQuery.Filter("list_name", Operator.ILike, $"%{searchTerm}%");
                 }
 
                 var result = await SupabaseHelper.CallFunction(supabase, "get_all_lists_count", totalParams);

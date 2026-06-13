@@ -46,11 +46,15 @@ namespace AlSaqr.API.Controllers.SocialMedia
             [FromQuery] string? searchTerm = null
         )
         {
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            var userId = loggedInUser?.Id ?? Guid.Empty;
 
-            if(_socialMediaCacheService.CheckIfInitialPostsCanBeRetrieved(currentPage))
-                return Ok(_socialMediaCacheService.GetInitialPosts());
+            var noSearchTerm = string.IsNullOrEmpty(searchTerm ?? "".Trim());
+            if(noSearchTerm && _socialMediaCacheService.CheckIfInitialPostsCanBeRetrieved(userId, currentPage))
+                return Ok(_socialMediaCacheService.GetInitialPosts(userId, currentPage));
 
             var result = await _postRepository.GetPosts(_supabase, searchTerm, currentPage, itemsPerPage);
+            if (noSearchTerm) _socialMediaCacheService.SetInitialPosts(userId, currentPage, result);
 
             return Ok(result);
         }
@@ -85,7 +89,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
             
             await _postRepository.CreatePost(_supabase, userId, data, ct);
 
-            _socialMediaCacheService.ClearInitialPosts();
+            _socialMediaCacheService.ClearInitialPosts(userId, 0);
 
             return Ok(new { success = true });
             

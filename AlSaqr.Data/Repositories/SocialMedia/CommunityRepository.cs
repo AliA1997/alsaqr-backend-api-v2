@@ -42,8 +42,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 if (!string.IsNullOrEmpty(searchTerm))
                 {
                     totalParams.Add("p_search_term", searchTerm);
-                    baseQuery = baseQuery.Where(x => x.CommunityName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
-                    //baseQuery = baseQuery.Filter("content", Operator.ILike, $"%{searchTerm ?? string.Empty}%");
+                    baseQuery = baseQuery.Filter("community_name", Operator.ILike, $"%{searchTerm}%");
                 }
 
                 var result = await SupabaseHelper.CallFunction(supabase, "get_all_community_count", totalParams);

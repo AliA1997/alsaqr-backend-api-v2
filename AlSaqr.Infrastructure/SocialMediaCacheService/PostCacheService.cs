@@ -7,31 +7,40 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
     partial class SocialMediaCacheService
     {
         const string postsToAddKeyPrefix = "initialPostsToAdd_";
+        const string postsPrefix = "initialPosts_";
         const string commentsPrefix = "initialComments_";
-        public void ClearInitialPosts()
+
+
+        public void ClearInitialPosts(Guid userId, int currentPage)
         {
-            _cache.Remove("initialPosts");
+            // Means clear all initial posts cache for the user, as the change can affect all pages
+            if (currentPage == -1)
+                for(var pageKey = 1; pageKey <= 10; pageKey++)
+                    _cache.Remove($"{postsPrefix}{userId}_page_{pageKey}");
+
         }
-        public void SetInitialPosts(PaginatedResult<Dictionary<string, object>> postsPaginatedResult)
+        public void SetInitialPosts(Guid userId, int currentPage, PaginatedResult<PostDto> postsPaginatedResult)
         {
-            _cache.Set("initialPosts", postsPaginatedResult, CommonCacheOptions);
+            if (currentPage >= 10) return;
+
+            _cache.Set($"{postsPrefix}{userId}_page_{currentPage}", postsPaginatedResult, CommonCacheOptions);
         }
-        public bool CheckIfInitialPostsCanBeRetrieved(int currentPage)
+        public bool CheckIfInitialPostsCanBeRetrieved(Guid userId, int currentPage)
         {
-            _cache.TryGetValue("initialPosts", out PaginatedResult<Dictionary<string, object>>? postsPaginatedResult);
+            _cache.TryGetValue($"{postsPrefix}{userId}_page_{currentPage}", out PaginatedResult<PostDto>? postsPaginatedResult);
 
             return (postsPaginatedResult != null && postsPaginatedResult.Pagination.CurrentPage == currentPage);
         }
-        public PaginatedResult<Dictionary<string, object>>? GetInitialPosts()
+        public PaginatedResult<PostDto>? GetInitialPosts(Guid userId, int currentPage)
         {
-            _cache.TryGetValue("initialPosts", out PaginatedResult<Dictionary<string, object>>? postsPaginatedResult);
+            _cache.TryGetValue($"{postsPrefix}{userId}_page_{currentPage}", out PaginatedResult<PostDto>? postsPaginatedResult);
 
             return postsPaginatedResult;
         }
 
-        public void ClearInitialPostsToAdd(Guid userid)
+        public void ClearInitialPostsToAdd(Guid userId)
         {
-            _cache.Remove($"{postsToAddKeyPrefix}{userid}");
+            _cache.Remove($"{postsToAddKeyPrefix}{userId}");
         }
         public void SetInitialPostsToAdd(Guid userid, PaginatedResult<PostsToAdd> postsToAddPaginatedResult)
         {

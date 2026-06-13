@@ -59,12 +59,13 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 return BadRequest("Community ID is required to retrieve community discussions");
             Guid.TryParse(loggedInUser.Id?.ToString(), out Guid userId);
 
-            if (_socialMediaCacheService.CheckIfInitialCommunityDiscussionsCanBeRetrieved(userId, communityId))
+            var noSearchTerm = string.IsNullOrEmpty(searchTerm ?? "".Trim());
+            if (noSearchTerm && _socialMediaCacheService.CheckIfInitialCommunityDiscussionsCanBeRetrieved(userId, communityId))
                 return Ok(_socialMediaCacheService.GetInitialCommunityDiscussions(userId, communityId));
 
             var result = await _communityDiscussionRepository.GetCommunityDiscussions(_supabase, userId, communityId, searchTerm, currentPage, itemsPerPage);
 
-            _socialMediaCacheService.SetInitialCommunityDiscussions(result, userId, communityId);
+            if(noSearchTerm) _socialMediaCacheService.SetInitialCommunityDiscussions(result, userId, communityId);
 
             return Ok(result);
         }

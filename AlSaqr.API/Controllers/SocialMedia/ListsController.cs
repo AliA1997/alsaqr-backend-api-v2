@@ -54,12 +54,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
         {
             var lists = new List<Dictionary<string, object>>();
             Pagination? pagination = null;
-
-            if (_socialMediaCacheService.CheckIfInitialListsCanBeRetrieved(currentPage, userId))
+            var noSearchTerm = string.IsNullOrEmpty(searchTerm ?? "".Trim());
+            if (noSearchTerm && _socialMediaCacheService.CheckIfInitialListsCanBeRetrieved(currentPage, userId))
                 return Ok(_socialMediaCacheService.GetInitialLists(userId));
 
             var result = await _listRepository.GetLists(_supabase, userId, searchTerm, currentPage, itemsPerPage);
-            _socialMediaCacheService.SetInitialLists(result, userId);
+            if(noSearchTerm) _socialMediaCacheService.SetInitialLists(result, userId);
 
             return Ok(result);
         }

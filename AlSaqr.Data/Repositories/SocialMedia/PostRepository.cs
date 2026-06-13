@@ -129,8 +129,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 if (!string.IsNullOrEmpty(searchTerm))
                 {
                     totalParams.Add("p_search_term", searchTerm);
-                    baseQuery = baseQuery.Where(x => x.Content.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
-                        //baseQuery = baseQuery.Filter("content", Operator.ILike, $"%{searchTerm ?? string.Empty}%");
+                    baseQuery = baseQuery.Filter("content", Operator.ILike, $"%{searchTerm}%");
                 }
 
                 var result = await SupabaseHelper.CallFunction(supabase, "get_all_posts_count", totalParams);

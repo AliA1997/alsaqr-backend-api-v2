@@ -46,12 +46,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 [FromQuery] string? searchTerm = null
             )
         {
-
-            if (_socialMediaCacheService.CheckIfInitialCommunitiesCanBeRetrieved(userId))
+            var noSearchTerm = string.IsNullOrEmpty(searchTerm ?? "".Trim());
+            if (noSearchTerm && _socialMediaCacheService.CheckIfInitialCommunitiesCanBeRetrieved(userId))
                 return Ok(_socialMediaCacheService.GetInitialCommunities(userId));
 
             var result = await _communityRepository.GetCommunities(_supabase, userId, searchTerm, currentPage, itemsPerPage);
-            _socialMediaCacheService.SetInitialCommunities(result, userId);
+            if(noSearchTerm) _socialMediaCacheService.SetInitialCommunities(result, userId);
 
             return Ok(result);
         }
