@@ -3,6 +3,7 @@ using NewsAPI;
 using NewsAPI.Constants;
 using static AlSaqr.Domain.Utils.Common;
 using AlSaqr.Domain.SocialMedia;
+using AlSaqr.Infrastructure.SocialMediaCache;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {
@@ -13,13 +14,16 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
         private readonly ILogger<ExploreController> _logger;
         private readonly NewsApiClient _newsApiClient;
+        private readonly ISocialMediaCacheService _socialMediaCacheService;
 
         public ExploreController(
             ILogger<ExploreController> logger, 
-            NewsApiClient newsApiClient)
+            NewsApiClient newsApiClient,
+            ISocialMediaCacheService socialMediaCacheService)
         {
             _logger = logger;
             _newsApiClient = newsApiClient;
+            _socialMediaCacheService = socialMediaCacheService;
         }
 
 
@@ -31,6 +35,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
         {
             try
             {
+                if(_socialMediaCacheService.CheckIfInitialExploreAllNewsCanBeRetrieved())
+                    return Ok(_socialMediaCacheService.GetInitialAllExploreNews());
+
                 var articleResponse = await _newsApiClient.GetTopHeadlinesAsync(new NewsAPI.Models.TopHeadlinesRequest()
                 {
                     Country = Countries.US,
@@ -89,6 +96,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
         {
             try
             {
+                if (_socialMediaCacheService.CheckIfInitialExploreNewsBySourceCanBeRetrieved(sourceId))
+                    return Ok(_socialMediaCacheService.GetInitialExploreNewsBySource(sourceId));
+
                 var articlesResponse = await _newsApiClient.GetTopHeadlinesAsync(new NewsAPI.Models.TopHeadlinesRequest()
                 {
                     Sources = new List<string> { sourceId },

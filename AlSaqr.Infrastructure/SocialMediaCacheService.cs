@@ -71,6 +71,14 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
         void SetInitialComments(Guid postId, PaginatedResult<PostDto> pagination);
         PaginatedResult<PostDto>? GetInitialComments(Guid postId);
         bool CheckIfInitialCommentsCanBeRetrieved(Guid postId);
+
+        void SetInitialExploreAllNews(PaginatedResult<Explore.ExploreToDisplay> exploreAllNewsPaginatedResult);
+        bool CheckIfInitialExploreAllNewsCanBeRetrieved();
+        PaginatedResult<Explore.ExploreToDisplay>? GetInitialAllExploreNews();
+
+        void SetInitialExploreNewsBySource(string source, PaginatedResult<Explore.ExploreToDisplay> exploreNewsBySourcePaginatedResult);
+        bool CheckIfInitialExploreNewsBySourceCanBeRetrieved(string source);
+        PaginatedResult<Explore.ExploreToDisplay>? GetInitialExploreNewsBySource(string source);
     }
 
     public partial class SocialMediaCacheService : ISocialMediaCacheService
@@ -88,6 +96,12 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
         {
             SlidingExpiration = TimeSpan.FromMinutes(5),
             AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(2)
+        };
+
+        private static MemoryCacheEntryOptions ExploreNewsCacheOptions => new()
+        {
+            SlidingExpiration = TimeSpan.FromMinutes(15),
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15)
         };
 
         private static MemoryCacheEntryOptions ListsCacheOptions => new()
