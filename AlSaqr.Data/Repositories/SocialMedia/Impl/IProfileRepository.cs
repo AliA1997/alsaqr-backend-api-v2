@@ -15,6 +15,11 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
             string username,
             int currentPage,
             int itemsPerPage);
+        Task<List<ProfilePostDto>> GetProfileMediaPosts(
+            Supabase.Client supabase,
+            string username,
+            int currentPage,
+            int itemsPerPage);
 
         Task<ProfileInfoDto> GetProfileInfo(
             Supabase.Client supabase,

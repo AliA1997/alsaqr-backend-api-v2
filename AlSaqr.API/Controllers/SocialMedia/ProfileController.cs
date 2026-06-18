@@ -73,5 +73,29 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             return Ok(result);
         }
+
+        /// <summary>
+        /// Get user profile posts with media
+        /// </summary>
+        /// <param name="username"></param>
+        /// <returns></returns>
+
+        [HttpGet("{username}/media-posts")]
+        public async Task<IActionResult> GetProfileMediaPosts(
+            string username,
+            [FromQuery] int currentPage = 1,
+            [FromQuery] int itemsPerPage = 25)
+        {
+            // Input validation
+            if (string.IsNullOrEmpty(username))
+            {
+                return BadRequest("Username is required");
+            }
+
+            var result = await _profileRepository.GetProfileMediaPosts(_supabase, username, currentPage, itemsPerPage);
+
+            return Ok(result);
+        }
+        
     }
 }

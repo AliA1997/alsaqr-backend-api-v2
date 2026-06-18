@@ -127,5 +127,51 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 throw ex;
             }
         }
+
+        public async Task<List<ProfilePostDto>> GetProfileMediaPosts(
+            Supabase.Client supabase,
+            string username,
+            int currentPage,
+            int itemsPerPage)
+        {
+            var skip = (currentPage - 1) * itemsPerPage;
+
+            try
+            {
+                using var cts = new CancellationTokenSource();
+                CancellationToken ct = cts.Token;
+
+                // The posts view is keyed by viewer_user_id, but the endpoint
+                // supplies a username — resolve it to the user's id first.
+                var user = await supabase
+                    .From<AlSaqrUser>()
+                    .Where(u => u.Username == username)
+                    .Single(ct);
+
+                if (user == null)
+                    throw new Exception($"User Profile with a username of {username} not found");
+
+                var pageResult = await supabase
+                    .From<VwUserProfilePosts>()
+                    .Where(x => x.PostOwnerId == user.Id)
+                    .Where(x => x.PostType == "post")
+                    .Filter("banner_image", Operator.NotEqual, "").Not("banner_image", Operator.Is, "null")
+                    .Order("post_created_at", Ordering.Descending)
+                    .Range(skip, skip + itemsPerPage - 1)
+                    .Get(ct);
+
+                var posts = pageResult.Models
+                    .Select(vwPost => new ProfilePostDto(vwPost))
+                    .ToList();
+
+                // Bucket by relation type, mirroring the five Neo4j UNION groups.
+                return posts;
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+        }
     }
 }
