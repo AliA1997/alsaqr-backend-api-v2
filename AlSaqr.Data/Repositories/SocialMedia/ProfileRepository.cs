@@ -155,6 +155,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     .From<VwUserProfilePosts>()
                     .Where(x => x.PostOwnerId == user.Id)
                     .Where(x => x.PostType == "post")
+                    .Where(p => p.PostRelationType == RELATION_USER)
                     .Filter("banner_image", Operator.NotEqual, "").Not("banner_image", Operator.Is, "null")
                     .Order("post_created_at", Ordering.Descending)
                     .Range(skip, skip + itemsPerPage - 1)
