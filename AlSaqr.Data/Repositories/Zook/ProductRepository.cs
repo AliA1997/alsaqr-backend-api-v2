@@ -199,23 +199,29 @@ namespace AlSaqr.Data.Repositories.Zook
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
-            // Precondition: resolve the profile by username (raises on unknown user).
             var user = await client.From<AlSaqrUser>().Where(x => x.Username == username).Single(ct);
             var userId = user.Id;
 
             var products = new List<ProductDto>();
             var skip = (currentPage - 1) * itemsPerPage;
+            IDictionary<string, object> totalParams = new Dictionary<string, object>()
+            {
+                { "p_user_id", userId.ToString() }
+            };
 
             // Products are sourced directly from the products table (PROD-2), scoped to
-            // the resolved owner and narrowable by name (PROD-5).
             var baseQuery = client.From<Product>()
                 .Filter("user_id", Operator.Equals, userId.ToString());
 
             if (!string.IsNullOrEmpty(searchTerm))
+            {
+                totalParams.Add("p_search_term", searchTerm);
                 baseQuery = baseQuery.Filter("title", Operator.ILike, $"%{searchTerm}%");
+            }
 
-            // Total reflects the filtered set so pagination stays consistent (PROD-4/PROD-5).
-            var totalItems = await baseQuery.Count(Constants.CountType.Exact, ct);
+
+            var result = await SupabaseHelper.CallFunction(client, "get_profile_products_count", totalParams);
+            var totalItems = result != null ? long.Parse(result) : 0;
 
             if (totalItems == 0)
             {
@@ -235,7 +241,6 @@ namespace AlSaqr.Data.Repositories.Zook
             // paging never duplicates or skips a row (PROD-3/PROD-4, §3.2).
             products = (await baseQuery
                             .Order("created_at", Ordering.Descending)
-                            .Order("id", Ordering.Descending)
                             .Range(skip, skip + itemsPerPage - 1)
                             .Get(ct))
                             .Models
@@ -246,7 +251,7 @@ namespace AlSaqr.Data.Repositories.Zook
             {
                 ItemsPerPage = itemsPerPage,
                 CurrentPage = currentPage,
-                TotalItems = totalItems,
+                TotalItems = (int)totalItems,
                 TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
             };
 
