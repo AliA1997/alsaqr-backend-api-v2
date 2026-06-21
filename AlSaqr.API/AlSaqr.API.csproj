@@ -27,7 +27,6 @@
   <ItemGroup>
     <ProjectReference Include="..\AlSaqr.Data\AlSaqr.Data.csproj" />
 	<ProjectReference Include="..\AlSaqr.Infrastructure\AlSaqr.Infrastructure.csproj" />
-	<ProjectReference Include="..\AlSaqr.Services\AlSaqr.Services.csproj" />
   </ItemGroup>
 
 </Project>

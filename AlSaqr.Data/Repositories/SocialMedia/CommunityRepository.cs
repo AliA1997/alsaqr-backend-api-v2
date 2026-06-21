@@ -3,7 +3,6 @@ using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Entities.SocialMedia.Views;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.SocialMedia.Impl;
-//using AlSaqr.Domain.SocialMedia;
 using AlSaqr.Domain.SocialMedia.Exceptions;
 using AlSaqr.Domain.Utils;
 using Supabase.Postgrest;
@@ -141,6 +140,74 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             {
                 throw ex;
             }
+        }
+
+
+        public async Task<PaginatedResult<CommunityDto>> GetUserCommunities(
+            Supabase.Client client,
+            string username,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm)
+        {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            // Precondition: resolve the profile by username (raises on unknown user).
+            var user = await client.From<AlSaqrUser>().Where(x => x.Username == username).Single(ct);
+            var userId = user.Id;
+
+            var communities = new List<CommunityDto>();
+            var skip = (currentPage - 1) * itemsPerPage;
+            IDictionary<string, object> totalParams = new Dictionary<string, object>()
+            {
+                { "p_user_id", userId.ToString() }
+            };
+
+            var baseQuery = client.From<VwProfileCommunityDetails>().Filter("user_id", Operator.Equals, userId.ToString());
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                totalParams.Add("p_search_term", searchTerm);
+                baseQuery = baseQuery.Filter("community_name", Operator.ILike, $"%{searchTerm}%");
+            }
+
+            var result = await SupabaseHelper.CallFunction(client, "get_profile_community_count", totalParams);
+            var totalItems = result != null ? long.Parse(result) : 0;
+
+            if (totalItems == 0)
+            {
+                return new PaginatedResult<CommunityDto>(
+                    communities,
+                    new Pagination
+                    {
+                        ItemsPerPage = itemsPerPage,
+                        CurrentPage = currentPage,
+                        TotalItems = 0,
+                        TotalPages = 0
+                    }
+                );
+            }
+
+            communities = (await baseQuery.Order("community_created_at", Ordering.Descending)
+                            .Range(skip, skip + itemsPerPage - 1)
+                            .Get(ct))
+                            .Models
+                            .Select(vwCommunity => new CommunityDto(vwCommunity))
+                            .ToList();
+                
+            communities = await AssignUserRoles(client, userId, communities, ct);
+
+
+            var pagination = new Pagination
+            {
+                ItemsPerPage = itemsPerPage,
+                CurrentPage = currentPage,
+                TotalItems = (int)totalItems,
+                TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
+            };
+
+            return new PaginatedResult<CommunityDto>(communities, pagination);
         }
 
         private async Task<List<CommunityDto>> AssignUserRoles(

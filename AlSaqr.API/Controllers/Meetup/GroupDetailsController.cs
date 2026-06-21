@@ -4,7 +4,6 @@ using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
 using Supabase.Postgrest.Interfaces;
 
 namespace AlSaqr.API.Controllers.Meetup
@@ -14,20 +13,17 @@ namespace AlSaqr.API.Controllers.Meetup
     public class GroupDetailsController : ControllerBase 
     {
         private readonly ILogger<GroupDetailsController> _logger;
-        private readonly IDriver _driver;
         private readonly IUserCacheService _userCacheService;
         private readonly Supabase.Client _supabase;
         private readonly IGroupRepository _groupRepository;
 
         public GroupDetailsController(
             ILogger<GroupDetailsController> logger,
-            IDriver driver,
             Supabase.Client supabase,
             IGroupRepository groupRepository,
             IUserCacheService userCacheService)
         {
             _logger = logger;
-            _driver = driver;
             _supabase = supabase;
             _groupRepository = groupRepository;
             _userCacheService = userCacheService;

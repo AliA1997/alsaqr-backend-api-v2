@@ -22,6 +22,12 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
                     Guid userId,
                     Guid commmunityId);
 
+        Task<PaginatedResult<CommunityDto>> GetUserCommunities(
+            Supabase.Client client,
+            string username,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm);
 
         Task<Guid> CreateCommunity(
               Supabase.Client supabase,

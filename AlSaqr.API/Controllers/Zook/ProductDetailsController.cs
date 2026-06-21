@@ -4,7 +4,6 @@ using AlSaqr.Domain.Utils;
 using AlSaqr.Domain.Zook;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
 using Newtonsoft.Json;
 using Supabase.Postgrest;
 using Supabase.Postgrest.Interfaces;

@@ -36,6 +36,13 @@ namespace AlSaqr.Data.Repositories.Zook.Impl
             int itemsPerPage,
             string? searchTerm);
 
+        Task<PaginatedResult<ProductDto>> GetUserProducts(
+            Supabase.Client client,
+            string username,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm);
+
         Task<Product> CreateProduct(
             Supabase.Client client,
             Guid userId,

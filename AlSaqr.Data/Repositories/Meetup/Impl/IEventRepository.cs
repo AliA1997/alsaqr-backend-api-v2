@@ -34,8 +34,17 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
             string? searchTerm,
             double? maxDistanceKm);
 
-        Task<Event> CreateEvent(
+        Task<PaginatedResult<AttendedEventDto>> GetAttendedEvents(
             Supabase.Client client,
-            CreateEventForm form);
+            string username,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm);
+
+        Task<Event> CreateEvent(
+            Guid userId,
+            Supabase.Client client,
+            CreateEventForm form,
+            CancellationToken ct);
     }
 }

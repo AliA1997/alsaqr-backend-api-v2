@@ -207,6 +207,75 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         }
 
 
+
+        public async Task<PaginatedResult<CommunityDiscussionDto>> GetUserCommunityDiscussions(
+            Supabase.Client client,
+            string username,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm)
+        {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            // Precondition: resolve the profile by username (raises on unknown user).
+            var user = await client.From<AlSaqrUser>().Where(x => x.Username == username).Single(ct);
+            var userId = user.Id;
+
+            var communityDiscussions = new List<CommunityDiscussionDto>();
+            var skip = (currentPage - 1) * itemsPerPage;
+            IDictionary<string, object> totalParams = new Dictionary<string, object>()
+            {
+                { "p_user_id", userId.ToString() }
+            };
+
+
+            var baseQuery = client.From<VwProfileCommunityDiscussionDetails>().Filter("user_id", Operator.Equals, userId.ToString());
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                totalParams.Add("p_search_term", searchTerm);
+                baseQuery = baseQuery.Filter("discussion_title", Operator.ILike, $"%{searchTerm}%");
+            }
+
+            var result = await SupabaseHelper.CallFunction(client, "get_profile_community_discussions_count", totalParams);
+            var totalItems = result != null ? long.Parse(result) : 0;
+
+            if (totalItems == 0)
+            {
+                return new PaginatedResult<CommunityDiscussionDto>(
+                    communityDiscussions,
+                    new Pagination
+                    {
+                        ItemsPerPage = itemsPerPage,
+                        CurrentPage = currentPage,
+                        TotalItems = 0,
+                        TotalPages = 0
+                    }
+                );
+            }
+
+            communityDiscussions = (await baseQuery.Order("discussion_created_at", Ordering.Descending)
+                            .Range(skip, skip + itemsPerPage - 1)
+                            .Get(ct))
+                            .Models
+                            .Select(vwCommunity => new CommunityDiscussionDto(vwCommunity))
+                            .ToList();
+                
+            communityDiscussions = await AssignUserRoles(client, userId, communityDiscussions, ct);
+
+
+            var pagination = new Pagination
+            {
+                ItemsPerPage = itemsPerPage,
+                CurrentPage = currentPage,
+                TotalItems = (int)totalItems,
+                TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
+            };
+
+            return new PaginatedResult<CommunityDiscussionDto>(communityDiscussions, pagination);
+        }
+
         public async Task<Guid> CreateCommunityDiscussion(
             Supabase.Client supabase,
             Guid userId,

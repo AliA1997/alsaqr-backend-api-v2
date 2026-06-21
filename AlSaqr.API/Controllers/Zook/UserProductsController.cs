@@ -2,7 +2,6 @@
 using AlSaqr.Domain.Zook;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
 using Newtonsoft.Json;
 using Supabase.Postgrest.Interfaces;
 using static AlSaqr.Domain.Utils.Common;
@@ -16,18 +15,15 @@ namespace AlSaqr.API.Controllers.Zook
     {
 
         private readonly ILogger<UserProductsController> _logger;
-        private readonly IDriver _driver;
         private readonly IUserCacheService _userCacheService;
         private readonly Supabase.Client _supabase;
 
         public UserProductsController(
             ILogger<UserProductsController> logger,
-            IDriver driver,
             Supabase.Client supabase,
             IUserCacheService userCacheService)
         {
             _logger = logger;
-            _driver = driver;
             _supabase = supabase;
             _userCacheService = userCacheService;
         }

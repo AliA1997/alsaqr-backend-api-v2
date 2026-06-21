@@ -1,4 +1,4 @@
-﻿
+﻿using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Entities.Zook;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Zook.Impl;
@@ -8,7 +8,7 @@ using Supabase.Postgrest;
 using System.Text.RegularExpressions;
 using static AlSaqr.Domain.Utils.Common;
 using static Supabase.Postgrest.Constants;
-using static System.Runtime.InteropServices.JavaScript.JSType;
+using static Supabase.Postgrest.QueryOptions;
 
 namespace AlSaqr.Data.Repositories.Zook
 {
@@ -182,6 +182,94 @@ namespace AlSaqr.Data.Repositories.Zook
             return new PaginatedResult<ProductDto>(products ?? new List<ProductDto>(), pagination!);
         }
     
+        /// <summary>
+        /// Browses the products belonging to one user, addressed by username, paginated
+        /// and ordered most-recently-created first (spec PROD-1..PROD-6). Resolving the
+        /// profile by username is a precondition: an unknown username raises (mirrors
+        /// GetJoinedGroups / GetAttendedEvents), while a known user with no products — or
+        /// a search term with no hits — yields an empty, well-formed page (PROD-6).
+        /// </summary>
+        public async Task<PaginatedResult<ProductDto>> GetUserProducts(
+            Supabase.Client client,
+            string username,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm)
+        {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            // Precondition: resolve the profile by username (raises on unknown user).
+            var user = await client.From<AlSaqrUser>().Where(x => x.Username == username).Single(ct);
+            var userId = user.Id;
+
+            var products = new List<ProductDto>();
+            var skip = (currentPage - 1) * itemsPerPage;
+
+            // Products are sourced directly from the products table (PROD-2), scoped to
+            // the resolved owner and narrowable by name (PROD-5).
+            var baseQuery = client.From<Product>()
+                .Filter("user_id", Operator.Equals, userId.ToString());
+
+            if (!string.IsNullOrEmpty(searchTerm))
+                baseQuery = baseQuery.Filter("title", Operator.ILike, $"%{searchTerm}%");
+
+            // Total reflects the filtered set so pagination stays consistent (PROD-4/PROD-5).
+            var totalItems = await baseQuery.Count(Constants.CountType.Exact, ct);
+
+            if (totalItems == 0)
+            {
+                return new PaginatedResult<ProductDto>(
+                    products,
+                    new Pagination
+                    {
+                        ItemsPerPage = itemsPerPage,
+                        CurrentPage = currentPage,
+                        TotalItems = 0,
+                        TotalPages = 0
+                    }
+                );
+            }
+
+            // Deterministic ordering: created_at desc with a unique tie-breaker on id so
+            // paging never duplicates or skips a row (PROD-3/PROD-4, §3.2).
+            products = (await baseQuery
+                            .Order("created_at", Ordering.Descending)
+                            .Order("id", Ordering.Descending)
+                            .Range(skip, skip + itemsPerPage - 1)
+                            .Get(ct))
+                            .Models
+                            .Select(MapToProductDto)
+                            .ToList();
+
+            var pagination = new Pagination
+            {
+                ItemsPerPage = itemsPerPage,
+                CurrentPage = currentPage,
+                TotalItems = totalItems,
+                TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
+            };
+
+            return new PaginatedResult<ProductDto>(products, pagination);
+        }
+
+        private static ProductDto MapToProductDto(Product p) => new ProductDto
+        {
+            Id = p.Id,
+            UserId = p.UserId ?? Guid.Empty,
+            Title = p.Title,
+            Description = p.Description,
+            Price = p.Price,
+            Images = p.Images,
+            Slug = p.Slug,
+            Attributes = p.Attributes,
+            Country = p.Country ?? string.Empty,
+            Longitude = (decimal?)p.Longitude,
+            Latitude = (decimal?)p.Latitude,
+            Tags = p.Tags,
+            ProductCategoryId = p.ProductCategoryId
+        };
+
         public async Task<Product> CreateProduct(
             Supabase.Client client,
             Guid userId,
@@ -211,10 +299,65 @@ namespace AlSaqr.Data.Repositories.Zook
 
             var insertedProduct = (await client.From<Product>().Upsert(model, new QueryOptions()
             {
-                Returning = QueryOptions.ReturnType.Representation,
+                Returning = ReturnType.Representation,
             })).Model;
+
+            await CreateProductNotification(
+                client,
+                userId,
+                insertedProduct?.Id ?? Guid.Empty,
+                "Listed new product for sale with a title of: {product}",
+                "product_created",
+                CancellationToken.None
+            );
 
             return insertedProduct;
         } 
+ 
+         private async Task CreateProductNotification(
+            Supabase.Client supabase,
+            Guid userId,
+            Guid productId,
+            string messageTemplate,
+            string notificationType, 
+            CancellationToken ct)
+        {
+            var product = await supabase
+                .From<Product>()
+                .Where(c => c.Id == productId)
+                .Single(ct);
+
+            if (product == null || product.UserId != userId)
+                return;
+
+            var actingUser = await supabase
+                .From<AlSaqrUser>()
+                .Where(u => u.Id == userId)
+                .Single(ct);
+
+            var username = actingUser?.Username ?? "Someone";
+
+            var message = messageTemplate
+                .Replace("{product}", product.Title);
+
+            var notification = new Notification
+            {
+                UserId = userId,
+                Read = false,
+                CreatedAt = DateTime.UtcNow,
+                Message = message,
+                NotificationType = notificationType,
+                ItemType = "product",
+                ProductId = productId,
+                Link = $"/products/{productId}",
+            };
+
+            var created = await supabase
+                .From<Notification>()
+                .Insert(notification, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+
+            if (created == null)
+                throw new Exception("Error creating notification");
+        }
     }
 }

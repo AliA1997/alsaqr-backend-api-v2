@@ -4,7 +4,6 @@ using AlSaqr.Data.Repositories.Zook.Impl;
 using AlSaqr.Domain.Zook;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
 using Supabase.Postgrest;
 using System.Text.RegularExpressions;
 using static AlSaqr.Domain.Utils.Common;
@@ -18,20 +17,17 @@ namespace AlSaqr.API.Controllers.Zook
     {
 
         private readonly ILogger<ProductsController> _logger;
-        private readonly IDriver _driver;
         private readonly IUserCacheService _userCacheService;
         private readonly Supabase.Client _supabase;
         private readonly IProductRepository _productRepository;
 
         public ProductsController(
-            ILogger<ProductsController> logger, 
-            IDriver driver,
+            ILogger<ProductsController> logger,
             Supabase.Client supabase,
             IProductRepository productRepository,
             IUserCacheService userCacheService)
         {
             _logger = logger;
-            _driver = driver;
             _supabase = supabase;
             _productRepository = productRepository;
             _userCacheService = userCacheService;
@@ -110,7 +106,6 @@ namespace AlSaqr.API.Controllers.Zook
         public async Task<IActionResult> CreateProduct(
             [FromBody] AlSaqrUpsertRequest<CreateProductForm> request)
         {
-            await using var session = _driver.AsyncSession();
             var data = request.Values;
 
             if (string.IsNullOrEmpty(data.Title) || string.IsNullOrEmpty(data.Description) || data.ProductCategoryId == null 
@@ -133,35 +128,6 @@ namespace AlSaqr.API.Controllers.Zook
                                                                 (loggedInUser.Id ?? Guid.Empty),
                                                                 data);
 
-
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                          // Match created product user
-                        MATCH (productCreator: User { id: $userId})
-                        // Create notification connected to author
-                        CREATE (productCreator)-[:NOTIFIED_BY]->(n: Notification {
-                            id: ""notification_"" + randomUUID(),
-                            message: ""Listed new product for sale with a title of: "" + $productTitle,
-                            read: false,
-                            relatedEntityId: $productId,
-                            link: ""/products/"" + $productCategoryId + ""/"" + $productId,
-                            createdAt: datetime(),
-                            updatedAt: null,
-                            _rev: null,
-                            _type: ""notification"",
-                            notificationType: ""created_product""
-                        })
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                      { "userId", loggedInUser.Id?.ToString()  ?? "" },
-                      { "productTitle", insertedProduct?.Title ?? "" },
-                      { "productCategoryId", (insertedProduct?.ProductCategoryId ?? Guid.Empty).ToString() },
-                      { "productId", (insertedProduct?.Id ?? Guid.Empty).ToString() },
-                    }
-                 );
-
                 return Ok(new { success = true });
             }
             catch (Exception err)
@@ -169,10 +135,6 @@ namespace AlSaqr.API.Controllers.Zook
                 // Log the exception here
                 Console.WriteLine($"Error creating product: {err.Message}");
                 return StatusCode(500, new { message = "Add product error!", success = false });
-            }
-            finally
-            {
-                await session.CloseAsync();
             }
         }
 
@@ -187,7 +149,6 @@ namespace AlSaqr.API.Controllers.Zook
             int productId,
             [FromBody] AlSaqrUpsertRequest<UpsertProductForm> request)
         {
-            await using var session = _driver.AsyncSession();
             var data = request.Values;
 
             if (string.IsNullOrEmpty(data.Title) || string.IsNullOrEmpty(data.Description) || data.ProductCategoryId == null
@@ -236,35 +197,6 @@ namespace AlSaqr.API.Controllers.Zook
                     Returning = QueryOptions.ReturnType.Representation,
                 })).Model;
 
-
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                          // Match created product user
-                        MATCH (productCreator: User { id: $userId})
-                        // Create notification connected to author
-                        CREATE (productCreator)-[:NOTIFIED_BY]->(n: Notification {
-                            id: ""notification_"" + randomUUID(),
-                            message: ""Updated product for sale with a title of: "" + $productTitle,
-                            read: false,
-                            relatedEntityId: $productId,
-                            link: ""/products/"" + $productCategoryId + ""/"" + $productId,
-                            createdAt: datetime(),
-                            updatedAt: null,
-                            _rev: null,
-                            _type: ""notification"",
-                            notificationType: ""updated_product""
-                        })
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                      { "userId", loggedInUser.Id?.ToString()  ?? "" },
-                      { "productTitle", updatedProduct?.Title ?? "" },
-                      { "productCategoryId", (updatedProduct?.ProductCategoryId ?? Guid.Empty).ToString() },
-                      { "productId", (updatedProduct?.Id ?? Guid.Empty).ToString() },
-                    }
-                 );
-
                 return Ok(new { success = true });
             }
             catch (Exception err)
@@ -272,10 +204,6 @@ namespace AlSaqr.API.Controllers.Zook
                 // Log the exception here
                 Console.WriteLine($"Error creating product: {err.Message}");
                 return StatusCode(500, new { message = "Add product error!", success = false });
-            }
-            finally
-            {
-                await session.CloseAsync();
             }
         }
 
@@ -285,11 +213,9 @@ namespace AlSaqr.API.Controllers.Zook
         /// <returns></returns>
         [HttpPut("{productId}")]
         public async Task<IActionResult> DeleteProduct(
-            int productId, 
+            int productId,
             CancellationToken cancellationToken)
         {
-            await using var session = _driver.AsyncSession();
-
             try
             {
                 var loggedInUser = _userCacheService.GetLoggedInUser();
@@ -305,33 +231,6 @@ namespace AlSaqr.API.Controllers.Zook
 
                 await productToDelete.Delete<Product>(cancellationToken);
 
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                          // Match created product user
-                        MATCH (productCreator: User { id: $userId})
-                        // Create notification connected to author
-                        CREATE (productCreator)-[:NOTIFIED_BY]->(n: Notification {
-                            id: ""notification_"" + randomUUID(),
-                            message: ""Delete a product with a title of: "" + $productTitle,
-                            read: false,
-                            relatedEntityId: $productId,
-                            link: ""n/a"",
-                            createdAt: datetime(),
-                            updatedAt: null,
-                            _rev: null,
-                            _type: ""notification"",
-                            notificationType: ""delete_product""
-                        })
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                      { "userId", loggedInUser.Id?.ToString()  ?? "" },
-                      { "productTitle", productToDelete?.Title ?? "" },
-                      { "productId", (productToDelete?.Id ?? Guid.Empty).ToString() },
-                    }
-                 );
-
                 return Ok(new { success = true });
             }
             catch (Exception err)
@@ -339,10 +238,6 @@ namespace AlSaqr.API.Controllers.Zook
                 // Log the exception here
                 Console.WriteLine($"Error creating product: {err.Message}");
                 return StatusCode(500, new { message = "Add product error!", success = false });
-            }
-            finally
-            {
-                await session.CloseAsync();
             }
         }
 

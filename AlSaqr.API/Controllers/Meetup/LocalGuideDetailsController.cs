@@ -1,13 +1,9 @@
-﻿using AlSaqr.Data.Entities;
-using AlSaqr.Data.Entities.Meetup;
-using AlSaqr.Data.Helpers;
+﻿using AlSaqr.Data.Entities.Meetup;
 using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using Neo4j.Driver;
-using Newtonsoft.Json;
 using Supabase.Postgrest.Interfaces;
 
 namespace AlSaqr.API.Controllers.Meetup
@@ -17,19 +13,16 @@ namespace AlSaqr.API.Controllers.Meetup
     public class LocalGuideDetailsController : ControllerBase
     {
         private readonly ILogger<LocalGuidesController> _logger;
-        private readonly IDriver _driver;
         private readonly IUserCacheService _userCacheService;
         private readonly Supabase.Client _supabase;
         private readonly ILocalGuidesRepository _localGuidesRepository;
         public LocalGuideDetailsController(
             ILogger<LocalGuidesController> logger,
-            IDriver driver,
             Supabase.Client supabase,
             IUserCacheService userCacheService,
             ILocalGuidesRepository localGuidesRepository)
         {
             _logger = logger;
-            _driver = driver;
             _supabase = supabase;
             _userCacheService = userCacheService;
             _localGuidesRepository = localGuidesRepository;
@@ -45,8 +38,6 @@ namespace AlSaqr.API.Controllers.Meetup
                 Guid localGuideId
             )
         {
-            await using var session = _driver.AsyncSession();
-
             LocalGuideDetailsDto? localGuideDetails = null;
             IPostgrestTable<VwLocalGuides>? selectLocalGuideResult = null;
             try
@@ -56,18 +47,6 @@ namespace AlSaqr.API.Controllers.Meetup
                                             .Limit(1);
 
                 var localGuide = (await selectLocalGuideResult.Get()).Model;
-                var userInfoResult = await Neo4jHelpers.ReadAsync(
-                    session,
-                    @"
-                        MATCH (user:User {id: $userId}) 
-                        RETURN user
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                        { "userId", localGuide.UserId },
-                    },
-                    new[] { "user" }
-                );
 
                 localGuideDetails = new LocalGuideDetailsDto()
                 {
@@ -76,7 +55,7 @@ namespace AlSaqr.API.Controllers.Meetup
                     Name = localGuide.Name,
                     CitiesHosted = localGuide.CitiesHosted,
                     RegisteredAt = localGuide.RegisteredAt,
-                    UserInfo = userInfoResult?.Count() > 0 ? userInfoResult.First()["user"] : null
+                    UserInfo = null
                 };
             }
             catch (Exception ex)

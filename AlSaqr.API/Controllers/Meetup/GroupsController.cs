@@ -4,7 +4,6 @@ using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
 using static AlSaqr.Domain.Utils.Common;
 using static Supabase.Postgrest.Constants;
 
@@ -15,7 +14,6 @@ namespace AlSaqr.API.Controllers.Meetup
     public class GroupsController : ControllerBase
     {
         private readonly ILogger<GroupsController> _logger;
-        private readonly IDriver _driver;
         private readonly IUserCacheService _userCacheService;
         private readonly Supabase.Client _supabase;
         private readonly IAttendeeRepository _attendeeRepository;
@@ -26,7 +24,6 @@ namespace AlSaqr.API.Controllers.Meetup
 
         public GroupsController(
             ILogger<GroupsController> logger,
-            IDriver driver,
             Supabase.Client supabase,
             IUserCacheService userCacheService,
             IAttendeeRepository attendeeRepository,
@@ -35,7 +32,6 @@ namespace AlSaqr.API.Controllers.Meetup
             ITopicRepository topicRepository)
         {
             _logger = logger;
-            _driver = driver;
             _supabase = supabase;
             _userCacheService = userCacheService;
             _attendeeRepository = attendeeRepository;
@@ -114,10 +110,8 @@ namespace AlSaqr.API.Controllers.Meetup
             return Ok(result);
         }
 
-
-
         /// <summary>
-        /// Create a htouip
+        /// Create a group
         /// </summary>
         /// <param name="request"></param>
         /// <returns></returns>
@@ -125,7 +119,8 @@ namespace AlSaqr.API.Controllers.Meetup
         public async Task<IActionResult> CreateGroup(
             [FromBody] AlSaqrUpsertRequest<CreateGroupForm> request)
         {
-            await using var session = _driver.AsyncSession();
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
             var data = request.Values;
 
             if (string.IsNullOrEmpty(data.Name) || string.IsNullOrEmpty(data.Description) || data.HqCity == null)
@@ -141,6 +136,7 @@ namespace AlSaqr.API.Controllers.Meetup
                 {
                     return Unauthorized("User must be logged in, in order to create a group.");
                 }
+                Guid.TryParse(loggedInUser?.Id.ToString(), out var userId);
 
                 var city = await _cityRepository.InsertOrRetrieveCity(_supabase, data.HqCity, data.HqStateOrProvince, data.HqCountry, data.HqLatitude, data.HqLongitude);
 
@@ -149,38 +145,11 @@ namespace AlSaqr.API.Controllers.Meetup
                 var recentInsertedId = await _supabase.From<Groups>().Count(CountType.Estimated);
                 var recentInsertedGroupAttendee = await _supabase.From<GroupAttendees>().Count(CountType.Estimated);
 
-                var insertedGroup = await _groupRepository.CreateGroup(_supabase, data, loggedInUser.Id ?? Guid.Empty, organizerAttendee.Id, city.Id);
+                var insertedGroup = await _groupRepository.CreateGroup(_supabase, data, userId, organizerAttendee.Id, city.Id, ct);
 
                 await _attendeeRepository.InsertGroupAttendees(_supabase, insertedGroup.Id!, (data.Attendees ?? new Dictionary<string, object>[] { }).ToList());
 
                 await _topicRepository.InsertGroupTopics(_supabase, insertedGroup.Id!, (data.Topics ?? new Dictionary<string, object>[] { }).ToList());
-
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                          // Match created group user
-                        MATCH (groupCreator: User { id: $userId})
-                        // Create notification connected to author
-                        CREATE (groupCreator)-[:NOTIFIED_BY]->(n: Notification {
-                            id: ""notification_"" + randomUUID(),
-                            message: ""Organized a new group with a name of: "" + $groupName,
-                            read: false,
-                            relatedEntityId: $groupId,
-                            link: ""/groups/"" + $groupId,
-                            createdAt: datetime(),
-                            updatedAt: null,
-                            _rev: null,
-                            _type: ""notification"",
-                            notificationType: ""created_group""
-                        })
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                      { "userId", loggedInUser.Id?.ToString()  ?? "" },
-                      { "groupName", insertedGroup?.Name ?? "" },
-                      { "groupId", insertedGroup?.Id ?? Guid.Empty }
-                    }
-                 );
 
                 return Ok(new { success = true });
             }
@@ -189,10 +158,6 @@ namespace AlSaqr.API.Controllers.Meetup
                 // Log the exception here
                 Console.WriteLine($"Error creating group: {err.Message}");
                 return StatusCode(500, new { message = "Add group error!", success = false });
-            }
-            finally
-            {
-                await session.CloseAsync();
             }
         }
     }

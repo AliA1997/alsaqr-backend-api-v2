@@ -4,7 +4,6 @@ using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
-using Neo4j.Driver;
 using static AlSaqr.Domain.Utils.Common;
 
 namespace AlSaqr.API.Controllers.Meetup
@@ -14,7 +13,6 @@ namespace AlSaqr.API.Controllers.Meetup
     public class EventsController : ControllerBase
     {
         private readonly ILogger<EventsController> _logger;
-        private readonly IDriver _driver;
         private readonly IUserCacheService _userCacheService;
         private readonly Supabase.Client _supabase;
         private readonly ICityRepository _cityRepository;
@@ -22,14 +20,12 @@ namespace AlSaqr.API.Controllers.Meetup
 
         public EventsController(
             ILogger<EventsController> logger,
-            IDriver driver,
             Supabase.Client supabase,
             IUserCacheService userCacheService,
             ICityRepository cityRepository,
             IEventRepository eventRepository)
         {
             _logger = logger;
-            _driver = driver;
             _supabase = supabase;
             _userCacheService = userCacheService;
             _cityRepository = cityRepository;
@@ -151,7 +147,9 @@ namespace AlSaqr.API.Controllers.Meetup
         [HttpPost]
         public async Task<IActionResult> CreateEvent([FromBody] AlSaqrUpsertRequest<CreateEventForm> request)
         {
-            await using var session = _driver.AsyncSession();
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
             var data = request.Values;
 
             if (string.IsNullOrEmpty(data.Name) || string.IsNullOrEmpty(data.Description) || data.GroupId == null 
@@ -168,40 +166,14 @@ namespace AlSaqr.API.Controllers.Meetup
                 {
                     return Unauthorized("User must be logged in, in order to create a event.");
                 }
+                Guid.TryParse(loggedInUser?.Id.ToString(), out var userId);
+                
                 city = await _cityRepository.InsertOrRetrieveCity(_supabase, data.City, data.StateOrProvince, data.Country, data.Latitude, data.Longitude);
 
 
-                var insertedEvent = await _eventRepository.CreateEvent(_supabase, data);
+                var insertedEvent = await _eventRepository.CreateEvent(userId, _supabase, data, ct);
 
                 //await _cityRepository.InsertCityEvent(_supabase, city.Id, insertedEvent.Id);
-
-                await Neo4jHelpers.WriteAsync(
-                    session,
-                    @"
-                          // Match created event user
-                        MATCH (eventCreator: User { id: $userId})
-                        // Create notification connected to author
-                        CREATE (eventCreator)-[:NOTIFIED_BY]->(n: Notification {
-                            id: ""notification_"" + randomUUID(),
-                            message: ""Scheduled a new event  with a name of: "" + $eventName,
-                            read: false,
-                            relatedEntityId: $eventId,
-                            link: ""/events/"" + $eventId,
-                            createdAt: datetime(),
-                            updatedAt: null,
-                            _rev: null,
-                            _type: ""notification"",
-                            notificationType: ""created_event""
-                        })
-                    ",
-                    new Dictionary<string, object>()
-                    {
-                      { "userId", loggedInUser.Id?.ToString()  ?? "" },
-                      { "eventName", insertedEvent?.Name ?? "" },
-                      { "eventId", Guid.NewGuid() },
-                      { "hostedCity", city?.Name ?? "" },
-                    }
-                 );
 
                 return Ok(new { success = true });
             }
@@ -210,10 +182,6 @@ namespace AlSaqr.API.Controllers.Meetup
                 // Log the exception here
                 Console.WriteLine($"Error creating event: {err.Message}");
                 return StatusCode(500, new { message = "Add event error!", success = false });
-            }
-            finally
-            {
-                await session.CloseAsync();
             }
         }
 

@@ -25,12 +25,25 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
             string? searchTerm,
             double? maxDistanceKm);
 
+        Task<PaginatedResult<JoinedGroupDto>> GetJoinedGroups(
+            Supabase.Client client,
+            string username,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm);
+
         Task<List<SimilarGroupDto>> GetSimilarGroups(
             Supabase.Client client,
             Guid groupId,
             string latitude,
             string longitude);
 
-        Task<Groups> CreateGroup(Supabase.Client client, CreateGroupForm form, Guid userId, Guid organizerId, Guid cityId);
+        Task<Groups> CreateGroup(
+            Supabase.Client client, 
+            CreateGroupForm form, 
+            Guid userId, 
+            Guid organizerId, 
+            Guid cityId,
+            CancellationToken ct);
     }
 }

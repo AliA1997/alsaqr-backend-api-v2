@@ -1,5 +1,4 @@
 ﻿
-using AlSaqr.Data.Entities;
 using Newtonsoft.Json;
 
 namespace AlSaqr.Domain.Meetup

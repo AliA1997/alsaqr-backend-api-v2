@@ -19,6 +19,13 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
             Guid userId,
             Guid communityDiscussionId);
 
+        Task<PaginatedResult<CommunityDiscussionDto>> GetUserCommunityDiscussions(
+            Supabase.Client client,
+            string username,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm);
+
         Task<Guid> CreateCommunityDiscussion(
                     Supabase.Client supabase,
                     Guid userId,

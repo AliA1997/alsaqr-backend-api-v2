@@ -23,6 +23,7 @@ namespace  AlSaqr.Domain.SocialMedia
 
         }
 
+
         public class CommunityDto
         {
             public CommunityDto(dynamic details) 
