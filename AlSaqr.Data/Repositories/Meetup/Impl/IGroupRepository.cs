@@ -45,5 +45,9 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
             Guid organizerId, 
             Guid cityId,
             CancellationToken ct);
+
+        Task<(GroupDto groups, List<EventDto> events)> GetGroupDetails(
+            Supabase.Client client,
+            Guid groupId);
     }
 }

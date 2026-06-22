@@ -1,9 +1,6 @@
-﻿using AlSaqr.Data.Entities.Meetup;
-using AlSaqr.Data.Repositories.Meetup.Impl;
-using AlSaqr.Domain.Meetup;
+﻿using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
-using Supabase.Postgrest.Interfaces;
 
 namespace AlSaqr.API.Controllers.Meetup
 {
@@ -36,32 +33,7 @@ namespace AlSaqr.API.Controllers.Meetup
         [HttpGet("{eventId}")]
         public async Task<IActionResult> GetEventDetails(Guid eventId)
         {
-            EventDto? eventDetails = null;
-            IPostgrestTable<VwEvent>? selectEventResult = null;
-            try
-            {
-                selectEventResult = _supabase.From<VwEvent>()
-                                        .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, eventId.ToString())
-                                        .Limit(10);
-
-                eventDetails = (await selectEventResult.Get()).Models.Select(sr => new EventDto()
-                {
-                    Id = sr.Id,
-                    Slug = sr.Slug,
-                    GroupId = sr.GroupId,
-                    GroupName = sr.GroupName,
-                    Name = sr.Name,
-                    Description = sr.Description,
-                    CitiesHosted = sr.CitiesHosted,
-                    Images = sr.Images,
-                    DistanceKm = 0
-                }).First();
-
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            var eventDetails = await _eventRepository.GetEventDetails(_supabase, eventId);
 
             return Ok(new { eventDetails, success = true });
         }

@@ -277,6 +277,62 @@ namespace AlSaqr.Data.Repositories.Meetup
             return insertedGroup!;
         }
 
+        public async Task<(GroupDto groups, List<EventDto> events)> GetGroupDetails(
+            Supabase.Client client,
+            Guid groupId
+        )
+        {
+            var events = new List<EventDto>();
+            var groupDetails = new GroupDto();
+            try
+            {
+                events = (await client.From<VwEvent>()
+                                        .Filter("group_id", Supabase.Postgrest.Constants.Operator.Equals, groupId.ToString())
+                                        .Limit(10)
+                                        .Get()).Models.Select(sr => new EventDto()
+                                        {
+                                            Id = sr.Id,
+                                            Slug = sr.Slug,
+                                            GroupId = sr.GroupId,
+                                            GroupName = sr.GroupName,
+                                            Name = sr.Name,
+                                            Description = sr.Description,
+                                            CitiesHosted = sr.CitiesHosted,
+                                            Images = sr.Images,
+                                            DistanceKm = 0
+                                        }).ToList();
+
+                var groupResult = await client.From<VwGroup>()
+                                        .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, groupId.ToString())
+                                        .Single();
+
+                if (groupResult == null)
+                    throw new Exception("Group does not exist");
+
+                groupDetails = new GroupDto()
+                {
+                    Id = groupResult.Id,
+                    Slug = groupResult.Slug,
+                    Name = groupResult.Name,
+                    Description = groupResult.Description,
+                    City = groupResult.HqCity,
+                    CityId = groupResult.HqCityId,
+                    Country = groupResult.HqCountry,
+                    Attendees = groupResult.Attendees,
+                    Images = groupResult.Images,
+                    Topics = groupResult.Topics
+                };
+
+            
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+            return (groupDetails, events);
+        }
+
         private async Task CreateGroupNotification(
             Supabase.Client supabase,
             Guid userId,

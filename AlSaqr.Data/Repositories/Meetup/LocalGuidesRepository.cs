@@ -1,4 +1,5 @@
 ﻿using AlSaqr.Data.Entities.Meetup;
+using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
@@ -109,6 +110,53 @@ namespace AlSaqr.Data.Repositories.Meetup
             }
 
             return new PaginatedResult<LocalGuideDto>(localGuides ?? new List<LocalGuideDto>(), pagination!);
+        }
+    
+        public async Task<LocalGuideDetailsDto> GetLocalGuideDetails(
+            Supabase.Client client,
+            Guid localGuideId)
+        {
+            try {
+                var localGuide = await client.From<VwLocalGuides>()
+                                            .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, localGuideId.ToString())
+                                            .Single();
+                var userInfoForLocalGuide = await client.From<AlSaqrUser>().Where(x => x.Id == localGuide.UserId).Single();
+
+                return new LocalGuideDetailsDto()
+                {
+                    Id = localGuide.Id,
+                    UserId = localGuide.UserId,
+                    Name = localGuide.Name,
+                    CitiesHosted = localGuide.CitiesHosted,
+                    RegisteredAt = localGuide.RegisteredAt,
+                    UserInfo = userInfoForLocalGuide is null ? null : new LocalGuideUserInfoDto
+                    {
+                        Id = userInfoForLocalGuide.Id,
+                        Username = userInfoForLocalGuide.Username,
+                        Avatar = userInfoForLocalGuide.Avatar,
+                        Email = userInfoForLocalGuide.Email,
+                        BannerImage = userInfoForLocalGuide.BannerImage,
+                        Bio = userInfoForLocalGuide.Bio,
+                        FirstName = userInfoForLocalGuide.FirstName,
+                        LastName = userInfoForLocalGuide.LastName,
+                        DateOfBirth = userInfoForLocalGuide.DateOfBirth,
+                        CountryOfOrigin = userInfoForLocalGuide.CountryOfOrigin,
+                        MaritalStatus = userInfoForLocalGuide.MaritalStatus,
+                        Religion = userInfoForLocalGuide.Religion,
+                        PreferredMadhab = userInfoForLocalGuide.PreferredMadhab,
+                        FrequentMasjid = userInfoForLocalGuide.FrequentMasjid,
+                        Hobbies = userInfoForLocalGuide.Hobbies,
+                        FavoriteQuranReciters = userInfoForLocalGuide.FavoriteQuranReciters,
+                        FavoriteIslamicScholars = userInfoForLocalGuide.FavoriteIslamicScholars,
+                        IslamicStudyTopics = userInfoForLocalGuide.IslamicStudyTopics,
+                        IsVerified = userInfoForLocalGuide.IsVerified,
+                        CreatedAt = userInfoForLocalGuide.CreatedAt,
+                        UpdatedAt = userInfoForLocalGuide.UpdatedAt
+                    }
+                };
+            } catch(Exception ex) {
+                throw ex;
+            }
         }
     }
 }

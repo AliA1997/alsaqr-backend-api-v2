@@ -1,10 +1,6 @@
-﻿using AlSaqr.Data.Entities.Meetup;
-using AlSaqr.Data.Repositories.Meetup;
-using AlSaqr.Data.Repositories.Meetup.Impl;
-using AlSaqr.Domain.Meetup;
+﻿using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
-using Supabase.Postgrest.Interfaces;
 
 namespace AlSaqr.API.Controllers.Meetup
 {
@@ -38,49 +34,8 @@ namespace AlSaqr.API.Controllers.Meetup
         [HttpGet("{groupId}")]
         public async Task<IActionResult> GetGroupDetails(Guid groupId)
         {
-            var events = new List<EventDto>();
-            GroupDto? groupDetails = null;
-            IPostgrestTable<VwGroup>? selectGroupResult = null;
-            IPostgrestTable<VwEvent>? selectEventResult = null;
-            try
-            {
-                selectEventResult = _supabase.From<VwEvent>()
-                                        .Filter("group_id", Supabase.Postgrest.Constants.Operator.Equals, groupId.ToString())
-                                        .Limit(10);
-                selectGroupResult = _supabase.From<VwGroup>()
-                                        .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, groupId.ToString())
-                                        .Limit(1);
-
-                events = (await selectEventResult.Get()).Models.Select(sr => new EventDto()
-                {
-                    Id = sr.Id,
-                    Slug = sr.Slug,
-                    GroupId = sr.GroupId,
-                    GroupName = sr.GroupName,
-                    Name = sr.Name,
-                    Description = sr.Description,
-                    CitiesHosted = sr.CitiesHosted,
-                    Images = sr.Images,
-                    DistanceKm = 0
-                }).ToList();
-                groupDetails = (await selectGroupResult.Get()).Models.Select(sr => new GroupDto()
-                {
-                    Id = sr.Id,
-                    Slug = sr.Slug,
-                    Name = sr.Name,
-                    Description = sr.Description,
-                    City = sr.HqCity,
-                    CityId = sr.HqCityId,
-                    Country = sr.HqCountry,
-                    Attendees = sr.Attendees,
-                    Images = sr.Images,
-                    Topics = sr.Topics
-                }).First();
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            var (groupDetails, events) = await _groupRepository.GetGroupDetails(_supabase, groupId);
+   
 
             return Ok(new { events, groupDetails, success = true });
         }

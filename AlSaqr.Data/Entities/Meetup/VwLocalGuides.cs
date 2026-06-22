@@ -7,7 +7,7 @@ namespace AlSaqr.Data.Entities.Meetup
     [Table("vw_local_guides")]
     public class VwLocalGuides : BaseModel
     {
-        [Column("id")]
+        [PrimaryKey("id", false)]
         public Guid Id { get; set; }
         [Column("slug")]
         public string? Slug { get; set; }

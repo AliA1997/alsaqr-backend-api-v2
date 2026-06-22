@@ -163,6 +163,39 @@ namespace AlSaqr.Data.Repositories.Meetup
             return new PaginatedResult<EventDto>(events ?? new List<EventDto>(), pagination!);
         }
 
+        public async Task<EventDto> GetEventDetails(
+            Supabase.Client client, 
+            Guid eventId
+        )
+        {
+            EventDto eventDetails = new EventDto();
+            try
+            {
+                var eventResult = await client.From<VwEvent>()
+                                        .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, eventId.ToString())
+                                        .Single();
+
+                eventDetails = new EventDto()
+                {
+                    Id = eventResult.Id,
+                    Slug = eventResult.Slug,
+                    GroupId = eventResult.GroupId,
+                    GroupName = eventResult.GroupName,
+                    Name = eventResult.Name,
+                    Description = eventResult.Description,
+                    CitiesHosted = eventResult.CitiesHosted,
+                    Images = eventResult.Images,
+                    DistanceKm = 0
+                };
+
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+            return eventDetails;
+        }
 
         public async Task<PaginatedResult<AttendedEventDto>> GetAttendedEvents(
             Supabase.Client client,

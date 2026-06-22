@@ -1,10 +1,6 @@
-﻿using AlSaqr.Data.Entities.Meetup;
-using AlSaqr.Data.Repositories.Meetup.Impl;
-using AlSaqr.Domain.Meetup;
+﻿using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
-using Supabase.Postgrest.Interfaces;
 
 namespace AlSaqr.API.Controllers.Meetup
 {
@@ -34,36 +30,12 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <param name="latitude"></param>
         /// <returns></returns>
         [HttpGet("{localGuideId}")]
-        public async Task<IActionResult> GetLocalGuideDetails(
-                Guid localGuideId
-            )
+        public async Task<IActionResult> GetLocalGuideDetails(Guid localGuideId)
         {
-            LocalGuideDetailsDto? localGuideDetails = null;
-            IPostgrestTable<VwLocalGuides>? selectLocalGuideResult = null;
-            try
-            {
-                selectLocalGuideResult = _supabase.From<VwLocalGuides>()
-                                            .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, localGuideId.ToString())
-                                            .Limit(1);
 
-                var localGuide = (await selectLocalGuideResult.Get()).Model;
+            var result = await _localGuidesRepository.GetLocalGuideDetails(_supabase, localGuideId);
 
-                localGuideDetails = new LocalGuideDetailsDto()
-                {
-                    Id = localGuide.Id,
-                    UserId = localGuide.UserId,
-                    Name = localGuide.Name,
-                    CitiesHosted = localGuide.CitiesHosted,
-                    RegisteredAt = localGuide.RegisteredAt,
-                    UserInfo = null
-                };
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
-
-            return Ok(new { localGuideDetails, success = true });
+            return Ok(new { localGuideDetails = result, success = true });
         }
 
 
