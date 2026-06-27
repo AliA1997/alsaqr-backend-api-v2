@@ -4,6 +4,7 @@ using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
 using Newtonsoft.Json;
+using Supabase.Postgrest;
 using static AlSaqr.Domain.Utils.Common;
 
 namespace AlSaqr.Data.Repositories.Meetup
@@ -157,6 +158,167 @@ namespace AlSaqr.Data.Repositories.Meetup
             } catch(Exception ex) {
                 throw ex;
             }
+        }
+
+        public async Task<LocalGuides> CreateLocalGuide(
+            Supabase.Client client,
+            Guid userId,
+            CreateLocalGuideForm form,
+            List<Guid> cityIds,
+            CancellationToken ct)
+        {
+            var model = new LocalGuides()
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Name = form.Name ?? string.Empty,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var insertedLocalGuide = (await client.From<LocalGuides>().Upsert(model, new QueryOptions()
+            {
+                Returning = QueryOptions.ReturnType.Representation,
+            }, ct)).Model;
+
+            await UpsertLocalGuideCities(client, insertedLocalGuide!.Id, cityIds, ct);
+
+            await CreateLocalGuideNotification(
+                client,
+                userId,
+                insertedLocalGuide.Id,
+                insertedLocalGuide.Name,
+                "Registered as a local guide named {localGuide}",
+                "local_guide_created",
+                ct);
+
+            return insertedLocalGuide!;
+        }
+
+        public async Task<LocalGuides> UpdateLocalGuide(
+            Supabase.Client client,
+            Guid localGuideId,
+            Guid userId,
+            UpsertLocalGuideForm form,
+            List<Guid> cityIds,
+            CancellationToken ct)
+        {
+            var existing = await client.From<LocalGuides>().Where(lg => lg.Id == localGuideId).Single(ct);
+            if (existing == null)
+                throw new Exception("Local guide not found");
+
+            // A local guide record may only be edited by the user it belongs to (spec).
+            if (existing.UserId != userId)
+                throw new UnauthorizedAccessException("You can only update your own local guide record.");
+
+            existing.Name = AssignStringValue(existing.Name, form.Name);
+
+            var updated = (await client.From<LocalGuides>()
+                .Where(lg => lg.Id == existing.Id)
+                .Upsert(existing, new QueryOptions { Returning = QueryOptions.ReturnType.Representation }, ct)).Model;
+
+            if (cityIds.Count > 0)
+            {
+                // Replace the local guide's cities with the supplied set.
+                await client.From<LocalGuidesCities>().Where(c => c.LocalGuidesId == localGuideId).Delete();
+                await UpsertLocalGuideCities(client, localGuideId, cityIds, ct);
+            }
+
+            await CreateLocalGuideNotification(
+                client,
+                userId,
+                existing.Id,
+                existing.Name,
+                "Updated local guide named {localGuide}",
+                "local_guide_updated",
+                ct);
+
+            return updated!;
+        }
+
+        public async Task<Guid> DeleteLocalGuide(
+            Supabase.Client client,
+            Guid localGuideId,
+            Guid userId,
+            CancellationToken ct)
+        {
+            var existing = await client.From<LocalGuides>().Where(lg => lg.Id == localGuideId).Single(ct);
+            if (existing == null)
+                throw new Exception("Local guide not found");
+
+            // A user may only unregister (delete) their own local guide record (spec).
+            if (existing.UserId != userId)
+                throw new UnauthorizedAccessException("You can only unregister your own local guide record.");
+
+            // Notify first, while the local guide row (and its name) still exists.
+            await CreateLocalGuideNotification(
+                client,
+                userId,
+                localGuideId,
+                existing.Name,
+                "Unregistered local guide named {localGuide}",
+                "local_guide_deleted",
+                ct);
+
+            // Remove join rows that reference the local guide before deleting it.
+            await client.From<LocalGuidesCities>().Where(c => c.LocalGuidesId == localGuideId).Delete();
+
+            await client.From<LocalGuides>().Where(lg => lg.Id == localGuideId).Delete();
+
+            return localGuideId;
+        }
+
+        private async Task UpsertLocalGuideCities(
+            Supabase.Client client,
+            Guid localGuideId,
+            List<Guid> cityIds,
+            CancellationToken ct)
+        {
+            foreach (var cityId in cityIds)
+            {
+                await client.From<LocalGuidesCities>().Upsert(
+                    new LocalGuidesCities()
+                    {
+                        Id = Guid.NewGuid(),
+                        LocalGuidesId = localGuideId,
+                        CityId = cityId,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    null,
+                    ct);
+            }
+        }
+
+        private async Task CreateLocalGuideNotification(
+            Supabase.Client client,
+            Guid userId,
+            Guid localGuideId,
+            string localGuideName,
+            string messageTemplate,
+            string notificationType,
+            CancellationToken ct)
+        {
+            // The notifications table has no local_guide foreign key, so the local guide is
+            // referenced by the acting user and a link only.
+            var message = messageTemplate.Replace("{localGuide}", localGuideName);
+
+            var notification = new Notification
+            {
+                UserId = userId,
+                Read = false,
+                CreatedAt = DateTime.UtcNow,
+                Message = message,
+                NotificationType = notificationType,
+                ItemType = "local_guide",
+                RelatedUserId = userId,
+                Link = $"/local-guides/{localGuideId}",
+            };
+
+            var created = await client
+                .From<Notification>()
+                .Insert(notification, new QueryOptions { Returning = QueryOptions.ReturnType.Minimal }, ct);
+
+            if (created == null)
+                throw new Exception("Error creating notification");
         }
     }
 }

@@ -2,6 +2,7 @@
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
+using AlSaqr.Domain.Utils;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using static AlSaqr.Domain.Utils.Common;
@@ -10,7 +11,7 @@ namespace AlSaqr.API.Controllers.Meetup
 {
     [ApiController]
     [Route("[controller]")]
-    public class EventsController : ControllerBase
+    public class EventsController : AuthorizedControllerBase
     {
         private readonly ILogger<EventsController> _logger;
         private readonly IUserCacheService _userCacheService;
@@ -147,6 +148,10 @@ namespace AlSaqr.API.Controllers.Meetup
         [HttpPost]
         public async Task<IActionResult> CreateEvent([FromBody] AlSaqrUpsertRequest<CreateEventForm> request)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
@@ -185,5 +190,80 @@ namespace AlSaqr.API.Controllers.Meetup
             }
         }
 
+        /// <summary>
+        /// Update an event. Only the parent group's founder may update it.
+        /// </summary>
+        /// <param name="eventId"></param>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPut("{eventId:guid}")]
+        public async Task<IActionResult> UpdateEvent(
+            Guid eventId,
+            [FromBody] AlSaqrUpsertRequest<UpsertEventForm> request)
+        {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+            var data = request.Values;
+
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
+                return Unauthorized("User must be logged in to update an event.");
+            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
+
+            try
+            {
+                await _eventRepository.UpdateEvent(_supabase, eventId, userId, data, ct);
+                return Ok(new { success = true });
+            }
+            catch (UnauthorizedAccessException err)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = err.Message, success = false });
+            }
+            catch (Exception err)
+            {
+                Console.WriteLine($"Error updating event: {err.Message}");
+                return StatusCode(500, new { message = "Update event error!", success = false });
+            }
+        }
+
+        /// <summary>
+        /// Delete an event. Only the parent group's founder may delete it.
+        /// </summary>
+        /// <param name="eventId"></param>
+        /// <returns></returns>
+        [HttpDelete("{eventId:guid}")]
+        public async Task<IActionResult> DeleteEvent(Guid eventId)
+        {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
+                return Unauthorized("User must be logged in to delete an event.");
+            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
+
+            try
+            {
+                await _eventRepository.DeleteEvent(_supabase, eventId, userId, ct);
+                return Ok(new { success = true });
+            }
+            catch (UnauthorizedAccessException err)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = err.Message, success = false });
+            }
+            catch (Exception err)
+            {
+                Console.WriteLine($"Error deleting event: {err.Message}");
+                return StatusCode(500, new { message = "Delete event error!", success = false });
+            }
+        }
     }
 }

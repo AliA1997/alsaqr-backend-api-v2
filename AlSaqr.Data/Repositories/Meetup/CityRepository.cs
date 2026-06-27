@@ -1,15 +1,10 @@
 ﻿using AlSaqr.Data.Entities.Meetup;
 using AlSaqr.Data.Repositories.Meetup.Impl;
+using AlSaqr.Domain.Meetup;
 using Supabase.Postgrest;
 using Supabase.Postgrest.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 using static Supabase.Postgrest.Constants;
-using static System.Runtime.InteropServices.JavaScript.JSType;
+
 
 namespace AlSaqr.Data.Repositories.Meetup
 {
@@ -44,6 +39,35 @@ namespace AlSaqr.Data.Repositories.Meetup
             }
 
             return city!;
+        }
+
+        public async Task<List<CityDto>> GetCities(Supabase.Client client)
+        {
+            // Reference data for a dropdown — no pagination. Deterministic ordering
+            // (name, then the unique id as a tie-breaker) keeps the 100-row window stable.
+            var response = await client
+                .From<City>()
+                .Where(c => c.Name != null)
+                .Order("name", Ordering.Ascending)
+                .Order("id", Ordering.Ascending)
+                .Limit(100)
+                .Get();
+
+            // Distinct by name defensively (InsertOrRetrieveCity already keys on name),
+            // then cap at 100 for the dropdown.
+            return response.Models
+                .DistinctBy(c => c.Name)
+                .Take(100)
+                .Select(c => new CityDto
+                {
+                    Id = c.Id,
+                    Name = c.Name ?? string.Empty,
+                    StateOrProvince = c.StateOrProvince,
+                    Country = c.Country ?? string.Empty,
+                    Latitude = c.Latitude,
+                    Longitude = c.Longitude
+                })
+                .ToList();
         }
 
         public async Task InsertCityEvent(Supabase.Client client, Guid cityId, Guid eventId)

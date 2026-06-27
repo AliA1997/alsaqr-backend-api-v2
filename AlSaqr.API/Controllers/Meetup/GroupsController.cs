@@ -2,6 +2,7 @@
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
+using AlSaqr.Domain.Utils;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using static AlSaqr.Domain.Utils.Common;
@@ -11,7 +12,7 @@ namespace AlSaqr.API.Controllers.Meetup
 {
     [ApiController]
     [Route("[controller]")]
-    public class GroupsController : ControllerBase
+    public class GroupsController : AuthorizedControllerBase
     {
         private readonly ILogger<GroupsController> _logger;
         private readonly IUserCacheService _userCacheService;
@@ -119,6 +120,10 @@ namespace AlSaqr.API.Controllers.Meetup
         public async Task<IActionResult> CreateGroup(
             [FromBody] AlSaqrUpsertRequest<CreateGroupForm> request)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
             var data = request.Values;
@@ -158,6 +163,90 @@ namespace AlSaqr.API.Controllers.Meetup
                 // Log the exception here
                 Console.WriteLine($"Error creating group: {err.Message}");
                 return StatusCode(500, new { message = "Add group error!", success = false });
+            }
+        }
+
+        /// <summary>
+        /// Update a group. Only the group founder may update it.
+        /// </summary>
+        /// <param name="groupId"></param>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPut("{groupId:guid}")]
+        public async Task<IActionResult> UpdateGroup(
+            Guid groupId,
+            [FromBody] AlSaqrUpsertRequest<UpsertGroupForm> request)
+        {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+            var data = request.Values;
+
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
+                return Unauthorized("User must be logged in to update a group.");
+            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
+
+            try
+            {
+                Guid? cityId = null;
+                if (!string.IsNullOrEmpty(data.HqCity))
+                {
+                    var city = await _cityRepository.InsertOrRetrieveCity(
+                        _supabase, data.HqCity, data.HqStateOrProvince, data.HqCountry, data.HqLatitude, data.HqLongitude);
+                    cityId = city.Id;
+                }
+
+                await _groupRepository.UpdateGroup(_supabase, groupId, userId, data, cityId, ct);
+                return Ok(new { success = true });
+            }
+            catch (UnauthorizedAccessException err)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = err.Message, success = false });
+            }
+            catch (Exception err)
+            {
+                Console.WriteLine($"Error updating group: {err.Message}");
+                return StatusCode(500, new { message = "Update group error!", success = false });
+            }
+        }
+
+        /// <summary>
+        /// Delete a group. Only the group founder may delete it.
+        /// </summary>
+        /// <param name="groupId"></param>
+        /// <returns></returns>
+        [HttpDelete("{groupId:guid}")]
+        public async Task<IActionResult> DeleteGroup(Guid groupId)
+        {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
+                return Unauthorized("User must be logged in to delete a group.");
+            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
+
+            try
+            {
+                await _groupRepository.DeleteGroup(_supabase, groupId, userId, ct);
+                return Ok(new { success = true });
+            }
+            catch (UnauthorizedAccessException err)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = err.Message, success = false });
+            }
+            catch (Exception err)
+            {
+                Console.WriteLine($"Error deleting group: {err.Message}");
+                return StatusCode(500, new { message = "Delete group error!", success = false });
             }
         }
     }

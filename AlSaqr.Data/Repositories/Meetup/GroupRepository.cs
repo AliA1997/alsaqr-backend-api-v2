@@ -95,11 +95,18 @@ namespace AlSaqr.Data.Repositories.Meetup
                             maxDistanceKm: null,
                             searchTerm: searchTerm
                 );
+                IDictionary<string, object> pagingFunctionParams = SupabaseHelper.DefinePagingGetMyEventsOrGroupsParams(
+                    userId: userId,
+                    latitude: latitude,
+                    longitude: longitude,
+                    maxDistanceKm: null,
+                    searchTerm: searchTerm
+                );
 
                 groups = JsonConvert.DeserializeObject<List<GroupDto>>(
                     await SupabaseHelper.CallFunction(client, functionName, functionParams)
                 );
-                var parsedSuccessfully = int.TryParse(await SupabaseHelper.CallFunction(client, pagingFunctionName, functionParams), out var total);
+                var parsedSuccessfully = int.TryParse(await SupabaseHelper.CallFunction(client, pagingFunctionName, pagingFunctionParams), out var total);
                 totalItems = parsedSuccessfully ? total : 0;
 
                 pagination = new Pagination
@@ -331,6 +338,72 @@ namespace AlSaqr.Data.Repositories.Meetup
             }
 
             return (groupDetails, events);
+        }
+
+        public async Task<Groups> UpdateGroup(
+            Supabase.Client client,
+            Guid groupId,
+            Guid userId,
+            UpsertGroupForm form,
+            Guid? cityId,
+            CancellationToken ct)
+        {
+            var existing = await client.From<Groups>().Where(g => g.Id == groupId).Single(ct);
+            if (existing == null)
+                throw new Exception("Group not found");
+
+            existing.Name = AssignStringValue(existing.Name, form.Name);
+            existing.Description = AssignStringValue(existing.Description, form.Description);
+            if (form.Images != null && form.Images.Length > 0)
+                existing.Images = form.Images;
+            if (cityId.HasValue)
+                existing.HqCityId = cityId;
+
+            var updated = (await client.From<Groups>()
+                .Where(g => g.Id == existing.Id)
+                .Upsert(existing, new QueryOptions { Returning = QueryOptions.ReturnType.Representation }, ct)).Model;
+
+            await CreateGroupNotification(
+                client,
+                userId,
+                existing.Id,
+                "Updated group with a name of {group}",
+                "group_updated",
+                ct);
+
+            return updated!;
+        }
+
+        public async Task<Guid> DeleteGroup(
+            Supabase.Client client,
+            Guid groupId,
+            Guid userId,
+            CancellationToken ct)
+        {
+            var existing = await client.From<Groups>().Where(g => g.Id == groupId).Single(ct);
+            if (existing == null)
+                throw new Exception("Group not found");
+
+            // Only the group founder may delete the group (spec).
+            if (!await SupabaseHelper.IsGroupFounder(client, groupId, userId, ct))
+                throw new UnauthorizedAccessException("Only the group founder can delete this group.");
+
+            // Notify first, while the group row (and its name) still exists.
+            await CreateGroupNotification(
+                client,
+                userId,
+                groupId,
+                "Deleted group with a name of {group}",
+                "group_deleted",
+                ct);
+
+            // Remove join rows that reference the group before deleting it.
+            await client.From<GroupAttendees>().Where(ga => ga.GroupId == groupId).Delete();
+            await client.From<GroupTopics>().Where(gt => gt.GroupId == groupId).Delete();
+
+            await client.From<Groups>().Where(g => g.Id == groupId).Delete();
+
+            return groupId;
         }
 
         private async Task CreateGroupNotification(

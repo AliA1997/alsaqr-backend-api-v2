@@ -140,11 +140,18 @@ namespace AlSaqr.Data.Repositories.Meetup
                             maxDistanceKm: null,
                             searchTerm: searchTerm
                 );
+                IDictionary<string, object> pagingFunctionParams = SupabaseHelper.DefinePagingGetMyEventsOrGroupsParams(
+                    userId: userId,
+                    latitude: latitude,
+                    longitude: longitude,
+                    maxDistanceKm: null,
+                    searchTerm: searchTerm
+                );
 
                 events = JsonConvert.DeserializeObject<List<EventDto>>(
                     await SupabaseHelper.CallFunction(client, functionName, functionParams)
                 );
-                var parsedSuccessfully = int.TryParse(await SupabaseHelper.CallFunction(client, pagingFunctionName, functionParams), out var total);
+                var parsedSuccessfully = int.TryParse(await SupabaseHelper.CallFunction(client, pagingFunctionName, pagingFunctionParams), out var total);
                 totalItems = parsedSuccessfully ? total : 0;
 
                 pagination = new Pagination
@@ -290,13 +297,82 @@ namespace AlSaqr.Data.Repositories.Meetup
                 userId,
                 insertedEvent.Id,
                 "Started a new event with a name of {event}",
-                "event",
+                "event_created",
                 ct
             );
 
             return insertedEvent!;
         }
-    
+
+        public async Task<Event> UpdateEvent(
+            Supabase.Client client,
+            Guid eventId,
+            Guid userId,
+            UpsertEventForm form,
+            CancellationToken ct)
+        {
+            var existing = await client.From<Event>().Where(e => e.Id == eventId).Single(ct);
+            if (existing == null)
+                throw new Exception("Event not found");
+
+            existing.Name = AssignStringValue(existing.Name, form.Name);
+            existing.Description = AssignStringValue(existing.Description, form.Description);
+            if (form.Images != null && form.Images.Length > 0)
+                existing.Images = form.Images;
+            existing.IsOnline = form.IsOnline;
+            if (form.DateToOccur != default)
+                existing.LastOccurredAt = form.DateToOccur;
+            if (form.GroupId.HasValue)
+                existing.GroupId = form.GroupId;
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            var updated = (await client.From<Event>()
+                .Where(e => e.Id == existing.Id)
+                .Upsert(existing, new QueryOptions { Returning = QueryOptions.ReturnType.Representation }, ct)).Model;
+
+            await CreateEventNotification(
+                client,
+                userId,
+                existing.Id,
+                "Updated event with a name of {event}",
+                "event_updated",
+                ct);
+
+            return updated!;
+        }
+
+        public async Task<Guid> DeleteEvent(
+            Supabase.Client client,
+            Guid eventId,
+            Guid userId,
+            CancellationToken ct)
+        {
+            var existing = await client.From<Event>().Where(e => e.Id == eventId).Single(ct);
+            if (existing == null)
+                throw new Exception("Event not found");
+
+            // Events are children of groups, so the parent group's founder may delete them (spec).
+            if (existing.GroupId == null
+                || !await SupabaseHelper.IsGroupFounder(client, existing.GroupId.Value, userId, ct))
+                throw new UnauthorizedAccessException("Only the group founder can delete this event.");
+
+            // Notify first, while the event row (and its name) still exists.
+            await CreateEventNotification(
+                client,
+                userId,
+                eventId,
+                "Deleted event with a name of {event}",
+                "event_deleted",
+                ct);
+
+            // Remove join rows that reference the event before deleting it.
+            await client.From<EventCities>().Where(ec => ec.EventId == eventId).Delete();
+
+            await client.From<Event>().Where(e => e.Id == eventId).Delete();
+
+            return eventId;
+        }
+
         private async Task CreateEventNotification(
             Supabase.Client supabase,
             Guid userId,

@@ -1,4 +1,5 @@
-﻿using AlSaqr.Domain.Meetup;
+﻿using AlSaqr.Data.Entities.Meetup;
+using AlSaqr.Domain.Meetup;
 using static AlSaqr.Domain.Utils.Common;
 
 namespace AlSaqr.Data.Repositories.Meetup.Impl
@@ -27,5 +28,26 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
         Task<LocalGuideDetailsDto> GetLocalGuideDetails(
             Supabase.Client client,
             Guid localGuideId);
+
+        Task<LocalGuides> CreateLocalGuide(
+            Supabase.Client client,
+            Guid userId,
+            CreateLocalGuideForm form,
+            List<Guid> cityIds,
+            CancellationToken ct);
+
+        Task<LocalGuides> UpdateLocalGuide(
+            Supabase.Client client,
+            Guid localGuideId,
+            Guid userId,
+            UpsertLocalGuideForm form,
+            List<Guid> cityIds,
+            CancellationToken ct);
+
+        Task<Guid> DeleteLocalGuide(
+            Supabase.Client client,
+            Guid localGuideId,
+            Guid userId,
+            CancellationToken ct);
     }
 }

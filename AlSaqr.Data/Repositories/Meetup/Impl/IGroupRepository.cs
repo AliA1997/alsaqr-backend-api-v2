@@ -49,5 +49,19 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
         Task<(GroupDto groups, List<EventDto> events)> GetGroupDetails(
             Supabase.Client client,
             Guid groupId);
+
+        Task<Groups> UpdateGroup(
+            Supabase.Client client,
+            Guid groupId,
+            Guid userId,
+            UpsertGroupForm form,
+            Guid? cityId,
+            CancellationToken ct);
+
+        Task<Guid> DeleteGroup(
+            Supabase.Client client,
+            Guid groupId,
+            Guid userId,
+            CancellationToken ct);
     }
 }

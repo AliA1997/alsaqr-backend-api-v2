@@ -51,5 +51,18 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
             Supabase.Client client,
             CreateEventForm form,
             CancellationToken ct);
+
+        Task<Event> UpdateEvent(
+            Supabase.Client client,
+            Guid eventId,
+            Guid userId,
+            UpsertEventForm form,
+            CancellationToken ct);
+
+        Task<Guid> DeleteEvent(
+            Supabase.Client client,
+            Guid eventId,
+            Guid userId,
+            CancellationToken ct);
     }
 }

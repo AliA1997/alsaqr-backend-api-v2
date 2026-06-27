@@ -1,11 +1,42 @@
-﻿using Supabase.Interfaces;
+﻿using AlSaqr.Data.Entities.Meetup;
+using Supabase.Interfaces;
 using Supabase.Postgrest.Interfaces;
 using static AlSaqr.Domain.SocialMedia.User;
+using static Supabase.Postgrest.Constants;
 
 namespace AlSaqr.Data.Helpers
 {
     public static class SupabaseHelper
     {
+
+        /// <summary>
+        /// True when <paramref name="userId"/> is the founder (organizer) of the group.
+        /// The founder is the group_attendees row flagged is_group_organizer, whose
+        /// attendee_id resolves back to the user via the attendees table. Shared by the
+        /// group and event repositories so the rule lives in one place.
+        /// </summary>
+        public static async Task<bool> IsGroupFounder(
+            Supabase.Client client,
+            Guid groupId,
+            Guid userId,
+            CancellationToken ct = default)
+        {
+            var attendee = (await client.From<Attendee>()
+                .Filter("user_id", Operator.Equals, userId.ToString())
+                .Get(ct)).Models.FirstOrDefault();
+
+            if (attendee == null)
+                return false;
+
+            var organizerLink = (await client.From<GroupAttendees>()
+                .Filter("group_id", Operator.Equals, groupId.ToString())
+                .Filter("attendee_id", Operator.Equals, attendee.Id.ToString())
+                .Filter("is_group_organizer", Operator.Equals, "true")
+                .Get(ct)).Models.FirstOrDefault();
+
+            return organizerLink != null;
+        }
+
 
          public static IDictionary<string, object> DefineGetSimilarGroupsParams(
             Guid groupId,
@@ -147,6 +178,41 @@ namespace AlSaqr.Data.Helpers
                 };
             }
         }
+        public static IDictionary<string, object> DefinePagingGetMyEventsOrGroupsParams(
+             string userId,
+             string latitude,
+             string longitude,
+             double? maxDistanceKm = null,
+             string? searchTerm = null
+         )
+        {
+            var latitudeParsed = double.Parse(latitude);
+            var longitudeParsed = double.Parse(longitude);
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                return new Dictionary<string, object>()
+                {
+                    { "userid", userId },
+                    { "target_lat", latitudeParsed },
+                    { "target_lon", longitudeParsed },
+                    { "search_term", searchTerm },
+                    { "max_distance_km", maxDistanceKm },
+                };
+            }
+            else
+            {
+                return new Dictionary<string, object>()
+                {
+                    { "userid", userId },
+                    { "target_lat", latitudeParsed },
+                    { "target_lon", longitudeParsed },
+                    { "search_term", null },
+                    { "max_distance_km", maxDistanceKm },
+                };
+            }
+        }
+
         public static IDictionary<string, object> DefineGetEventsParams(
             string latitude,
             string longitude,
