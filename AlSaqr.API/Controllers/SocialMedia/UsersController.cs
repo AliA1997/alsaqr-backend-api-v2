@@ -11,7 +11,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
-    public class UsersController : ControllerBase
+    public class UsersController : AuthorizedControllerBase
     {
 
         private readonly ILogger<UsersController> _logger;
@@ -56,15 +56,16 @@ namespace AlSaqr.API.Controllers.SocialMedia
         [HttpPut]
         public async Task<IActionResult> UpdateUser([FromBody] AlSaqrUpsertRequest<User.UpdateUserDto> request)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var data = request.Values;
             using var cts = new CancellationTokenSource();
             var ct = cts.Token;
 
             var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
-                return Unauthorized("User must be logged in to update their user.");
-
-            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
             try
             {
                 await _userRepository.UpdateUser(_supabase, userId, data, ct);
@@ -88,11 +89,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
         [HttpDelete]
         public async Task<IActionResult> DeleteUser()
         {
-            var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
-                return Unauthorized("User must be logged in to delete their user.");
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
 
-            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
 
             try
             {
@@ -118,11 +120,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
             var data = request.Values;
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
-            var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
-                return Unauthorized("User must be logged in to follow other users.");
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
 
-            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
 
             // Input validation
             if (userId == Guid.Empty)
@@ -152,11 +155,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
             var data = request.Values;
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
-            var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
-                return Unauthorized("User must be logged in to unfollow other users.");
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
 
-            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
             // Input validation
             if (userId == Guid.Empty)
                 return BadRequest("User ID is required for unfollowing someone.");

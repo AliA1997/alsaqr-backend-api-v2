@@ -9,7 +9,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
-    public class MessagesController : ControllerBase
+    public class MessagesController : AuthorizedControllerBase
     {
 
         private readonly ILogger<MessagesController> _logger;
@@ -42,12 +42,14 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 [FromBody] AlSaqrUpsertRequest<Messages.MessageFormDto> request
             )
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var data = request.Values;
 
             var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (loggedInUser == null)
-                return Unauthorized("Must be logged in to send a message");
-            Guid.TryParse(loggedInUser.Id?.ToString(), out var userId);
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
 
             if (userId != data.SenderId)
                 return BadRequest("Logged in user can only send this message.");

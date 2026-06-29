@@ -14,7 +14,8 @@ namespace AlSaqr.API.Controllers.Meetup
         public CitiesController(
             ILogger<CitiesController> logger,
             Supabase.Client supabase,
-            ICityRepository cityRepository)
+            ICityRepository cityRepository
+        )
         {
             _logger = logger;
             _supabase = supabase;
@@ -27,9 +28,20 @@ namespace AlSaqr.API.Controllers.Meetup
         /// </summary>
         /// <returns>A list of <see cref="AlSaqr.Domain.Meetup.CityDto"/>.</returns>
         [HttpGet]
-        public async Task<IActionResult> GetCities()
+        public async Task<IActionResult> GetCities([FromQuery] string searchTerm)
         {
-            var result = await _cityRepository.GetCities(_supabase);
+            var result = await _cityRepository.GetCities(_supabase, searchTerm);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// For populating the update event modal
+        /// </summary>
+        /// <returns>A list of <see cref="AlSaqr.Domain.Meetup.CityDto"/>.</returns>
+        [HttpGet("{cityId}")]
+        public async Task<IActionResult> GetCitiesByName(Guid cityId)
+        {
+            var result = await _cityRepository.GetCitiesById(_supabase, cityId);
             return Ok(result);
         }
     }

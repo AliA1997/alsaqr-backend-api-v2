@@ -11,7 +11,7 @@ namespace AlSaqr.API.Controllers.Zook
 {
     [ApiController]
     [Route("[controller]")]
-    public class UserProductsController : ControllerBase
+    public class UserProductsController : AuthorizedControllerBase
     {
 
         private readonly ILogger<UserProductsController> _logger;
@@ -42,9 +42,11 @@ namespace AlSaqr.API.Controllers.Zook
                 [FromQuery] string? searchTerm = null
             )
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (string.IsNullOrEmpty(loggedInUser?.Id?.ToString()))
-                return Unauthorized("Need to be logged in to see your product being sold.");
 
             var products = new List<ProductDto>();
             var functionName = "get_selling_products";

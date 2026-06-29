@@ -10,7 +10,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
-    public class PostsController : ControllerBase
+    public class PostsController : AuthorizedControllerBase
     {
 
         private readonly ILogger<PostsController> _logger;
@@ -67,19 +67,16 @@ namespace AlSaqr.API.Controllers.SocialMedia
         [HttpPost]
         public async Task<IActionResult> CreatePost([FromBody] AlSaqrUpsertRequest<Posts.CreatePostDto> request)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var data = request.Values;
             var loggedInUser = _userCacheService.GetLoggedInUser();
             var cts = new CancellationTokenSource();
             var ct = cts.Token;
 
-            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
-                return Unauthorized("User must be logged in to create a post.");
-
-            if (loggedInUser.Id == Guid.Empty)
-            {
-                return BadRequest("User ID is required");
-            }
-            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
 
             if (string.IsNullOrEmpty(data?.Text))
             {
@@ -150,15 +147,16 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid postId,
             [FromBody] AlSaqrUpsertRequest<BookmarkRequest> request)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             using var cts = new CancellationTokenSource();
             var ct = cts.Token;
 
             var data = request.Values;
             var user = _userCacheService.GetLoggedInUser();
-            if (user == null)
-                return Unauthorized("Need to be logged in to bookmark posts.");
-
-            var userId = user.Id;
+            var userId = user?.Id;
             // Input validation
             if (postId == Guid.Empty)
                 return BadRequest("Post ID is required");
@@ -182,16 +180,17 @@ namespace AlSaqr.API.Controllers.SocialMedia
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var data = request.Values;
 
             if (postId == Guid.Empty)
                 return BadRequest("Post ID is required");
-            
-            var user = _userCacheService.GetLoggedInUser();
-            if (user == null)
-                return Unauthorized("User must be logged in to like a post");
 
-            var userId = user.Id;
+            var user = _userCacheService.GetLoggedInUser();
+            var userId = user?.Id;
             
             await _postStatusRepository.LikePost(_supabase, userId ?? Guid.Empty, postId, data.Liked, ct);
 
@@ -212,16 +211,17 @@ namespace AlSaqr.API.Controllers.SocialMedia
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var data = request.Values;
             // Input validation
             if (postId == Guid.Empty)
                 return BadRequest("Post ID is required");
 
             var user = _userCacheService.GetLoggedInUser();
-            if (user == null)
-                return Unauthorized("Must be logged in to repost a post.");
-
-            var userId = user.Id;
+            var userId = user?.Id;
 
             await _postStatusRepository.RepostPost(_supabase, userId ?? Guid.Empty, postId, data.Reposted, ct);
 
@@ -237,16 +237,18 @@ namespace AlSaqr.API.Controllers.SocialMedia
         [HttpDelete("{postId}")]
         public async Task<IActionResult> DeletePost(Guid postId)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             // Input validation
             if (postId == Guid.Empty)
             {
                 return BadRequest("Post ID is required");
             }
             var user = _userCacheService.GetLoggedInUser();
-            if (user == null || user.Id == Guid.Empty)
-                return Unauthorized("Must be logged in to delete a post.");
 
-            await _postRepository.DeletePost(_supabase, (Guid)user.Id, postId);
+            await _postRepository.DeletePost(_supabase, user?.Id ?? Guid.Empty, postId);
            return Ok(new { success = true });
         }
 

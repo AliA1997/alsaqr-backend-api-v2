@@ -22,7 +22,6 @@ namespace AlSaqr.API.Controllers.Meetup
         private readonly IGroupRepository _groupRepository;
         private readonly ITopicRepository _topicRepository;
 
-
         public GroupsController(
             ILogger<GroupsController> logger,
             Supabase.Client supabase,
@@ -30,7 +29,8 @@ namespace AlSaqr.API.Controllers.Meetup
             IAttendeeRepository attendeeRepository,
             ICityRepository cityRepository,
             IGroupRepository groupRepository,
-            ITopicRepository topicRepository)
+            ITopicRepository topicRepository
+        )
         {
             _logger = logger;
             _supabase = supabase;
@@ -53,13 +53,13 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <returns></returns>
         [HttpGet]
         public async Task<IActionResult> GetNearbyGroups(
-                [FromQuery] string latitude,
-                [FromQuery] string longitude,
-                [FromQuery] int currentPage = 1,
-                [FromQuery] int itemsPerPage = 25,
-                [FromQuery] string? searchTerm = null,
-                [FromQuery] double? maxDistanceKm = 25.0
-            )
+            [FromQuery] string latitude,
+            [FromQuery] string longitude,
+            [FromQuery] int currentPage = 1,
+            [FromQuery] int itemsPerPage = 25,
+            [FromQuery] string? searchTerm = null,
+            [FromQuery] double? maxDistanceKm = 25.0
+        )
         {
             var result = await _groupRepository.GetNearbyGroups(
                 _supabase,
@@ -68,7 +68,8 @@ namespace AlSaqr.API.Controllers.Meetup
                 currentPage,
                 itemsPerPage,
                 searchTerm,
-                maxDistanceKm);
+                maxDistanceKm
+            );
 
             return Ok(result);
         }
@@ -85,14 +86,18 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <returns></returns>
         [HttpGet("my")]
         public async Task<IActionResult> GetNearbyMyGroups(
-                [FromQuery] string latitude,
-                [FromQuery] string longitude,
-                [FromQuery] int currentPage = 1,
-                [FromQuery] int itemsPerPage = 25,
-                [FromQuery] string? searchTerm = null,
-                [FromQuery] double? maxDistanceKm = 25.0
-            )
+            [FromQuery] string latitude,
+            [FromQuery] string longitude,
+            [FromQuery] int currentPage = 1,
+            [FromQuery] int itemsPerPage = 25,
+            [FromQuery] string? searchTerm = null,
+            [FromQuery] double? maxDistanceKm = 25.0
+        )
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var loggedInUser = _userCacheService.GetLoggedInUser();
 
             if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
@@ -106,7 +111,8 @@ namespace AlSaqr.API.Controllers.Meetup
                 itemsPerPage,
                 loggedInUser.Id.ToString(),
                 searchTerm,
-                maxDistanceKm);
+                maxDistanceKm
+            );
 
             return Ok(result);
         }
@@ -118,7 +124,8 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <returns></returns>
         [HttpPost]
         public async Task<IActionResult> CreateGroup(
-            [FromBody] AlSaqrUpsertRequest<CreateGroupForm> request)
+            [FromBody] AlSaqrUpsertRequest<CreateGroupForm> request
+        )
         {
             var authError = ValidateAccessToken();
             if (authError != null)
@@ -128,7 +135,11 @@ namespace AlSaqr.API.Controllers.Meetup
             CancellationToken ct = cts.Token;
             var data = request.Values;
 
-            if (string.IsNullOrEmpty(data.Name) || string.IsNullOrEmpty(data.Description) || data.HqCity == null)
+            if (
+                string.IsNullOrEmpty(data.Name)
+                || string.IsNullOrEmpty(data.Description)
+                || data.HqCity == null
+            )
             {
                 return BadRequest("Fields are required!");
             }
@@ -143,18 +154,48 @@ namespace AlSaqr.API.Controllers.Meetup
                 }
                 Guid.TryParse(loggedInUser?.Id.ToString(), out var userId);
 
-                var city = await _cityRepository.InsertOrRetrieveCity(_supabase, data.HqCity, data.HqStateOrProvince, data.HqCountry, data.HqLatitude, data.HqLongitude);
+                var city = await _cityRepository.InsertOrRetrieveCity(
+                    _supabase,
+                    data.HqCity,
+                    data.HqStateOrProvince,
+                    data.HqCountry,
+                    data.HqLatitude,
+                    data.HqLongitude
+                );
 
-                var organizerAttendee = await _attendeeRepository.InsertOrRetrieveAttendee(_supabase, $"{loggedInUser.FirstName + " " + loggedInUser.LastName}", loggedInUser.Id ?? Guid.Empty);
+                var organizerAttendee = await _attendeeRepository.InsertOrRetrieveAttendee(
+                    _supabase,
+                    $"{loggedInUser.FirstName + " " + loggedInUser.LastName}",
+                    loggedInUser.Id ?? Guid.Empty
+                );
 
-                var recentInsertedId = await _supabase.From<Groups>().Count(CountType.Estimated);
-                var recentInsertedGroupAttendee = await _supabase.From<GroupAttendees>().Count(CountType.Estimated);
+                var insertedGroup = await _groupRepository.CreateGroup(
+                    _supabase,
+                    data,
+                    userId,
+                    organizerAttendee.Id,
+                    city.Id,
+                    ct
+                );
 
-                var insertedGroup = await _groupRepository.CreateGroup(_supabase, data, userId, organizerAttendee.Id, city.Id, ct);
+                var attendees = (data.Attendees ?? new Dictionary<string, object>[] { }).Append(
+                    new Dictionary<string, object>()
+                    {
+                        { "name", $"{loggedInUser?.FirstName} {loggedInUser?.LastName}" },
+                        { "user_id", userId },
+                    }
+                );
+                await _attendeeRepository.InsertGroupAttendees(
+                    _supabase,
+                    insertedGroup.Id!,
+                    attendees.ToList()
+                );
 
-                await _attendeeRepository.InsertGroupAttendees(_supabase, insertedGroup.Id!, (data.Attendees ?? new Dictionary<string, object>[] { }).ToList());
-
-                await _topicRepository.InsertGroupTopics(_supabase, insertedGroup.Id!, (data.Topics ?? new Dictionary<string, object>[] { }).ToList());
+                await _topicRepository.InsertGroupTopics(
+                    _supabase,
+                    insertedGroup.Id!,
+                    data.Topics ?? new string[] { }
+                );
 
                 return Ok(new { success = true });
             }
@@ -175,7 +216,8 @@ namespace AlSaqr.API.Controllers.Meetup
         [HttpPut("{groupId:guid}")]
         public async Task<IActionResult> UpdateGroup(
             Guid groupId,
-            [FromBody] AlSaqrUpsertRequest<UpsertGroupForm> request)
+            [FromBody] AlSaqrUpsertRequest<UpsertGroupForm> request
+        )
         {
             var authError = ValidateAccessToken();
             if (authError != null)
@@ -196,7 +238,13 @@ namespace AlSaqr.API.Controllers.Meetup
                 if (!string.IsNullOrEmpty(data.HqCity))
                 {
                     var city = await _cityRepository.InsertOrRetrieveCity(
-                        _supabase, data.HqCity, data.HqStateOrProvince, data.HqCountry, data.HqLatitude, data.HqLongitude);
+                        _supabase,
+                        data.HqCity,
+                        data.HqStateOrProvince,
+                        data.HqCountry,
+                        data.HqLatitude,
+                        data.HqLongitude
+                    );
                     cityId = city.Id;
                 }
 
@@ -205,7 +253,10 @@ namespace AlSaqr.API.Controllers.Meetup
             }
             catch (UnauthorizedAccessException err)
             {
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = err.Message, success = false });
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new { message = err.Message, success = false }
+                );
             }
             catch (Exception err)
             {
@@ -241,7 +292,10 @@ namespace AlSaqr.API.Controllers.Meetup
             }
             catch (UnauthorizedAccessException err)
             {
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = err.Message, success = false });
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new { message = err.Message, success = false }
+                );
             }
             catch (Exception err)
             {

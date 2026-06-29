@@ -20,6 +20,9 @@ namespace AlSaqr.Domain.Meetup
         [JsonProperty("group_name")]
         public string? GroupName { get; set; }
 
+        [JsonProperty("group_founder_id")]
+        public Guid? GroupFounderId { get; set; }
+
         [JsonProperty("cities_hosted")]
         public IDictionary<string, object>[]? CitiesHosted { get; set; }
         [JsonProperty("distance_km")]

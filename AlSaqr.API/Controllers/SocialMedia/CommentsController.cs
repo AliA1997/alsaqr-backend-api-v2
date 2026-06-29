@@ -9,7 +9,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
-    public class CommentsController : ControllerBase
+    public class CommentsController : AuthorizedControllerBase
     {
 
         private readonly ILogger<CommentsController> _logger;
@@ -43,12 +43,13 @@ namespace AlSaqr.API.Controllers.SocialMedia
             [FromQuery] bool onComment = false)
         {
 
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var data = request.Values;
             var loggedInUser = _userCacheService.GetLoggedInUser();
-
-            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
-                return Unauthorized("User must be logged in to create a post.");
-            Guid.TryParse(loggedInUser.Id.ToString(), out var userId);
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
 
             if (string.IsNullOrEmpty(data?.Text))
                 return BadRequest("Text of the Comment is required");

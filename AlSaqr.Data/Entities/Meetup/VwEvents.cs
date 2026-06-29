@@ -25,6 +25,8 @@ namespace AlSaqr.Data.Entities.Meetup
         
         [Column("group_name")]
         public string? GroupName { get; set; }
+        [Column("group_founder_id")]
+        public Guid? GroupFounderId { get; set; }
 
         [Column("cities_hosted")]
         public IDictionary<string, object>[] CitiesHosted { get; set; }

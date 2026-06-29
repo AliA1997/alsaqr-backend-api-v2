@@ -20,7 +20,5 @@
     }
 
     public class UpsertEventForm : CreateEventForm
-    {
-        public string[] FieldsToUpdate { get; set; }
-    }
+    {}
 }

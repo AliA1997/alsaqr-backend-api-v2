@@ -24,7 +24,8 @@ namespace AlSaqr.API.Controllers.Meetup
             Supabase.Client supabase,
             IUserCacheService userCacheService,
             ICityRepository cityRepository,
-            IEventRepository eventRepository)
+            IEventRepository eventRepository
+        )
         {
             _logger = logger;
             _supabase = supabase;
@@ -32,7 +33,6 @@ namespace AlSaqr.API.Controllers.Meetup
             _cityRepository = cityRepository;
             _eventRepository = eventRepository;
         }
-
 
         /// <summary>
         /// Get events nearby
@@ -46,27 +46,26 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <returns></returns>
         [HttpGet]
         public async Task<IActionResult> GetNearbyEvents(
-                [FromQuery] string latitude,
-                [FromQuery] string longitude,
-                [FromQuery] int currentPage = 1,
-                [FromQuery] int itemsPerPage = 25,
-                [FromQuery] string? searchTerm = null,
-                [FromQuery] double? maxDistanceKm = 25.0
-            )
+            [FromQuery] string latitude,
+            [FromQuery] string longitude,
+            [FromQuery] int currentPage = 1,
+            [FromQuery] int itemsPerPage = 25,
+            [FromQuery] string? searchTerm = null,
+            [FromQuery] double? maxDistanceKm = 25.0
+        )
         {
             var result = await _eventRepository.GetNearbyEvents(
-                    _supabase,
-                    latitude,
-                    longitude,
-                    currentPage,
-                    itemsPerPage,
-                    searchTerm,
-                    maxDistanceKm
-                );
+                _supabase,
+                latitude,
+                longitude,
+                currentPage,
+                itemsPerPage,
+                searchTerm,
+                maxDistanceKm
+            );
 
             return Ok(result);
         }
-
 
         /// <summary>
         /// Get online events nearby
@@ -80,13 +79,13 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <returns></returns>
         [HttpGet("online")]
         public async Task<IActionResult> GetNearbyOnlineEvents(
-                [FromQuery] string latitude,
-                [FromQuery] string longitude,
-                [FromQuery] int currentPage = 1,
-                [FromQuery] int itemsPerPage = 25,
-                [FromQuery] string? searchTerm = null,
-                [FromQuery] double? maxDistanceKm = 25.0
-            )
+            [FromQuery] string latitude,
+            [FromQuery] string longitude,
+            [FromQuery] int currentPage = 1,
+            [FromQuery] int itemsPerPage = 25,
+            [FromQuery] string? searchTerm = null,
+            [FromQuery] double? maxDistanceKm = 25.0
+        )
         {
             var result = await _eventRepository.GetNearbyOnlineEvents(
                 _supabase,
@@ -113,14 +112,18 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <returns></returns>
         [HttpGet("my")]
         public async Task<IActionResult> GetNearbyMyEvents(
-                [FromQuery] string latitude,
-                [FromQuery] string longitude,
-                [FromQuery] int currentPage = 1,
-                [FromQuery] int itemsPerPage = 25,
-                [FromQuery] string? searchTerm = null,
-                [FromQuery] double? maxDistanceKm = 25.0
-            )
+            [FromQuery] string latitude,
+            [FromQuery] string longitude,
+            [FromQuery] int currentPage = 1,
+            [FromQuery] int itemsPerPage = 25,
+            [FromQuery] string? searchTerm = null,
+            [FromQuery] double? maxDistanceKm = 25.0
+        )
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var loggedInUser = _userCacheService.GetLoggedInUser();
 
             if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
@@ -134,11 +137,11 @@ namespace AlSaqr.API.Controllers.Meetup
                 currentPage,
                 itemsPerPage,
                 searchTerm,
-                maxDistanceKm);
+                maxDistanceKm
+            );
 
             return Ok(result);
         }
-
 
         /// <summary>
         /// Create a event
@@ -146,7 +149,9 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpPost]
-        public async Task<IActionResult> CreateEvent([FromBody] AlSaqrUpsertRequest<CreateEventForm> request)
+        public async Task<IActionResult> CreateEvent(
+            [FromBody] AlSaqrUpsertRequest<CreateEventForm> request
+        )
         {
             var authError = ValidateAccessToken();
             if (authError != null)
@@ -157,8 +162,13 @@ namespace AlSaqr.API.Controllers.Meetup
 
             var data = request.Values;
 
-            if (string.IsNullOrEmpty(data.Name) || string.IsNullOrEmpty(data.Description) || data.GroupId == null 
-                || data.City == null || data.DateToOccur == null)
+            if (
+                string.IsNullOrEmpty(data.Name)
+                || string.IsNullOrEmpty(data.Description)
+                || data.GroupId == null
+                || data.City == null
+                || data.DateToOccur == null
+            )
             {
                 return BadRequest("Fields are required!");
             }
@@ -172,13 +182,19 @@ namespace AlSaqr.API.Controllers.Meetup
                     return Unauthorized("User must be logged in, in order to create a event.");
                 }
                 Guid.TryParse(loggedInUser?.Id.ToString(), out var userId);
-                
-                city = await _cityRepository.InsertOrRetrieveCity(_supabase, data.City, data.StateOrProvince, data.Country, data.Latitude, data.Longitude);
 
+                city = await _cityRepository.InsertOrRetrieveCity(
+                    _supabase,
+                    data.City,
+                    data.StateOrProvince,
+                    data.Country,
+                    data.Latitude,
+                    data.Longitude
+                );
 
                 var insertedEvent = await _eventRepository.CreateEvent(userId, _supabase, data, ct);
 
-                //await _cityRepository.InsertCityEvent(_supabase, city.Id, insertedEvent.Id);
+                await _cityRepository.InsertCityEvent(_supabase, city.Id, insertedEvent.Id);
 
                 return Ok(new { success = true });
             }
@@ -199,7 +215,8 @@ namespace AlSaqr.API.Controllers.Meetup
         [HttpPut("{eventId:guid}")]
         public async Task<IActionResult> UpdateEvent(
             Guid eventId,
-            [FromBody] AlSaqrUpsertRequest<UpsertEventForm> request)
+            [FromBody] AlSaqrUpsertRequest<UpsertEventForm> request
+        )
         {
             var authError = ValidateAccessToken();
             if (authError != null)
@@ -221,7 +238,10 @@ namespace AlSaqr.API.Controllers.Meetup
             }
             catch (UnauthorizedAccessException err)
             {
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = err.Message, success = false });
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new { message = err.Message, success = false }
+                );
             }
             catch (Exception err)
             {
@@ -257,7 +277,10 @@ namespace AlSaqr.API.Controllers.Meetup
             }
             catch (UnauthorizedAccessException err)
             {
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = err.Message, success = false });
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new { message = err.Message, success = false }
+                );
             }
             catch (Exception err)
             {

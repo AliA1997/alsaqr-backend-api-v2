@@ -29,6 +29,10 @@ namespace AlSaqr.Domain.Meetup
         public string? Slug { get; set; }
         [JsonProperty("userid")]
         public Guid UserId { get; set; }
+        [JsonProperty("avatar")]
+        public string? Avatar { get; set; }
+        [JsonProperty("username")]
+        public string? Username { get; set; }
         [JsonProperty("name")]
         public string Name { get; set; }
 

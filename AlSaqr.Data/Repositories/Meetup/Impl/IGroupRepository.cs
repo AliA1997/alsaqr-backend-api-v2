@@ -13,7 +13,8 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
             int currentPage,
             int itemsPerPage,
             string? searchTerm,
-            double? maxDistanceKm);
+            double? maxDistanceKm
+        );
 
         Task<PaginatedResult<GroupDto>> GetMyGroups(
             Supabase.Client client,
@@ -23,32 +24,37 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
             int itemsPerPage,
             string userId,
             string? searchTerm,
-            double? maxDistanceKm);
+            double? maxDistanceKm
+        );
 
         Task<PaginatedResult<JoinedGroupDto>> GetJoinedGroups(
             Supabase.Client client,
             string username,
             int currentPage,
             int itemsPerPage,
-            string? searchTerm);
+            string? searchTerm
+        );
 
         Task<List<SimilarGroupDto>> GetSimilarGroups(
             Supabase.Client client,
             Guid groupId,
             string latitude,
-            string longitude);
+            string longitude
+        );
 
         Task<Groups> CreateGroup(
-            Supabase.Client client, 
-            CreateGroupForm form, 
-            Guid userId, 
-            Guid organizerId, 
+            Supabase.Client client,
+            CreateGroupForm form,
+            Guid userId,
+            Guid organizerId,
             Guid cityId,
-            CancellationToken ct);
+            CancellationToken ct
+        );
 
         Task<(GroupDto groups, List<EventDto> events)> GetGroupDetails(
             Supabase.Client client,
-            Guid groupId);
+            Guid groupId
+        );
 
         Task<Groups> UpdateGroup(
             Supabase.Client client,
@@ -56,12 +62,14 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
             Guid userId,
             UpsertGroupForm form,
             Guid? cityId,
-            CancellationToken ct);
+            CancellationToken ct
+        );
 
         Task<Guid> DeleteGroup(
             Supabase.Client client,
             Guid groupId,
             Guid userId,
-            CancellationToken ct);
+            CancellationToken ct
+        );
     }
 }

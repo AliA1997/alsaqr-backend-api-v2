@@ -1,4 +1,5 @@
 ﻿using AlSaqr.Data.Repositories.SocialMedia.Impl;
+using AlSaqr.Infrastructure;
 using AlSaqr.Infrastructure.SocialMediaCache;
 using Microsoft.AspNetCore.Mvc;
 using static AlSaqr.Domain.SocialMedia.Community;
@@ -8,27 +9,30 @@ namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
-    public class CommunitiesController : ControllerBase
+    public class CommunitiesController : AuthorizedControllerBase
     {
-
         private readonly ILogger<CommunitiesController> _logger;
         private readonly Supabase.Client _supabase;
         private readonly ICommunityRepository _communityRepository;
         private readonly ICommunityMemberRepository _communityMemberRepository;
         private readonly ISocialMediaCacheService _socialMediaCacheService;
+        private readonly IUserCacheService _userCacheService;
 
         public CommunitiesController(
             ILogger<CommunitiesController> logger,
             Supabase.Client supabase,
             ICommunityRepository communityRepository,
             ICommunityMemberRepository communityMemberRepository,
-            ISocialMediaCacheService socialMediaCacheService)
+            ISocialMediaCacheService socialMediaCacheService,
+            IUserCacheService userCacheService
+        )
         {
             _logger = logger;
             _supabase = supabase;
             _communityRepository = communityRepository;
             _communityMemberRepository = communityMemberRepository;
             _socialMediaCacheService = socialMediaCacheService;
+            _userCacheService = userCacheService;
         }
 
         /// <summary>
@@ -38,20 +42,38 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <param name="itemsPerPage"></param>
         /// <param name="searchTerm"></param>
         /// <returns></returns>
-        [HttpGet("{userId}")]
+        [HttpGet]
         public async Task<IActionResult> GetCommunities(
-                Guid userId,
-                [FromQuery] int currentPage = 1,
-                [FromQuery] int itemsPerPage = 10,
-                [FromQuery] string? searchTerm = null
-            )
+            [FromQuery] int currentPage = 1,
+            [FromQuery] int itemsPerPage = 10,
+            [FromQuery] string? searchTerm = null
+        )
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            var user = _userCacheService.GetLoggedInUser();
+            if (user == null)
+                return Unauthorized("User must be logged in to create list.");
+
+            Guid.TryParse(user.Id?.ToString(), out Guid userId);
             var noSearchTerm = string.IsNullOrEmpty(searchTerm ?? "".Trim());
-            if (noSearchTerm && _socialMediaCacheService.CheckIfInitialCommunitiesCanBeRetrieved(userId))
+            if (
+                noSearchTerm
+                && _socialMediaCacheService.CheckIfInitialCommunitiesCanBeRetrieved(userId)
+            )
                 return Ok(_socialMediaCacheService.GetInitialCommunities(userId));
 
-            var result = await _communityRepository.GetCommunities(_supabase, userId, searchTerm, currentPage, itemsPerPage);
-            if(noSearchTerm) _socialMediaCacheService.SetInitialCommunities(result, userId);
+            var result = await _communityRepository.GetCommunities(
+                _supabase,
+                userId,
+                searchTerm,
+                currentPage,
+                itemsPerPage
+            );
+            if (noSearchTerm)
+                _socialMediaCacheService.SetInitialCommunities(result, userId);
 
             return Ok(result);
         }
@@ -61,16 +83,31 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// </summary>
         /// <param name="communityId"></param>
         /// <returns></returns>
-        [HttpGet("{userId}/{communityId}/admin")]
-        public async Task<IActionResult> GetAdminCommunity(Guid userId, Guid communityId)
+        [HttpGet("{communityId}/admin")]
+        public async Task<IActionResult> GetAdminCommunity(Guid communityId)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            var user = _userCacheService.GetLoggedInUser();
+            if (user == null)
+                return Unauthorized("User must be logged in to view community details.");
+
+            Guid.TryParse(user.Id?.ToString(), out Guid userId);
             // Input validation
-           if (communityId == Guid.Empty)
+            if (communityId == Guid.Empty)
             {
-                return BadRequest("Community ID is required for retrieving admin community information");
+                return BadRequest(
+                    "Community ID is required for retrieving admin community information"
+                );
             }
 
-            var community = await _communityRepository.GetAdminCommunityInfo(_supabase, userId, communityId);
+            var community = await _communityRepository.GetAdminCommunityInfo(
+                _supabase,
+                userId,
+                communityId
+            );
 
             return Ok(community);
         }
@@ -80,9 +117,19 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// </summary>
         /// <param name="communityId"></param>
         /// <returns></returns>
-        [HttpGet("{userId}/{communityId}")]
-        public async Task<IActionResult> GetCommunity(Guid userId, Guid communityId)
+        [HttpGet("{communityId}")]
+        public async Task<IActionResult> GetCommunity(Guid communityId)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            var user = _userCacheService.GetLoggedInUser();
+            if (user == null)
+                return Unauthorized("User must be logged in to view community details.");
+
+            Guid.TryParse(user.Id?.ToString(), out Guid userId);
+
             // Input validation
             if (communityId == Guid.Empty)
             {
@@ -97,14 +144,19 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <summary>
         /// Create a community
         /// </summary>
-        /// <param name="userId"></param>
         /// <param name="data"></param>
         /// <returns></returns>
-        [HttpPost("{userId}")]
+        [HttpPost]
         public async Task<IActionResult> CreateCommunity(
-                [FromRoute] Guid userId,
-                [FromBody] AlSaqrUpsertRequest<CreateCommunityFormDto> request)
+            [FromBody] AlSaqrUpsertRequest<CreateCommunityFormDto> request
+        )
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            var user = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(user?.Id?.ToString(), out Guid userId);
             var data = request.Values;
             if (userId == Guid.Empty)
             {
@@ -120,23 +172,28 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             _socialMediaCacheService.ClearInitialCommunities(userId);
 
-
             return Ok(new { success = true });
         }
 
         /// <summary>
         /// Update a community
         /// </summary>
-        /// <param name="userId"></param>
         /// <param name="communityId"></param>
         /// <param name="request"></param>
         /// <returns></returns>
-        [HttpPut("{userId}/{communityId}")]
+        [HttpPut("{communityId}")]
         public async Task<IActionResult> UpdateCommunity(
-            Guid userId,
             Guid communityId,
-            [FromBody] AlSaqrUpsertRequest<UpdateCommunityForm> request)
+            [FromBody] AlSaqrUpsertRequest<UpdateCommunityForm> request
+        )
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            var user = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(user?.Id?.ToString(), out Guid userId);
+
             var data = request.Values;
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
@@ -155,18 +212,20 @@ namespace AlSaqr.API.Controllers.SocialMedia
             return Ok(new { succcess = true });
         }
 
-
         /// <summary>
         /// Delete a community
         /// </summary>
-        /// <param name="userId"></param>
         /// <param name="communityId"></param>
         /// <returns></returns>
-        [HttpDelete("{userId}/{communityId}")]
-        public async Task<IActionResult> DeleteCommunity(
-            Guid userId,
-            Guid communityId)
+        [HttpDelete("{communityId}")]
+        public async Task<IActionResult> DeleteCommunity(Guid communityId)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            var user = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(user?.Id?.ToString(), out Guid userId);
 
             if (userId == Guid.Empty)
             {
@@ -186,28 +245,36 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// Join a public community.
         /// Migrated from Neo4j MERGE (user)-[:JOINED]->(community) + notification.
         /// </summary>
-        [HttpPatch("{userId}/{communityId}/join")]
+        [HttpPatch("{communityId}/join")]
         public async Task<IActionResult> JoinCommunity(
-            string userId,
-            string communityId,
-            [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request)
+            Guid communityId,
+            [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request
+        )
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            var user = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(user?.Id?.ToString(), out Guid userId);
+
             var data = request.Values;
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
-            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId)
-                || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
+            if (
+                userId == Guid.Empty
+                || communityId == Guid.Empty
+                || string.IsNullOrEmpty(data.Email)
+                || string.IsNullOrEmpty(data.Username)
+            )
             {
                 return BadRequest("Missing required fields");
             }
 
-            if (!Guid.TryParse(userId, out var userGuid) || !Guid.TryParse(communityId, out var communityGuid))
-                return BadRequest("User ID and Community ID must be valid GUIDs");
-
             try
             {
-                await _communityMemberRepository.JoinCommunity(_supabase, userGuid, communityGuid, ct);
+                await _communityMemberRepository.JoinCommunity(_supabase, userId, communityId, ct);
                 return Ok(new { success = true, message = "Joined Successfully" });
             }
             catch (Exception err)
@@ -219,29 +286,41 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
         /// <summary>
         /// Unjoin a community.
-        /// Migrated from Neo4j delete of INVITED/JOINED relationships + notification.
         /// </summary>
-        [HttpPatch("{userId}/{communityId}/unjoin")]
+        [HttpPatch("{communityId}/unjoin")]
         public async Task<IActionResult> UnJoinCommunity(
-            string userId,
-            string communityId,
-            [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request)
+            Guid communityId,
+            [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request
+        )
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            var user = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(user?.Id?.ToString(), out Guid userId);
+
             var data = request.Values;
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
-            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(communityId)
-                || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
+            if (
+                userId == Guid.Empty
+                || communityId == Guid.Empty
+                || string.IsNullOrEmpty(data.Email)
+                || string.IsNullOrEmpty(data.Username)
+            )
             {
                 return BadRequest("Missing required fields");
             }
 
-            if (!Guid.TryParse(userId, out var userGuid) || !Guid.TryParse(communityId, out var communityGuid))
-                return BadRequest("User ID and Community ID must be valid GUIDs");
-
             try
             {
-                await _communityMemberRepository.UnJoinCommunity(_supabase, userGuid, communityGuid, ct);
+                await _communityMemberRepository.UnJoinCommunity(
+                    _supabase,
+                    userId,
+                    communityId,
+                    ct
+                );
                 return Ok(new { success = true, message = "Left community Successfully" });
             }
             catch (Exception err)
@@ -255,18 +334,29 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// Create a request to join a community.
         /// Migrated from Neo4j MERGE (community)-[:INVITE_REQUESTED]->(user) + notification.
         /// </summary>
-        [HttpPost("{userId}/{communityId}/request-join")]
+        [HttpPost("{communityId}/request-join")]
         public async Task<IActionResult> PostRequestJoin(
-            Guid userId,
             Guid communityId,
-            [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request)
+            [FromBody] AlSaqrUpsertRequest<CommunityInviteConfirmationDto> request
+        )
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            var user = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(user?.Id?.ToString(), out Guid userId);
+
             var data = request.Values;
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
 
-            if (userId == Guid.Empty || communityId == Guid.Empty
-                || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
+            if (
+                userId == Guid.Empty
+                || communityId == Guid.Empty
+                || string.IsNullOrEmpty(data.Email)
+                || string.IsNullOrEmpty(data.Username)
+            )
             {
                 return BadRequest("Missing required fields");
             }
@@ -276,13 +366,23 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             try
             {
-                await _communityMemberRepository.RequestJoinCommunity(_supabase, userId, communityId, ct);
-                return Ok(new { success = true, message = "Request to join community successfully." });
+                await _communityMemberRepository.RequestJoinCommunity(
+                    _supabase,
+                    userId,
+                    communityId,
+                    ct
+                );
+                return Ok(
+                    new { success = true, message = "Request to join community successfully." }
+                );
             }
             catch (Exception err)
             {
                 _logger.LogError(err, "Request to join community error!");
-                return StatusCode(500, new { message = "Request to join community error!", success = false });
+                return StatusCode(
+                    500,
+                    new { message = "Request to join community error!", success = false }
+                );
             }
         }
 
@@ -290,12 +390,19 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// Accept or deny a request to join a community.
         /// Migrated from Neo4j accept/deny MERGE/notification + INVITE_REQUESTED cleanup.
         /// </summary>
-        [HttpPatch("{userId}/{communityId}/request-join")]
+        [HttpPatch("{communityId}/request-join")]
         public async Task<IActionResult> RequestJoin(
-            Guid userId,
             Guid communityId,
-            [FromBody] AlSaqrUpsertRequest<AcceptOrDenyCommunityInviteConfirmationDto> request)
+            [FromBody] AlSaqrUpsertRequest<AcceptOrDenyCommunityInviteConfirmationDto> request
+        )
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            var user = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(user?.Id?.ToString(), out Guid userId);
+
             var data = request.Values;
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
@@ -318,7 +425,14 @@ namespace AlSaqr.API.Controllers.SocialMedia
             catch (Exception err)
             {
                 _logger.LogError(err, "Error accepting or deny request to join community!");
-                return StatusCode(500, new { message = "Error accepting or deny request to join community!", success = false });
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        message = "Error accepting or deny request to join community!",
+                        success = false,
+                    }
+                );
             }
         }
     }

@@ -10,7 +10,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
 {
     [ApiController]
     [Route("[controller]")]
-    public class CommunityDiscussionController : ControllerBase
+    public class CommunityDiscussionController : AuthorizedControllerBase
     {
 
         private readonly ILogger<CommunityDiscussionController> _logger;
@@ -109,10 +109,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid communityDiscussionId,
             [FromBody] AlSaqrUpsertRequest<CommunityDiscussionInviteConfirmationDto> request)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (loggedInUser == null)
-                return Unauthorized("Must be logged in to join a community discussion");
-            Guid.TryParse(loggedInUser.Id?.ToString(), out var userId);
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
             
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
@@ -144,10 +146,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid communityDiscussionId,
             [FromBody] AlSaqrUpsertRequest<CommunityDiscussionInviteConfirmationDto> request)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (loggedInUser == null)
-                return Unauthorized("Must be logged unjoin from a community discussion.");
-            Guid.TryParse(loggedInUser.Id?.ToString(), out var userId);
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
 
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
@@ -176,12 +180,14 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid communityId,
             [FromBody] AlSaqrUpsertRequest<CreateCommunityDiscussionForm> request)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (loggedInUser == null)
-                return Unauthorized("Must be logged in to create community discussions");
             if (communityId == Guid.Empty)
                 return BadRequest("Community ID is required");
-            Guid.TryParse(loggedInUser.Id?.ToString(), out Guid userId);
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out Guid userId);
 
             var data = request.Values;
             if (string.IsNullOrEmpty(data?.Name))
@@ -207,12 +213,14 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid communityDiscussionId,
             [FromBody] AlSaqrUpsertRequest<UpdateCommunityDiscussionForm> request)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (loggedInUser == null)
-                return Unauthorized("Must be logged in to update community discussions");
             if (communityDiscussionId == Guid.Empty)
                 return BadRequest("Community Discussion ID is required");
-            Guid.TryParse(loggedInUser.Id?.ToString(), out Guid userId);
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out Guid userId);
 
             var data = request.Values;
 
@@ -233,10 +241,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid communityId,
             Guid communityDiscussionId)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (loggedInUser == null)
-                return Unauthorized("Must be logged in to delete community discussions");
-            Guid.TryParse(loggedInUser.Id?.ToString(), out var userId);
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
 
             if (communityId == Guid.Empty)
                 return BadRequest("Community ID is required for deleting a community discussion.");
@@ -263,10 +273,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid communityDiscussionId,
             [FromBody] AlSaqrUpsertRequest<CommunityDiscussionInviteConfirmationDto> request)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (loggedInUser == null)
-                return Unauthorized("Must be logged in to request to join a community discussion.");
-            Guid.TryParse(loggedInUser.Id?.ToString(), out var userId);
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
 
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
@@ -298,10 +310,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid communityDiscussionId,
             [FromBody] AlSaqrUpsertRequest<AcceptOrDenyCommunityDiscussionInviteConfirmationDto> request)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (loggedInUser == null)
-                return Unauthorized("Must be logged in to respond to a join request to a community discussion.");
-            Guid.TryParse(loggedInUser.Id?.ToString(), out var userId);
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
 
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
@@ -396,10 +410,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
             Guid communityDiscussionId,
             [FromBody] AlSaqrUpsertRequest<CreateCommunityDiscussionMessageForm> request)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var loggedInUser = _userCacheService.GetLoggedInUser();
-            if (loggedInUser == null)
-                return Unauthorized("Must be logged in to create a community discussion message.");
-            Guid.TryParse(loggedInUser.Id?.ToString(), out var userId);
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
 
             var data = request.Values;
 

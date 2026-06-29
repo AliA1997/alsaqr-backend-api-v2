@@ -1,33 +1,53 @@
-# Specification: Profile — Integrate Access Token logic
-
+# Specification: Integrate Access Token logic
 
 ## Overview
 
-When a user is upserting an event or group, it would check if the user is logged in, and their access token is not expired via the Bearer Token passed into the header.
+Whenever a user upserts an entity, the request MUST carry a valid (unexpired) Bearer
+access token in the `Authorization` header. This replaces the old "is the user logged in?"
+check.
 
-1. Access token accessed from request header.
-2. If it exists continue, else check the expiration. If it's not expired, then continue.
+This applies to **every upsert across the project**, including:
 
-This will replace all logged in logic such as this:
-``` csharp
-            var loggedInUser = _userCacheService.GetLoggedInUser();
+- User
+- Post
+- Community
+- Community discussion
+- Community discussion message
+- Message
+- Group, Event, Local guide (already implemented)
 
-            if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
-                return Unauthorized("User must be logged in to create a post.");
+1. Read the access token from the `Authorization` request header.
+2. If it is missing or expired, reject the request. Otherwise, continue.
 
-            if (loggedInUser.Id == Guid.Empty)
-            {
-                return BadRequest("User ID is required");
-            }
-``` 
-with logic checking access token passed in, and expiration date.
+## Rules
 
+1. Any controller with an upsert (POST / PUT / PATCH / DELETE) action MUST derive from
+   `AuthorizedControllerBase` and call `ValidateAccessToken()` at the top of that action.
+2. Replace logged-in checks like the one below with the access-token check:
+
+   ```csharp
+   var loggedInUser = _userCacheService.GetLoggedInUser();
+   if (loggedInUser == null || loggedInUser.Id == Guid.Empty)
+       return Unauthorized("User must be logged in to create a post.");
+   ```
+
+   with:
+
+   ```csharp
+   var authError = ValidateAccessToken();
+   if (authError != null)
+       return authError;
+   ```
+
+   Note: the access token gates the request; the acting user's identity still comes from
+   the user cache where an action needs it.
 
 ## Acceptance
-When creating a new group if an access token is not provided, it should not continue the request. 
-When creating a new group if an access token is expired, it should not continue the request.
 
+- Upserting an entity without an access token MUST NOT continue the request.
+- Upserting an entity with an expired access token MUST NOT continue the request.
 
-## Out of scope (deferred to later phases)
-Don't replace all functionality, this just applied to groups, events, and localguides controllers.
+## Out of scope
 
+- Read-only (GET) endpoints.
+- Signature verification of the token (the gate only checks presence and expiration).

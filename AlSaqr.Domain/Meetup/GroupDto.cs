@@ -32,7 +32,10 @@ namespace AlSaqr.Domain.Meetup
         [JsonProperty("hq_latitude")]
 
         public decimal? Latitude { get; set; }
+        [JsonProperty("founder_id")]
+        public Guid? FounderId { get; set; }
         [JsonProperty("distance_km")]
         public decimal? DistanceKm { get; set; }
+
     }
 }

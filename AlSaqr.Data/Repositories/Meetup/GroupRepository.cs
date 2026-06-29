@@ -1,4 +1,5 @@
-﻿using AlSaqr.Data.Entities.Meetup;
+﻿using System.Text.RegularExpressions;
+using AlSaqr.Data.Entities.Meetup;
 using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Meetup.Impl;
@@ -10,12 +11,9 @@ using static Supabase.Postgrest.Constants;
 
 namespace AlSaqr.Data.Repositories.Meetup
 {
-    public class GroupRepository: IGroupRepository
+    public class GroupRepository : IGroupRepository
     {
-
-        public GroupRepository() 
-        {
-        }
+        public GroupRepository() { }
 
         public async Task<PaginatedResult<GroupDto>> GetNearbyGroups(
             Supabase.Client client,
@@ -24,7 +22,8 @@ namespace AlSaqr.Data.Repositories.Meetup
             int currentPage,
             int itemsPerPage,
             string? searchTerm,
-            double? maxDistanceKm)
+            double? maxDistanceKm
+        )
         {
             var groups = new List<GroupDto>();
             var functionName = "get_nearby_groups";
@@ -35,19 +34,22 @@ namespace AlSaqr.Data.Repositories.Meetup
             {
                 int totalItems;
                 IDictionary<string, object> functionParams = SupabaseHelper.DefineGetGroupsParams(
-                            latitude: latitude,
-                            longitude: longitude,
-                            skip: skip,
-                            currentPage: currentPage,
-                            itemsPerPage: itemsPerPage,
-                            maxDistanceKm: maxDistanceKm,
-                            searchTerm: searchTerm
+                    latitude: latitude,
+                    longitude: longitude,
+                    skip: skip,
+                    currentPage: currentPage,
+                    itemsPerPage: itemsPerPage,
+                    maxDistanceKm: maxDistanceKm,
+                    searchTerm: searchTerm
                 );
 
                 groups = JsonConvert.DeserializeObject<List<GroupDto>>(
                     await SupabaseHelper.CallFunction(client, functionName, functionParams)
                 );
-                var parsedSuccessfully = int.TryParse(await SupabaseHelper.CallFunction(client, pagingFunctionName, functionParams), out var total);
+                var parsedSuccessfully = int.TryParse(
+                    await SupabaseHelper.CallFunction(client, pagingFunctionName, functionParams),
+                    out var total
+                );
                 totalItems = parsedSuccessfully ? total : 0;
 
                 pagination = new Pagination
@@ -55,7 +57,7 @@ namespace AlSaqr.Data.Repositories.Meetup
                     ItemsPerPage = itemsPerPage,
                     CurrentPage = currentPage,
                     TotalItems = totalItems,
-                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
+                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage),
                 };
             }
             catch (Exception ex)
@@ -64,7 +66,6 @@ namespace AlSaqr.Data.Repositories.Meetup
             }
 
             return new PaginatedResult<GroupDto>(groups ?? new List<GroupDto>(), pagination!);
-
         }
 
         public async Task<PaginatedResult<GroupDto>> GetMyGroups(
@@ -75,7 +76,8 @@ namespace AlSaqr.Data.Repositories.Meetup
             int itemsPerPage,
             string userId,
             string? searchTerm,
-            double? maxDistanceKm)
+            double? maxDistanceKm
+        )
         {
             var groups = new List<GroupDto>();
             var functionName = "get_my_groups";
@@ -85,28 +87,37 @@ namespace AlSaqr.Data.Repositories.Meetup
             try
             {
                 int totalItems;
-                IDictionary<string, object> functionParams = SupabaseHelper.DefineGetMyEventsOrGroupsParams(
-                            userId: userId,
-                            latitude: latitude,
-                            longitude: longitude,
-                            skip: skip,
-                            currentPage: currentPage,
-                            itemsPerPage: itemsPerPage,
-                            maxDistanceKm: null,
-                            searchTerm: searchTerm
-                );
-                IDictionary<string, object> pagingFunctionParams = SupabaseHelper.DefinePagingGetMyEventsOrGroupsParams(
-                    userId: userId,
-                    latitude: latitude,
-                    longitude: longitude,
-                    maxDistanceKm: null,
-                    searchTerm: searchTerm
-                );
+                IDictionary<string, object> functionParams =
+                    SupabaseHelper.DefineGetMyEventsOrGroupsParams(
+                        userId: userId,
+                        latitude: latitude,
+                        longitude: longitude,
+                        skip: skip,
+                        currentPage: currentPage,
+                        itemsPerPage: itemsPerPage,
+                        maxDistanceKm: null,
+                        searchTerm: searchTerm
+                    );
+                IDictionary<string, object> pagingFunctionParams =
+                    SupabaseHelper.DefinePagingGetMyEventsOrGroupsParams(
+                        userId: userId,
+                        latitude: latitude,
+                        longitude: longitude,
+                        maxDistanceKm: null,
+                        searchTerm: searchTerm
+                    );
 
                 groups = JsonConvert.DeserializeObject<List<GroupDto>>(
                     await SupabaseHelper.CallFunction(client, functionName, functionParams)
                 );
-                var parsedSuccessfully = int.TryParse(await SupabaseHelper.CallFunction(client, pagingFunctionName, pagingFunctionParams), out var total);
+                var parsedSuccessfully = int.TryParse(
+                    await SupabaseHelper.CallFunction(
+                        client,
+                        pagingFunctionName,
+                        pagingFunctionParams
+                    ),
+                    out var total
+                );
                 totalItems = parsedSuccessfully ? total : 0;
 
                 pagination = new Pagination
@@ -114,7 +125,7 @@ namespace AlSaqr.Data.Repositories.Meetup
                     ItemsPerPage = itemsPerPage,
                     CurrentPage = currentPage,
                     TotalItems = totalItems,
-                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
+                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage),
                 };
             }
             catch (Exception ex)
@@ -135,7 +146,8 @@ namespace AlSaqr.Data.Repositories.Meetup
             string username,
             int currentPage,
             int itemsPerPage,
-            string? searchTerm)
+            string? searchTerm
+        )
         {
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
@@ -157,9 +169,12 @@ namespace AlSaqr.Data.Repositories.Meetup
                 baseQuery = baseQuery.Filter("group_name", Operator.ILike, $"%{searchTerm}%");
             }
 
-            var result = await SupabaseHelper.CallFunction(client, "get_profile_groups_count", totalParams);
+            var result = await SupabaseHelper.CallFunction(
+                client,
+                "get_profile_groups_count",
+                totalParams
+            );
             var totalItems = result != null ? long.Parse(result) : 0;
-
 
             if (totalItems == 0)
             {
@@ -170,22 +185,21 @@ namespace AlSaqr.Data.Repositories.Meetup
                         ItemsPerPage = itemsPerPage,
                         CurrentPage = currentPage,
                         TotalItems = 0,
-                        TotalPages = 0
+                        TotalPages = 0,
                     }
                 );
             }
 
             joinedGroups = (await baseQuery.Range(skip, skip + itemsPerPage - 1).Get(ct))
-                            .Models
-                            .Select(vwJoinedGroup => new JoinedGroupDto(vwJoinedGroup))
-                            .ToList();
+                .Models.Select(vwJoinedGroup => new JoinedGroupDto(vwJoinedGroup))
+                .ToList();
 
             pagination = new Pagination
             {
                 ItemsPerPage = itemsPerPage,
                 CurrentPage = currentPage,
                 TotalItems = (int)totalItems,
-                TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
+                TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage),
             };
 
             return new PaginatedResult<JoinedGroupDto>(joinedGroups, pagination);
@@ -195,18 +209,20 @@ namespace AlSaqr.Data.Repositories.Meetup
             Supabase.Client client,
             Guid groupId,
             string latitude,
-            string longitude)
+            string longitude
+        )
         {
             var similarGroups = new List<SimilarGroupDto>();
             var functionName = "get_similar_groups";
             try
             {
                 int totalItems;
-                IDictionary<string, object> functionParams = SupabaseHelper.DefineGetSimilarGroupsParams(
-                            groupId: groupId,
-                            latitude: latitude,
-                            longitude: longitude
-                );
+                IDictionary<string, object> functionParams =
+                    SupabaseHelper.DefineGetSimilarGroupsParams(
+                        groupId: groupId,
+                        latitude: latitude,
+                        longitude: longitude
+                    );
 
                 similarGroups = JsonConvert.DeserializeObject<List<SimilarGroupDto>>(
                     await SupabaseHelper.CallFunction(client, functionName, functionParams)
@@ -221,51 +237,62 @@ namespace AlSaqr.Data.Repositories.Meetup
         }
 
         public async Task<Groups> CreateGroup(
-            Supabase.Client client, 
-            CreateGroupForm form, 
-            Guid userId, 
-            Guid organizerId, 
+            Supabase.Client client,
+            CreateGroupForm form,
+            Guid userId,
+            Guid organizerId,
             Guid cityId,
-            CancellationToken ct)
+            CancellationToken ct
+        )
         {
             Groups? insertedGroup = null;
             try
             {
-
-                //var recentInsertedId = await client.From<Groups>().Count(CountType.Estimated);
-                //var recentInsertedGroupAttendee = await client.From<GroupAttendees>().Count(CountType.Estimated);
+                string groupSlug = Regex
+                    .Replace(input: form.Name!, pattern: @"[^a-zA-Z0-9]", replacement: "_")
+                    .ToLower();
 
                 var model = new Groups()
                 {
                     Id = Guid.NewGuid(),
                     Name = form.Name,
+                    Slug = groupSlug,
                     Description = form.Description,
                     Images = form.Images ?? new string[] { },
                     HqCityId = cityId,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    FounderId = userId
                 };
 
+                insertedGroup = (
+                    await client
+                        .From<Groups>()
+                        .Upsert(
+                            model,
+                            new QueryOptions()
+                            {
+                                Returning = QueryOptions.ReturnType.Representation,
+                            }
+                        )
+                ).Model;
 
-                insertedGroup = (await client.From<Groups>().Upsert(model, new QueryOptions()
-                {
-                    Returning = QueryOptions.ReturnType.Representation,
-                })).Model;
+                await client
+                    .From<GroupAttendees>()
+                    .Upsert(
+                        new GroupAttendees()
+                        {
+                            Id = Guid.NewGuid(),
+                            GroupId = insertedGroup.Id,
+                            AttendeeId = organizerId,
+                            IsGroupOrganizer = true,
+                            CreatedAt = DateTime.UtcNow,
+                        },
+                        null,
+                        ct
+                    );
 
-                await client.From<GroupAttendees>().Upsert(
-                    new GroupAttendees()
-                    {
-                        Id = Guid.NewGuid(),
-                        GroupId = insertedGroup.Id,
-                        AttendeeId = organizerId,
-                        IsGroupOrganizer = true,
-                        CreatedAt = DateTime.UtcNow
-                    },
-                    null, 
-                    ct
-                );
-                
                 await CreateGroupNotification(
-                    client, 
+                    client,
                     organizerId,
                     insertedGroup.Id,
                     "Created group with a name of {group}",
@@ -277,10 +304,7 @@ namespace AlSaqr.Data.Repositories.Meetup
             {
                 Console.WriteLine("Error creating group in repository layer:", ex.Message);
             }
-            finally
-            {
-
-            }
+            finally { }
             return insertedGroup!;
         }
 
@@ -293,25 +317,36 @@ namespace AlSaqr.Data.Repositories.Meetup
             var groupDetails = new GroupDto();
             try
             {
-                events = (await client.From<VwEvent>()
-                                        .Filter("group_id", Supabase.Postgrest.Constants.Operator.Equals, groupId.ToString())
-                                        .Limit(10)
-                                        .Get()).Models.Select(sr => new EventDto()
-                                        {
-                                            Id = sr.Id,
-                                            Slug = sr.Slug,
-                                            GroupId = sr.GroupId,
-                                            GroupName = sr.GroupName,
-                                            Name = sr.Name,
-                                            Description = sr.Description,
-                                            CitiesHosted = sr.CitiesHosted,
-                                            Images = sr.Images,
-                                            DistanceKm = 0
-                                        }).ToList();
+                events = (
+                    await client
+                        .From<VwEvent>()
+                        .Filter(
+                            "group_id",
+                            Supabase.Postgrest.Constants.Operator.Equals,
+                            groupId.ToString()
+                        )
+                        .Limit(10)
+                        .Get()
+                )
+                    .Models.Select(sr => new EventDto()
+                    {
+                        Id = sr.Id,
+                        Slug = sr.Slug,
+                        GroupId = sr.GroupId,
+                        GroupName = sr.GroupName,
+                        GroupFounderId = sr.GroupFounderId,
+                        Name = sr.Name,
+                        Description = sr.Description,
+                        CitiesHosted = sr.CitiesHosted,
+                        Images = sr.Images,
+                        DistanceKm = 0,
+                    })
+                    .ToList();
 
-                var groupResult = await client.From<VwGroup>()
-                                        .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, groupId.ToString())
-                                        .Single();
+                var groupResult = await client
+                    .From<VwGroup>()
+                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, groupId.ToString())
+                    .Single();
 
                 if (groupResult == null)
                     throw new Exception("Group does not exist");
@@ -327,10 +362,9 @@ namespace AlSaqr.Data.Repositories.Meetup
                     Country = groupResult.HqCountry,
                     Attendees = groupResult.Attendees,
                     Images = groupResult.Images,
-                    Topics = groupResult.Topics
+                    Topics = groupResult.Topics,
+                    FounderId = groupResult?.FounderId ?? null
                 };
-
-            
             }
             catch (Exception ex)
             {
@@ -346,7 +380,8 @@ namespace AlSaqr.Data.Repositories.Meetup
             Guid userId,
             UpsertGroupForm form,
             Guid? cityId,
-            CancellationToken ct)
+            CancellationToken ct
+        )
         {
             var existing = await client.From<Groups>().Where(g => g.Id == groupId).Single(ct);
             if (existing == null)
@@ -359,9 +394,16 @@ namespace AlSaqr.Data.Repositories.Meetup
             if (cityId.HasValue)
                 existing.HqCityId = cityId;
 
-            var updated = (await client.From<Groups>()
-                .Where(g => g.Id == existing.Id)
-                .Upsert(existing, new QueryOptions { Returning = QueryOptions.ReturnType.Representation }, ct)).Model;
+            var updated = (
+                await client
+                    .From<Groups>()
+                    .Where(g => g.Id == existing.Id)
+                    .Upsert(
+                        existing,
+                        new QueryOptions { Returning = QueryOptions.ReturnType.Representation },
+                        ct
+                    )
+            ).Model;
 
             await CreateGroupNotification(
                 client,
@@ -369,7 +411,8 @@ namespace AlSaqr.Data.Repositories.Meetup
                 existing.Id,
                 "Updated group with a name of {group}",
                 "group_updated",
-                ct);
+                ct
+            );
 
             return updated!;
         }
@@ -378,7 +421,8 @@ namespace AlSaqr.Data.Repositories.Meetup
             Supabase.Client client,
             Guid groupId,
             Guid userId,
-            CancellationToken ct)
+            CancellationToken ct
+        )
         {
             var existing = await client.From<Groups>().Where(g => g.Id == groupId).Single(ct);
             if (existing == null)
@@ -386,7 +430,9 @@ namespace AlSaqr.Data.Repositories.Meetup
 
             // Only the group founder may delete the group (spec).
             if (!await SupabaseHelper.IsGroupFounder(client, groupId, userId, ct))
-                throw new UnauthorizedAccessException("Only the group founder can delete this group.");
+                throw new UnauthorizedAccessException(
+                    "Only the group founder can delete this group."
+                );
 
             // Notify first, while the group row (and its name) still exists.
             await CreateGroupNotification(
@@ -395,7 +441,8 @@ namespace AlSaqr.Data.Repositories.Meetup
                 groupId,
                 "Deleted group with a name of {group}",
                 "group_deleted",
-                ct);
+                ct
+            );
 
             // Remove join rows that reference the group before deleting it.
             await client.From<GroupAttendees>().Where(ga => ga.GroupId == groupId).Delete();
@@ -411,13 +458,11 @@ namespace AlSaqr.Data.Repositories.Meetup
             Guid userId,
             Guid groupId,
             string messageTemplate,
-            string notificationType, 
-            CancellationToken ct)
+            string notificationType,
+            CancellationToken ct
+        )
         {
-            var newGroup = await supabase
-                .From<Groups>()
-                .Where(c => c.Id == groupId)
-                .Single(ct);
+            var newGroup = await supabase.From<Groups>().Where(c => c.Id == groupId).Single(ct);
 
             if (newGroup == null)
                 return;
@@ -429,8 +474,7 @@ namespace AlSaqr.Data.Repositories.Meetup
 
             var username = actingUser?.Username ?? "Someone";
 
-            var message = messageTemplate
-                .Replace("{group}", newGroup.Name);
+            var message = messageTemplate.Replace("{group}", newGroup.Name);
 
             var notification = new Notification
             {
@@ -446,11 +490,14 @@ namespace AlSaqr.Data.Repositories.Meetup
 
             var created = await supabase
                 .From<Notification>()
-                .Insert(notification, new QueryOptions { Returning = QueryOptions.ReturnType.Minimal }, ct);
+                .Insert(
+                    notification,
+                    new QueryOptions { Returning = QueryOptions.ReturnType.Minimal },
+                    ct
+                );
 
             if (created == null)
                 throw new Exception("Error creating notification");
         }
-
     }
 }

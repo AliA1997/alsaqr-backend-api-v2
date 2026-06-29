@@ -21,5 +21,7 @@ namespace AlSaqr.Data.Entities.Meetup
         public DateTime CreatedAt { get; set; }
         [Column("hq_city_id")]
         public Guid? HqCityId { get; set; }
+        [Column("founder_id")]
+        public Guid? FounderId { get; set; }
     }
 }

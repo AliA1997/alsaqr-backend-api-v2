@@ -1,61 +1,87 @@
-﻿
-using AlSaqr.Data.Entities.Meetup;
+﻿using AlSaqr.Data.Entities.Meetup;
 using AlSaqr.Data.Repositories.Meetup.Impl;
 using Supabase.Postgrest;
 using static Supabase.Postgrest.Constants;
 
 namespace AlSaqr.Data.Repositories.Meetup
 {
-    public class AttendeeRepository: IAttendeeRepository
+    public class AttendeeRepository : IAttendeeRepository
     {
         public AttendeeRepository() { }
 
-        public async Task<Attendee> InsertOrRetrieveAttendee(Supabase.Client client, string name, Guid userId)
+        public async Task<Attendee> InsertOrRetrieveAttendee(
+            Supabase.Client client,
+            string name,
+            Guid userId
+        )
         {
             Attendee? attendee = null;
             try
             {
-                attendee = (await client.From<Attendee>().Filter("user_id", Operator.Equals, userId.ToString()).Get()).Model;
+                attendee = (
+                    await client
+                        .From<Attendee>()
+                        .Filter("user_id", Operator.Equals, userId.ToString())
+                        .Get()
+                ).Model;
                 if (attendee == null)
                 {
                     //var recentlyInsertedAttendeeId = await client.From<Attendee>().Count(CountType.Estimated);
                     attendee = (
-                        await client.From<Attendee>().Upsert(new Attendee()
-                        {
-                            Id = Guid.NewGuid(),
-                            Name = name,
-                            UserId = userId,
-                            CreatedAt = DateTime.UtcNow
-                        }, new QueryOptions() { Returning = QueryOptions.ReturnType.Representation })).Model;
-
+                        await client
+                            .From<Attendee>()
+                            .Upsert(
+                                new Attendee()
+                                {
+                                    Id = Guid.NewGuid(),
+                                    Name = name,
+                                    UserId = userId,
+                                    CreatedAt = DateTime.UtcNow,
+                                },
+                                new QueryOptions()
+                                {
+                                    Returning = QueryOptions.ReturnType.Representation,
+                                }
+                            )
+                    ).Model;
                 }
-            } catch(Exception ex)
+            }
+            catch (Exception ex)
             {
                 Console.WriteLine("Error getting attendee in repository layer:", ex.Message);
             }
 
             return attendee!;
-
         }
 
-        public async Task InsertGroupAttendees(Supabase.Client client, Guid groupId, List<IDictionary<string, object>> groupAttendees)
+        public async Task InsertGroupAttendees(
+            Supabase.Client client,
+            Guid groupId,
+            List<IDictionary<string, object>> groupAttendees
+        )
         {
-            foreach(var groupAttendee in groupAttendees)
+            foreach (var groupAttendee in groupAttendees)
             {
-                var attendee = await InsertOrRetrieveAttendee(client, groupAttendee["name"].ToString(), Guid.Parse(groupAttendee["id"].ToString()));
-                //var recentInsertedGroupAttendee = await client.From<GroupAttendees>().Count(CountType.Estimated);
-
-                await client.From<GroupAttendees>().Upsert(
-                    new GroupAttendees()
-                    {
-                        Id = Guid.NewGuid(),
-                        GroupId = groupId,
-                        AttendeeId = attendee.Id,
-                        IsGroupOrganizer = false,
-                        CreatedAt = DateTime.UtcNow
-                    }
+                var attendee = await InsertOrRetrieveAttendee(
+                    client,
+                    groupAttendee["name"].ToString(),
+                    Guid.Parse(groupAttendee["user_id"].ToString())
                 );
+
+                await client
+                    .From<GroupAttendees>()
+                    .Upsert(
+                        new GroupAttendees()
+                        {
+                            Id = Guid.NewGuid(),
+                            GroupId = groupId,
+                            AttendeeId = attendee.Id,
+                            IsGroupOrganizer = false,
+                            CreatedAt = DateTime.UtcNow,
+                        }
+                    );
             }
         }
+
     }
 }

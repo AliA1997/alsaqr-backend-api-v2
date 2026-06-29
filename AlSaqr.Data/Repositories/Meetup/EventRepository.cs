@@ -1,4 +1,5 @@
-﻿using AlSaqr.Data.Entities.Meetup;
+﻿using System.Text.RegularExpressions;
+using AlSaqr.Data.Entities.Meetup;
 using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Meetup.Impl;
@@ -10,7 +11,7 @@ using static Supabase.Postgrest.Constants;
 
 namespace AlSaqr.Data.Repositories.Meetup
 {
-    public class EventRepository: IEventRepository
+    public class EventRepository : IEventRepository
     {
         public EventRepository() { }
 
@@ -21,7 +22,8 @@ namespace AlSaqr.Data.Repositories.Meetup
             int currentPage,
             int itemsPerPage,
             string? searchTerm,
-            double? maxDistanceKm)
+            double? maxDistanceKm
+        )
         {
             var events = new List<EventDto>();
             var functionName = "get_nearby_events";
@@ -32,19 +34,22 @@ namespace AlSaqr.Data.Repositories.Meetup
             {
                 int totalItems;
                 IDictionary<string, object> functionParams = SupabaseHelper.DefineGetEventsParams(
-                            latitude: latitude,
-                            longitude: longitude,
-                            skip: skip,
-                            currentPage: currentPage,
-                            itemsPerPage: itemsPerPage,
-                            maxDistanceKm: maxDistanceKm,
-                            searchTerm: searchTerm
+                    latitude: latitude,
+                    longitude: longitude,
+                    skip: skip,
+                    currentPage: currentPage,
+                    itemsPerPage: itemsPerPage,
+                    maxDistanceKm: maxDistanceKm,
+                    searchTerm: searchTerm
                 );
 
                 events = JsonConvert.DeserializeObject<List<EventDto>>(
                     await SupabaseHelper.CallFunction(client, functionName, functionParams)
                 );
-                var parsedSuccessfully = int.TryParse(await SupabaseHelper.CallFunction(client, pagingFunctionName, functionParams), out var total);
+                var parsedSuccessfully = int.TryParse(
+                    await SupabaseHelper.CallFunction(client, pagingFunctionName, functionParams),
+                    out var total
+                );
                 totalItems = parsedSuccessfully ? total : 0;
 
                 pagination = new Pagination
@@ -52,7 +57,7 @@ namespace AlSaqr.Data.Repositories.Meetup
                     ItemsPerPage = itemsPerPage,
                     CurrentPage = currentPage,
                     TotalItems = totalItems,
-                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
+                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage),
                 };
             }
             catch (Exception ex)
@@ -70,7 +75,8 @@ namespace AlSaqr.Data.Repositories.Meetup
             int currentPage,
             int itemsPerPage,
             string? searchTerm,
-            double? maxDistanceKm)
+            double? maxDistanceKm
+        )
         {
             var events = new List<EventDto>();
             var functionName = "get_nearby_online_events";
@@ -81,19 +87,22 @@ namespace AlSaqr.Data.Repositories.Meetup
             {
                 int totalItems;
                 IDictionary<string, object> functionParams = SupabaseHelper.DefineGetEventsParams(
-                            skip: skip,
-                            latitude: latitude,
-                            longitude: longitude,
-                            currentPage: currentPage,
-                            itemsPerPage: itemsPerPage,
-                            maxDistanceKm: null,
-                            searchTerm: string.IsNullOrEmpty(searchTerm) ? null : searchTerm
+                    skip: skip,
+                    latitude: latitude,
+                    longitude: longitude,
+                    currentPage: currentPage,
+                    itemsPerPage: itemsPerPage,
+                    maxDistanceKm: null,
+                    searchTerm: string.IsNullOrEmpty(searchTerm) ? null : searchTerm
                 );
 
                 events = JsonConvert.DeserializeObject<List<EventDto>>(
                     await SupabaseHelper.CallFunction(client, functionName, functionParams)
                 );
-                var parsedSuccessfully = int.TryParse(await SupabaseHelper.CallFunction(client, pagingFunctionName, functionParams), out var total);
+                var parsedSuccessfully = int.TryParse(
+                    await SupabaseHelper.CallFunction(client, pagingFunctionName, functionParams),
+                    out var total
+                );
                 totalItems = parsedSuccessfully ? total : 0;
 
                 pagination = new Pagination
@@ -101,7 +110,7 @@ namespace AlSaqr.Data.Repositories.Meetup
                     ItemsPerPage = itemsPerPage,
                     CurrentPage = currentPage,
                     TotalItems = totalItems,
-                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
+                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage),
                 };
             }
             catch (Exception ex)
@@ -120,7 +129,8 @@ namespace AlSaqr.Data.Repositories.Meetup
             int currentPage,
             int itemsPerPage,
             string? searchTerm,
-            double? maxDistanceKm)
+            double? maxDistanceKm
+        )
         {
             var events = new List<EventDto>();
             var functionName = "get_my_events";
@@ -130,28 +140,37 @@ namespace AlSaqr.Data.Repositories.Meetup
             try
             {
                 int totalItems;
-                IDictionary<string, object> functionParams = SupabaseHelper.DefineGetMyEventsOrGroupsParams(
-                            userId: userId,
-                            latitude: latitude,
-                            longitude: longitude,
-                            skip: skip,
-                            currentPage: currentPage,
-                            itemsPerPage: itemsPerPage,
-                            maxDistanceKm: null,
-                            searchTerm: searchTerm
-                );
-                IDictionary<string, object> pagingFunctionParams = SupabaseHelper.DefinePagingGetMyEventsOrGroupsParams(
-                    userId: userId,
-                    latitude: latitude,
-                    longitude: longitude,
-                    maxDistanceKm: null,
-                    searchTerm: searchTerm
-                );
+                IDictionary<string, object> functionParams =
+                    SupabaseHelper.DefineGetMyEventsOrGroupsParams(
+                        userId: userId,
+                        latitude: latitude,
+                        longitude: longitude,
+                        skip: skip,
+                        currentPage: currentPage,
+                        itemsPerPage: itemsPerPage,
+                        maxDistanceKm: null,
+                        searchTerm: searchTerm
+                    );
+                IDictionary<string, object> pagingFunctionParams =
+                    SupabaseHelper.DefinePagingGetMyEventsOrGroupsParams(
+                        userId: userId,
+                        latitude: latitude,
+                        longitude: longitude,
+                        maxDistanceKm: null,
+                        searchTerm: searchTerm
+                    );
 
                 events = JsonConvert.DeserializeObject<List<EventDto>>(
                     await SupabaseHelper.CallFunction(client, functionName, functionParams)
                 );
-                var parsedSuccessfully = int.TryParse(await SupabaseHelper.CallFunction(client, pagingFunctionName, pagingFunctionParams), out var total);
+                var parsedSuccessfully = int.TryParse(
+                    await SupabaseHelper.CallFunction(
+                        client,
+                        pagingFunctionName,
+                        pagingFunctionParams
+                    ),
+                    out var total
+                );
                 totalItems = parsedSuccessfully ? total : 0;
 
                 pagination = new Pagination
@@ -159,7 +178,7 @@ namespace AlSaqr.Data.Repositories.Meetup
                     ItemsPerPage = itemsPerPage,
                     CurrentPage = currentPage,
                     TotalItems = totalItems,
-                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
+                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage),
                 };
             }
             catch (Exception ex)
@@ -170,17 +189,15 @@ namespace AlSaqr.Data.Repositories.Meetup
             return new PaginatedResult<EventDto>(events ?? new List<EventDto>(), pagination!);
         }
 
-        public async Task<EventDto> GetEventDetails(
-            Supabase.Client client, 
-            Guid eventId
-        )
+        public async Task<EventDto> GetEventDetails(Supabase.Client client, Guid eventId)
         {
             EventDto eventDetails = new EventDto();
             try
             {
-                var eventResult = await client.From<VwEvent>()
-                                        .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, eventId.ToString())
-                                        .Single();
+                var eventResult = await client
+                    .From<VwEvent>()
+                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, eventId.ToString())
+                    .Single();
 
                 eventDetails = new EventDto()
                 {
@@ -192,9 +209,8 @@ namespace AlSaqr.Data.Repositories.Meetup
                     Description = eventResult.Description,
                     CitiesHosted = eventResult.CitiesHosted,
                     Images = eventResult.Images,
-                    DistanceKm = 0
+                    DistanceKm = 0,
                 };
-
             }
             catch (Exception ex)
             {
@@ -209,18 +225,21 @@ namespace AlSaqr.Data.Repositories.Meetup
             string username,
             int currentPage,
             int itemsPerPage,
-            string? searchTerm)
+            string? searchTerm
+        )
         {
             using var cts = new CancellationTokenSource();
             CancellationToken ct = cts.Token;
-            
-            var user = await client.From<AlSaqrUser>().Where(x => x.Username == username).Single(ct);
+
+            var user = await client
+                .From<AlSaqrUser>()
+                .Where(x => x.Username == username)
+                .Single(ct);
             var userId = user.Id;
-            
+
             var attendedEvents = new List<AttendedEventDto>();
             Pagination pagination;
             var skip = (currentPage - 1) * itemsPerPage;
-            
 
             var baseQuery = client.From<VwEventAttendees>().Where(x => x.UserId == userId);
 
@@ -234,9 +253,12 @@ namespace AlSaqr.Data.Repositories.Meetup
                 totalParams.Add("p_search_term", searchTerm);
                 baseQuery = baseQuery.Filter("event_name", Operator.ILike, $"%{searchTerm}%");
             }
-            var result = await SupabaseHelper.CallFunction(client, "get_profile_events_count", totalParams);
+            var result = await SupabaseHelper.CallFunction(
+                client,
+                "get_profile_events_count",
+                totalParams
+            );
             var totalItems = result != null ? long.Parse(result) : 0;
-
 
             if (totalItems == 0)
             {
@@ -247,22 +269,21 @@ namespace AlSaqr.Data.Repositories.Meetup
                         ItemsPerPage = itemsPerPage,
                         CurrentPage = currentPage,
                         TotalItems = 0,
-                        TotalPages = 0
+                        TotalPages = 0,
                     }
                 );
             }
 
             attendedEvents = (await baseQuery.Range(skip, skip + itemsPerPage - 1).Get(ct))
-                            .Models
-                            .Select(vwAttendedEvent => new AttendedEventDto(vwAttendedEvent))
-                            .ToList();
+                .Models.Select(vwAttendedEvent => new AttendedEventDto(vwAttendedEvent))
+                .ToList();
 
             pagination = new Pagination
             {
                 ItemsPerPage = itemsPerPage,
                 CurrentPage = currentPage,
                 TotalItems = (int)totalItems,
-                TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
+                TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage),
             };
 
             return new PaginatedResult<AttendedEventDto>(attendedEvents, pagination);
@@ -272,25 +293,35 @@ namespace AlSaqr.Data.Repositories.Meetup
             Guid userId,
             Supabase.Client client,
             CreateEventForm form,
-            CancellationToken ct)
+            CancellationToken ct
+        )
         {
+            string eventSlug = Regex
+                .Replace(input: form.Name!, pattern: @"[^a-zA-Z0-9]", replacement: "_")
+                .ToLower();
+
             var model = new Event()
             {
                 Id = Guid.NewGuid(),
                 Name = form.Name,
+                Slug = eventSlug,
                 Description = form.Description,
                 Images = form.Images ?? new string[] { },
                 GroupId = form.GroupId,
                 IsOnline = form.IsOnline,
                 TimesOccurred = 0,
                 LastOccurredAt = form.DateToOccur,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
             };
 
-            var insertedEvent = (await client.From<Event>().Upsert(model, new QueryOptions()
-            {
-                Returning = QueryOptions.ReturnType.Representation,
-            })).Model;
+            var insertedEvent = (
+                await client
+                    .From<Event>()
+                    .Upsert(
+                        model,
+                        new QueryOptions() { Returning = QueryOptions.ReturnType.Representation }
+                    )
+            ).Model;
 
             await CreateEventNotification(
                 client,
@@ -309,7 +340,8 @@ namespace AlSaqr.Data.Repositories.Meetup
             Guid eventId,
             Guid userId,
             UpsertEventForm form,
-            CancellationToken ct)
+            CancellationToken ct
+        )
         {
             var existing = await client.From<Event>().Where(e => e.Id == eventId).Single(ct);
             if (existing == null)
@@ -326,9 +358,16 @@ namespace AlSaqr.Data.Repositories.Meetup
                 existing.GroupId = form.GroupId;
             existing.UpdatedAt = DateTime.UtcNow;
 
-            var updated = (await client.From<Event>()
-                .Where(e => e.Id == existing.Id)
-                .Upsert(existing, new QueryOptions { Returning = QueryOptions.ReturnType.Representation }, ct)).Model;
+            var updated = (
+                await client
+                    .From<Event>()
+                    .Where(e => e.Id == existing.Id)
+                    .Upsert(
+                        existing,
+                        new QueryOptions { Returning = QueryOptions.ReturnType.Representation },
+                        ct
+                    )
+            ).Model;
 
             await CreateEventNotification(
                 client,
@@ -336,7 +375,8 @@ namespace AlSaqr.Data.Repositories.Meetup
                 existing.Id,
                 "Updated event with a name of {event}",
                 "event_updated",
-                ct);
+                ct
+            );
 
             return updated!;
         }
@@ -345,16 +385,21 @@ namespace AlSaqr.Data.Repositories.Meetup
             Supabase.Client client,
             Guid eventId,
             Guid userId,
-            CancellationToken ct)
+            CancellationToken ct
+        )
         {
             var existing = await client.From<Event>().Where(e => e.Id == eventId).Single(ct);
             if (existing == null)
                 throw new Exception("Event not found");
 
             // Events are children of groups, so the parent group's founder may delete them (spec).
-            if (existing.GroupId == null
-                || !await SupabaseHelper.IsGroupFounder(client, existing.GroupId.Value, userId, ct))
-                throw new UnauthorizedAccessException("Only the group founder can delete this event.");
+            if (
+                existing.GroupId == null
+                || !await SupabaseHelper.IsGroupFounder(client, existing.GroupId.Value, userId, ct)
+            )
+                throw new UnauthorizedAccessException(
+                    "Only the group founder can delete this event."
+                );
 
             // Notify first, while the event row (and its name) still exists.
             await CreateEventNotification(
@@ -363,7 +408,8 @@ namespace AlSaqr.Data.Repositories.Meetup
                 eventId,
                 "Deleted event with a name of {event}",
                 "event_deleted",
-                ct);
+                ct
+            );
 
             // Remove join rows that reference the event before deleting it.
             await client.From<EventCities>().Where(ec => ec.EventId == eventId).Delete();
@@ -378,13 +424,11 @@ namespace AlSaqr.Data.Repositories.Meetup
             Guid userId,
             Guid eventId,
             string messageTemplate,
-            string notificationType, 
-            CancellationToken ct)
+            string notificationType,
+            CancellationToken ct
+        )
         {
-            var newEvent = await supabase
-                .From<Event>()
-                .Where(c => c.Id == eventId)
-                .Single(ct);
+            var newEvent = await supabase.From<Event>().Where(c => c.Id == eventId).Single(ct);
 
             if (newEvent == null)
                 return;
@@ -412,11 +456,14 @@ namespace AlSaqr.Data.Repositories.Meetup
 
             var created = await supabase
                 .From<Notification>()
-                .Insert(notification, new QueryOptions { Returning = QueryOptions.ReturnType.Minimal }, ct);
+                .Insert(
+                    notification,
+                    new QueryOptions { Returning = QueryOptions.ReturnType.Minimal },
+                    ct
+                );
 
             if (created == null)
                 throw new Exception("Error creating notification");
         }
-
     }
 }
