@@ -125,15 +125,20 @@ namespace AlSaqr.API.Controllers.Zook
             {
                 return BadRequest("Fields are required!");
             }
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to create a new product");
+            Guid.TryParse(loggedInUser.Id?.ToString(), out var userId);
 
+            using var cts = new CancellationTokenSource();
+            var ct = cts.Token;
             try
             {
-                var loggedInUser = _userCacheService.GetLoggedInUser();
-
-                var insertedProduct = await _productRepository.CreateProduct(
+                await _productRepository.CreateProduct(
                     _supabase,
                     (loggedInUser.Id ?? Guid.Empty),
-                    data
+                    data,
+                    ct
                 );
 
                 return Ok(new { success = true });
@@ -149,12 +154,11 @@ namespace AlSaqr.API.Controllers.Zook
         /// <summary>
         /// Update a product
         /// </summary>
-        /// <param name="categoryId"></param>
         /// <param name="productId"></param>
         /// <returns></returns>
-        [HttpPut("{categoryId}/{productId}")]
+        [HttpPut("{productId}")]
         public async Task<IActionResult> UpdateProduct(
-            int productId,
+            Guid productId,
             [FromBody] AlSaqrUpsertRequest<UpsertProductForm> request
         )
         {
@@ -175,80 +179,25 @@ namespace AlSaqr.API.Controllers.Zook
             {
                 return BadRequest("Fields are required!");
             }
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to update your products");
+            Guid.TryParse(loggedInUser.Id?.ToString(), out var userId);
+
+            using var cts = new CancellationTokenSource();
+            var ct = cts.Token;
 
             try
             {
-                var loggedInUser = _userCacheService.GetLoggedInUser();
-
-                var productToUpdate = (
-                    await _supabase.From<Product>().Filter("id", Operator.Equals, productId).Get()
-                ).Model;
-                bool updateTitle = data.FieldsToUpdate.Contains("title");
-                string productSlug = productToUpdate.Slug;
-
-                if (productToUpdate.UserId.ToString() != loggedInUser.Id.ToString())
-                    return Unauthorized();
-
-                if (updateTitle)
-                    productSlug = Regex
-                        .Replace(input: data.Title, pattern: @"[^a-zA-Z0-9]", replacement: "_")
-                        .ToLower();
-
-                var model = new Product()
-                {
-                    Id = productToUpdate.Id,
-                    Title = updateTitle ? data.Title : productToUpdate.Title,
-                    Description = data.FieldsToUpdate.Contains("description")
-                        ? data.Description
-                        : productToUpdate.Description,
-                    Price = data.FieldsToUpdate.Contains("price")
-                        ? data.Price
-                        : productToUpdate.Price,
-                    Slug = productSlug,
-                    Attributes = data.FieldsToUpdate.Contains("attributes")
-                        ? data.Attributes ?? new Dictionary<string, object>() { }
-                        : productToUpdate.Attributes,
-                    ProductCategoryId = data.FieldsToUpdate.Contains("product_category_id")
-                        ? (Guid)data.ProductCategoryId
-                        : productToUpdate.ProductCategoryId,
-                    Images = data.FieldsToUpdate.Contains("images")
-                        ? data.Images != null
-                            ? data.Images
-                            : new string[] { }
-                        : productToUpdate.Images,
-                    Latitude = data.FieldsToUpdate.Contains("latitude")
-                        ? data.Latitude
-                        : productToUpdate.Latitude,
-                    Longitude = data.FieldsToUpdate.Contains("longitude")
-                        ? data.Longitude
-                        : productToUpdate.Longitude,
-                    Country = data.FieldsToUpdate.Contains("country")
-                        ? data.Country
-                        : productToUpdate.Country,
-                    Tags = data.FieldsToUpdate.Contains("country")
-                        ? data.Tags ?? new string[] { }
-                        : productToUpdate.Tags,
-                };
-
-                var updatedProduct = (
-                    await _supabase
-                        .From<Product>()
-                        .Upsert(
-                            model,
-                            new QueryOptions()
-                            {
-                                Returning = QueryOptions.ReturnType.Representation,
-                            }
-                        )
-                ).Model;
+                await _productRepository.UpdateProduct(_supabase, productId, userId, data, ct);
 
                 return Ok(new { success = true });
             }
             catch (Exception err)
             {
                 // Log the exception here
-                Console.WriteLine($"Error creating product: {err.Message}");
-                return StatusCode(500, new { message = "Add product error!", success = false });
+                Console.WriteLine($"Error updating product: {err.Message}");
+                return StatusCode(500, new { message = "Update product error!", success = false });
             }
         }
 
@@ -256,39 +205,31 @@ namespace AlSaqr.API.Controllers.Zook
         /// Delete a product
         /// </summary>
         /// <returns></returns>
-        [HttpPut("{productId}")]
-        public async Task<IActionResult> DeleteProduct(
-            int productId,
-            CancellationToken cancellationToken
-        )
+        [HttpDelete("{productId}")]
+        public async Task<IActionResult> DeleteProduct(Guid productId)
         {
             var authError = ValidateAccessToken();
             if (authError != null)
                 return authError;
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to delete a product.");
+            Guid.TryParse(loggedInUser.Id?.ToString(), out var userId);
+
+            using var cts = new CancellationTokenSource();
+            var ct = cts.Token;
 
             try
             {
-                var loggedInUser = _userCacheService.GetLoggedInUser();
-
-                var productToDelete = (
-                    await _supabase.From<Product>().Filter("id", Operator.Equals, productId).Get()
-                ).Model;
-
-                if (
-                    productToDelete == null
-                    || productToDelete?.UserId.ToString() != loggedInUser.Id.ToString()
-                )
-                    return Unauthorized();
-
-                await productToDelete.Delete<Product>(cancellationToken);
+                await _productRepository.DeleteProduct(_supabase, productId, userId, ct);
 
                 return Ok(new { success = true });
             }
             catch (Exception err)
             {
                 // Log the exception here
-                Console.WriteLine($"Error creating product: {err.Message}");
-                return StatusCode(500, new { message = "Add product error!", success = false });
+                Console.WriteLine($"Error deleting product: {err.Message}");
+                return StatusCode(500, new { message = "Delete product error!", success = false });
             }
         }
     }

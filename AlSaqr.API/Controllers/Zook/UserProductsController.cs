@@ -1,4 +1,5 @@
 ﻿using AlSaqr.Data.Helpers;
+using AlSaqr.Data.Repositories.Zook.Impl;
 using AlSaqr.Domain.Zook;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
@@ -13,17 +14,20 @@ namespace AlSaqr.API.Controllers.Zook
     [Route("[controller]")]
     public class UserProductsController : AuthorizedControllerBase
     {
-
         private readonly ILogger<UserProductsController> _logger;
+        private readonly IProductRepository _productRepository;
         private readonly IUserCacheService _userCacheService;
         private readonly Supabase.Client _supabase;
 
         public UserProductsController(
             ILogger<UserProductsController> logger,
+            IProductRepository productRepository,
             Supabase.Client supabase,
-            IUserCacheService userCacheService)
+            IUserCacheService userCacheService
+        )
         {
             _logger = logger;
+            _productRepository = productRepository;
             _supabase = supabase;
             _userCacheService = userCacheService;
         }
@@ -37,50 +41,41 @@ namespace AlSaqr.API.Controllers.Zook
         /// <returns></returns>
         [HttpGet("selling")]
         public async Task<IActionResult> GetSellingProducts(
-                [FromQuery] int currentPage = 1,
-                [FromQuery] int itemsPerPage = 25,
-                [FromQuery] string? searchTerm = null
-            )
+            [FromQuery] int currentPage = 1,
+            [FromQuery] int itemsPerPage = 25,
+            [FromQuery] string? searchTerm = null
+        )
         {
             var authError = ValidateAccessToken();
             if (authError != null)
                 return authError;
 
             var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to update your products");
+            Guid.TryParse(loggedInUser.Id?.ToString(), out var userId);
 
-            var products = new List<ProductDto>();
-            var functionName = "get_selling_products";
-            Pagination? pagination = null;
-            var skip = (currentPage - 1) * itemsPerPage;
             try
             {
-                int totalItems;
-                IDictionary<string, object> functionParams = SupabaseHelper.DefineGetSellingProductsParams(
-                            skip: skip,
-                            itemsPerPage: itemsPerPage,
-                            userId: loggedInUser?.Id?.ToString() ?? ""
+                var result = await _productRepository.GetSellingProducts(
+                    _supabase,
+                    userId,
+                    currentPage,
+                    itemsPerPage,
+                    searchTerm
                 );
 
-                products = JsonConvert.DeserializeObject<List<ProductDto>>(
-                    await SupabaseHelper.CallFunction(_supabase, functionName, functionParams)
-                );
-                totalItems = 25;
-
-                pagination = new Pagination
-                {
-                    ItemsPerPage = itemsPerPage,
-                    CurrentPage = currentPage,
-                    TotalItems = totalItems,
-                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
-                };
+                return Ok(result);
             }
-            catch (Exception ex)
+            catch (Exception err)
             {
-                throw ex;
+                // Log the exception here
+                Console.WriteLine($"Error getting selling products: {err.Message}");
+                return StatusCode(
+                    500,
+                    new { message = "Retrieving Selling products error!", success = false }
+                );
             }
-
-            return Ok(new PaginatedResult<ProductDto>(products ?? new List<ProductDto>(), pagination!));
-
         }
 
         /// <summary>
@@ -94,56 +89,45 @@ namespace AlSaqr.API.Controllers.Zook
         /// <returns></returns>
         [HttpGet("buying")]
         public async Task<IActionResult> GetBuyingProducts(
-                [FromQuery] string latitude,
-                [FromQuery] string longitude,
-                [FromQuery] int currentPage = 1,
-                [FromQuery] int itemsPerPage = 25,
-                [FromQuery] string? searchTerm = null
-            )
+            [FromQuery] string latitude,
+            [FromQuery] string longitude,
+            [FromQuery] int currentPage = 1,
+            [FromQuery] int itemsPerPage = 25,
+            [FromQuery] string? searchTerm = null
+        )
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
 
-            var products = new List<ProductDto>();
-            var functionName = "get_nearby_products";
-            var pagingFunctionName = "get_nearby_products_total";
-            Pagination? pagination = null;
-            var skip = (currentPage - 1) * itemsPerPage;
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            if (loggedInUser == null)
+                return Unauthorized("Must be logged in to update your products");
+            Guid.TryParse(loggedInUser.Id?.ToString(), out var userId);
+
             try
             {
-                int totalItems;
-                IDictionary<string, object> functionParams = SupabaseHelper.DefineGetProductParams(
-                            latitude: latitude,
-                            longitude: longitude,
-                            skip: skip,
-                            currentPage: currentPage,
-                            itemsPerPage: itemsPerPage,
-                            maxDistanceKm: null,
-                            searchTerm: searchTerm
+                var result = await _productRepository.GetBuyingProducts(
+                    _supabase,
+                    userId,
+                    latitude,
+                    longitude,
+                    currentPage,
+                    itemsPerPage,
+                    searchTerm
                 );
 
-                products = JsonConvert.DeserializeObject<List<ProductDto>>(
-                    await SupabaseHelper.CallFunction(_supabase, functionName, functionParams)
-                );
-                var rnd = new Random();
-                products = products.OrderBy(_ => rnd.Next()).ToList();
-                var parsedSuccessfully = int.TryParse(await SupabaseHelper.CallFunction(_supabase, pagingFunctionName, functionParams), out var total);
-                totalItems = parsedSuccessfully ? total : 0;
-
-                pagination = new Pagination
-                {
-                    ItemsPerPage = itemsPerPage,
-                    CurrentPage = currentPage,
-                    TotalItems = totalItems,
-                    TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage)
-                };
+                return Ok(result);
             }
-            catch (Exception ex)
+            catch (Exception err)
             {
-                throw ex;
+                // Log the exception here
+                Console.WriteLine($"Error getting buying products: {err.Message}");
+                return StatusCode(
+                    500,
+                    new { message = "Retrieving Buying products error!", success = false }
+                );
             }
-
-            return Ok(new PaginatedResult<ProductDto>(products ?? new List<ProductDto>(), pagination!));
-
         }
-
     }
 }

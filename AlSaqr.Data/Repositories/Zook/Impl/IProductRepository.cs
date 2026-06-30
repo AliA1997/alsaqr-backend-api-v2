@@ -10,13 +10,15 @@ namespace AlSaqr.Data.Repositories.Zook.Impl
             Supabase.Client client,
             Guid productId,
             string latitude,
-            string longitude);
+            string longitude
+        );
 
         Task<List<SimilarProductDto>> GetSimilarProducts(
             Supabase.Client client,
             Guid productId,
             string latitude,
-            string longitude);
+            string longitude
+        );
 
         Task<PaginatedResult<ProductDto>> GetNearbyProduct(
             Supabase.Client client,
@@ -25,7 +27,8 @@ namespace AlSaqr.Data.Repositories.Zook.Impl
             int currentPage,
             int itemsPerPage,
             string? searchTerm,
-            double? maxDistanceKm);
+            double? maxDistanceKm
+        );
 
         Task<PaginatedResult<ProductDto>> NearbyProductsByCategory(
             Supabase.Client client,
@@ -34,18 +37,55 @@ namespace AlSaqr.Data.Repositories.Zook.Impl
             string longitude,
             int currentPage,
             int itemsPerPage,
-            string? searchTerm);
+            string? searchTerm
+        );
 
         Task<PaginatedResult<ProductDto>> GetUserProducts(
             Supabase.Client client,
             string username,
             int currentPage,
             int itemsPerPage,
-            string? searchTerm);
+            string? searchTerm
+        );
+
+        Task<PaginatedResult<ProductDto>> GetSellingProducts(
+            Supabase.Client client,
+            Guid userId,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm
+        );
+
+        Task<PaginatedResult<ProductDto>> GetBuyingProducts(
+            Supabase.Client client,
+            Guid userId,
+            string latitude,
+            string longitude,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm
+        );
 
         Task<Product> CreateProduct(
             Supabase.Client client,
             Guid userId,
-            CreateProductForm form);
+            CreateProductForm form,
+            CancellationToken ct
+        );
+
+        Task<bool> UpdateProduct(
+            Supabase.Client client,
+            Guid productId,
+            Guid userId,
+            UpsertProductForm form,
+            CancellationToken ct
+        );
+
+        Task<bool> DeleteProduct(
+            Supabase.Client client,
+            Guid productId,
+            Guid userId,
+            CancellationToken ct
+        );
     }
 }
