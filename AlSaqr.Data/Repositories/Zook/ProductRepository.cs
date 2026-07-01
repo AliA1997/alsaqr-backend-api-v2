@@ -396,7 +396,7 @@ namespace AlSaqr.Data.Repositories.Zook
         public async Task<Product> CreateProduct(
             Supabase.Client client,
             Guid userId,
-            CreateProductForm form,
+            UpsertProductForm form,
             CancellationToken ct
         )
         {
@@ -467,7 +467,7 @@ namespace AlSaqr.Data.Repositories.Zook
             {
                 var productToUpdate = await client
                     .From<Product>()
-                    .Filter("id", Operator.Equals, productId)
+                    .Filter("id", Operator.Equals, productId.ToString())
                     .Single(ct);
                 if (productToUpdate?.UserId != userId)
                     return false;
@@ -478,29 +478,25 @@ namespace AlSaqr.Data.Repositories.Zook
                         .Replace(input: form.Title, pattern: @"[^a-zA-Z0-9]", replacement: "_")
                         .ToLower();
 
-                var model = new Product()
-                {
-                    Id = productToUpdate.Id,
-                    Title = AssignStringValue(productToUpdate.Title, form.Title),
-                    Price = form.Price != null ? form.Price : productToUpdate.Price,
-                    Slug = productSlug,
-                    Attributes =
-                        form.Attributes?.Count() > 0 ? form.Attributes : productToUpdate.Attributes,
-                    ProductCategoryId =
-                        form.ProductCategoryId != Guid.Empty || form.ProductCategoryId != null
+                productToUpdate.Title = AssignStringValue(productToUpdate.Title, form.Title);
+                productToUpdate.Description = AssignStringValue(productToUpdate.Description, form.Description);
+                productToUpdate.Price = form.Price != null ? form.Price : productToUpdate.Price;
+                productToUpdate.Slug = productSlug;
+                productToUpdate.Attributes =
+                        form.Attributes?.Count() > 0 ? form.Attributes : productToUpdate.Attributes;
+                productToUpdate.ProductCategoryId = form.ProductCategoryId != Guid.Empty || form.ProductCategoryId != null
                             ? Guid.Parse(form.ProductCategoryId?.ToString())
-                            : productToUpdate.ProductCategoryId,
-                    Images = form.Images != null ? form.Images : productToUpdate.Images,
-                    Latitude = form.Latitude != null ? form.Latitude : productToUpdate.Latitude,
-                    Longitude = form.Longitude != null ? form.Longitude : productToUpdate.Longitude,
-                    Country = AssignStringValue(productToUpdate.Country, form.Country),
-                    Tags = form.Tags != null ? form.Tags : productToUpdate.Tags,
-                };
+                            : productToUpdate.ProductCategoryId;
+                productToUpdate.Images = form.Images != null ? form.Images : productToUpdate.Images;
+                productToUpdate.Latitude = form.Latitude != null ? form.Latitude : productToUpdate.Latitude;
+                productToUpdate.Longitude = form.Longitude != null ? form.Longitude : productToUpdate.Longitude;
+                productToUpdate.Country = AssignStringValue(productToUpdate.Country, form.Country);
+                productToUpdate.Tags = form.Tags != null ? form.Tags : productToUpdate.Tags;
 
                 await client
                     .From<Product>()
                     .Upsert(
-                        model,
+                        productToUpdate,
                         new QueryOptions() { Returning = QueryOptions.ReturnType.Representation },
                         ct
                     );
@@ -537,7 +533,7 @@ namespace AlSaqr.Data.Repositories.Zook
             {
                 var productToDelete = await client
                     .From<Product>()
-                    .Filter("id", Operator.Equals, productId)
+                    .Filter("id", Operator.Equals, productId.ToString())
                     .Single();
 
                 if (productToDelete == null || productToDelete?.UserId != userId)

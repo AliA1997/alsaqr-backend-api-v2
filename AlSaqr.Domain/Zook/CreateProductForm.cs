@@ -2,7 +2,7 @@
 
 namespace AlSaqr.Domain.Zook
 {
-    public class CreateProductForm
+    public class UpsertProductForm
     {
 
         public string? Title { get; set; }
@@ -21,8 +21,4 @@ namespace AlSaqr.Domain.Zook
 
     }
 
-    public class UpsertProductForm : CreateProductForm
-    {
-        public string[] FieldsToUpdate { get; set; }
-    }
 }

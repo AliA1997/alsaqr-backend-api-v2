@@ -69,7 +69,7 @@ namespace AlSaqr.Data.Repositories.Zook.Impl
         Task<Product> CreateProduct(
             Supabase.Client client,
             Guid userId,
-            CreateProductForm form,
+            UpsertProductForm form,
             CancellationToken ct
         );
 

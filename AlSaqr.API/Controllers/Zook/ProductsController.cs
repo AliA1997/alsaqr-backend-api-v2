@@ -105,7 +105,7 @@ namespace AlSaqr.API.Controllers.Zook
         /// <returns></returns>
         [HttpPost]
         public async Task<IActionResult> CreateProduct(
-            [FromBody] AlSaqrUpsertRequest<CreateProductForm> request
+            [FromBody] AlSaqrUpsertRequest<UpsertProductForm> request
         )
         {
             var authError = ValidateAccessToken();
@@ -171,9 +171,6 @@ namespace AlSaqr.API.Controllers.Zook
             if (
                 string.IsNullOrEmpty(data.Title)
                 || string.IsNullOrEmpty(data.Description)
-                || data.ProductCategoryId == null
-                || data.Latitude == null
-                || data.Longitude == null
                 || string.IsNullOrEmpty(data.Country)
             )
             {
