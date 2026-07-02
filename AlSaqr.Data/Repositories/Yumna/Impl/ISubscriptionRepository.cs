@@ -7,16 +7,19 @@ namespace AlSaqr.Data.Repositories.Yumna.Impl
         Task<Subscription?> GetUserSubscription(
             Supabase.Client supabase,
             Guid userId,
-            CancellationToken ct = default);
+            CancellationToken ct = default
+        );
 
         Task<int> GetDailyUse(
             Supabase.Client supabase,
             Guid userId,
-            CancellationToken ct = default);
+            CancellationToken ct = default
+        );
 
         Task<int> UpdateDailyUse(
             Supabase.Client supabase,
             Guid userId,
-            CancellationToken ct = default);
+            CancellationToken ct = default
+        );
     }
 }

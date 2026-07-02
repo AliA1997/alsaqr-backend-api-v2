@@ -4,6 +4,12 @@ namespace AlSaqr.Domain.Yumna
 {
     public static class YumnaAgent
     {
+        public class DailyUseResponseDto
+        {
+            [JsonPropertyName("dailyUse")]
+            public int DailyUse { get; set; }
+        }
+
         public class PromptMessageDto
         {
             [JsonPropertyName("prompt")]

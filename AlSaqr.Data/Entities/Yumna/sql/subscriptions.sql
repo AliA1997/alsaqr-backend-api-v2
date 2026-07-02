@@ -2,7 +2,7 @@
 
 create table if not exists "alsaqr-2026".subscriptions (
     id                  uuid primary key default gen_random_uuid(),
-    name                text not null,
+    name                varchar not null,
     daily_request_limit integer not null default 30,
     created_at          timestamptz not null default now(),
     updated_at          timestamptz,

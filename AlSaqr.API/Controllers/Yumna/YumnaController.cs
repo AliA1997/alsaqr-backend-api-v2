@@ -47,9 +47,9 @@ namespace AlSaqr.API.Controllers.Yumna
             [FromBody] AlSaqrUpsertRequest<PromptMessageDto> request
         )
         {
-            // var authError = ValidateAccessToken();
-            // if (authError != null)
-            //     return authError;
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
 
             var data = request.Values;
 
@@ -58,42 +58,72 @@ namespace AlSaqr.API.Controllers.Yumna
                 return BadRequest("Missing required fields");
             }
 
-            // var loggedInUser = _userCacheService.GetLoggedInUser();
-            // Guid.TryParse(loggedInUser?.Id?.ToString(), out Guid userId);
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out Guid userId);
 
-            // if (userId == Guid.Empty)
-            // {
-            //     return Unauthorized("You must be logged in to message Yumna.");
-            // }
+            if (userId == Guid.Empty)
+            {
+                return Unauthorized("You must be logged in to message Yumna.");
+            }
 
-            // var subscription = await _subscriptionRepository.GetUserSubscription(_supabase, userId);
-            // var dailyLimit = subscription?.DailyRequestLimit ?? DefaultDailyRequestLimit;
+            var subscription = await _subscriptionRepository.GetUserSubscription(_supabase, userId);
+            var dailyLimit = subscription?.DailyRequestLimit ?? DefaultDailyRequestLimit;
 
-            // var dailyUse = await _subscriptionRepository.GetDailyUse(_supabase, userId);
+            var dailyUse = await _subscriptionRepository.GetDailyUse(_supabase, userId);
 
-            // if (dailyUse >= dailyLimit)
-            // {
-            //     return BadRequest($"You are over your daily use limit of {dailyLimit} requests. Try again tomorrow.");
-            // }
+            if (dailyUse >= dailyLimit)
+            {
+                return BadRequest(
+                    $"You are over your daily use limit of {dailyLimit} requests. Try again tomorrow."
+                );
+            }
 
             var prompt = PromptUtility.BuildStandardPrompt(
                 AgentName,
                 data.Prompt,
-                // loggedInUser?.Username,
-                "Ali",
-                data.Context);
+                loggedInUser?.FirstName,
+                data.Context!
+            );
 
             var result = await _yumnaService.GetAgentResponse(prompt);
             _logger.LogInformation("Yumna responded to a prompt.");
 
-            // var updatedDailyUse = await _subscriptionRepository.UpdateDailyUse(_supabase, userId);
+            var updatedDailyUse = await _subscriptionRepository.UpdateDailyUse(_supabase, userId);
 
-            return Ok(new YumnaResponseDto
+            return Ok(
+                new YumnaResponseDto
+                {
+                    Result = result,
+                    DailyUse = updatedDailyUse,
+                    DailyLimit = dailyLimit,
+                }
+            );
+        }
+
+        /// <summary>
+        /// Get daily use in settings
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpGet("dailyUse")]
+        public async Task<IActionResult> GetDailyUse()
+        {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out Guid userId);
+
+            if (userId == Guid.Empty)
             {
-                Result = result,
-                // DailyUse = updatedDailyUse,
-                // DailyLimit = dailyLimit
-            });
+                return Unauthorized("You must be logged in to check daily usage on Yumna.");
+            }
+            var dailyUse = await _subscriptionRepository.GetDailyUse(_supabase, userId);
+
+            _logger.LogInformation("Daily use retrieved!");
+
+            return Ok(new DailyUseResponseDto { DailyUse = dailyUse });
         }
     }
 }

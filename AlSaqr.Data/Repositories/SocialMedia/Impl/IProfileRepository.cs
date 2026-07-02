@@ -5,24 +5,21 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
 {
     public interface IProfileRepository
     {
-
-        Task<SessionUser> GetSessionInfo(
-            Supabase.Client supabase,
-            Guid userId);
+        Task<SessionUser> GetSessionInfo(Supabase.Client supabase, Guid userId);
 
         Task<UserProfilePostsDto> GetProfilePosts(
             Supabase.Client supabase,
             string username,
             int currentPage,
-            int itemsPerPage);
+            int itemsPerPage
+        );
         Task<List<ProfilePostDto>> GetProfileMediaPosts(
             Supabase.Client supabase,
             string username,
             int currentPage,
-            int itemsPerPage);
+            int itemsPerPage
+        );
 
-        Task<ProfileInfoDto> GetProfileInfo(
-            Supabase.Client supabase,
-            string username);
+        Task<ProfileInfoDto> GetProfileInfo(Supabase.Client supabase, string username);
     }
 }

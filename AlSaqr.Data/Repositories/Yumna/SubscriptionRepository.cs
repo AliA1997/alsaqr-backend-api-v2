@@ -18,11 +18,12 @@ namespace AlSaqr.Data.Repositories.Yumna
         public async Task<Subscription?> GetUserSubscription(
             Supabase.Client supabase,
             Guid userId,
-            CancellationToken ct = default)
+            CancellationToken ct = default
+        )
         {
             var user = await supabase
                 .From<AlSaqrUser>()
-                .Where(x => x.Id == userId)
+                .Filter("id", Operator.Equals, userId.ToString())
                 .Single(ct);
 
             if (user?.SubscriptionId == null || user.SubscriptionId == Guid.Empty)
@@ -30,7 +31,7 @@ namespace AlSaqr.Data.Repositories.Yumna
 
             return await supabase
                 .From<Subscription>()
-                .Where(x => x.Id == user.SubscriptionId)
+                .Filter("id", Operator.Equals, user.SubscriptionId.ToString())
                 .Single(ct);
         }
 
@@ -41,7 +42,8 @@ namespace AlSaqr.Data.Repositories.Yumna
         public async Task<int> GetDailyUse(
             Supabase.Client supabase,
             Guid userId,
-            CancellationToken ct = default)
+            CancellationToken ct = default
+        )
         {
             var dailyUse = await GetTodaysDailyUse(supabase, userId, ct);
             return dailyUse?.NumberOfRequests ?? 0;
@@ -54,7 +56,8 @@ namespace AlSaqr.Data.Repositories.Yumna
         public async Task<int> UpdateDailyUse(
             Supabase.Client supabase,
             Guid userId,
-            CancellationToken ct = default)
+            CancellationToken ct = default
+        )
         {
             try
             {
@@ -68,15 +71,16 @@ namespace AlSaqr.Data.Repositories.Yumna
                         UserId = userId,
                         Date = DateTime.UtcNow.Date,
                         NumberOfRequests = 1,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.UtcNow,
                     };
 
                     var inserted = await supabase
                         .From<SubscriptionDailyUse>()
-                        .Insert(dailyUse, new QueryOptions
-                        {
-                            Returning = QueryOptions.ReturnType.Representation
-                        }, ct);
+                        .Insert(
+                            dailyUse,
+                            new QueryOptions { Returning = QueryOptions.ReturnType.Representation },
+                            ct
+                        );
 
                     if (inserted?.Model == null)
                         throw new UpdateSubscriptionDailyUseException(userId);
@@ -89,10 +93,11 @@ namespace AlSaqr.Data.Repositories.Yumna
 
                 var updated = await supabase
                     .From<SubscriptionDailyUse>()
-                    .Upsert(existing, new QueryOptions
-                    {
-                        Returning = QueryOptions.ReturnType.Representation
-                    }, ct);
+                    .Upsert(
+                        existing,
+                        new QueryOptions { Returning = QueryOptions.ReturnType.Representation },
+                        ct
+                    );
 
                 if (updated?.Model == null)
                     throw new UpdateSubscriptionDailyUseException(userId);
@@ -112,15 +117,18 @@ namespace AlSaqr.Data.Repositories.Yumna
         private static async Task<SubscriptionDailyUse?> GetTodaysDailyUse(
             Supabase.Client supabase,
             Guid userId,
-            CancellationToken ct)
+            CancellationToken ct
+        )
         {
             var today = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
 
-            return (await supabase
-                .From<SubscriptionDailyUse>()
-                .Where(x => x.UserId == userId)
-                .Filter("date", Operator.Equals, today)
-                .Get(ct)).Models.FirstOrDefault();
+            return (
+                await supabase
+                    .From<SubscriptionDailyUse>()
+                    .Filter("user_id", Operator.Equals, userId.ToString())
+                    .Filter("date", Operator.Equals, today)
+                    .Get(ct)
+            ).Models.FirstOrDefault();
         }
     }
 }
