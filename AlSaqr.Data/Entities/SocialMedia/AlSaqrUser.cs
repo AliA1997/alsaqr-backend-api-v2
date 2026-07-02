@@ -63,6 +63,8 @@ namespace AlSaqr.Data.Entities.SocialMedia
 
         [Column("is_verified")]
         public bool IsVerified { get; set; }
+        [Column("subscription_id")]
+        public Guid? SubscriptionId { get; set; }
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         [Column("updated_at")]

@@ -8,10 +8,13 @@
 
   <ItemGroup>
     <Compile Remove="Entities\Meetup\sql\**" />
+    <Compile Remove="Entities\Yumna\sql\**" />
     <Compile Remove="Entities\Zook\sql\**" />
     <EmbeddedResource Remove="Entities\Meetup\sql\**" />
+    <EmbeddedResource Remove="Entities\Yumna\sql\**" />
     <EmbeddedResource Remove="Entities\Zook\sql\**" />
     <None Remove="Entities\Meetup\sql\**" />
+    <None Remove="Entities\Yumna\sql\**" />
     <None Remove="Entities\Zook\sql\**" />
   </ItemGroup>
 

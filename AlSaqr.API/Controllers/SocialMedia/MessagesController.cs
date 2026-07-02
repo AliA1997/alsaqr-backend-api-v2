@@ -1,9 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using static AlSaqr.Domain.Utils.Common;
+﻿using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Domain.SocialMedia;
-using AlSaqr.Data.Repositories.SocialMedia.Impl;
-using AlSaqr.Infrastructure.SocialMediaCache;
 using AlSaqr.Infrastructure;
+using AlSaqr.Infrastructure.SocialMediaCache;
+using Microsoft.AspNetCore.Mvc;
+using static AlSaqr.Domain.Utils.Common;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {
@@ -11,7 +11,6 @@ namespace AlSaqr.API.Controllers.SocialMedia
     [Route("[controller]")]
     public class MessagesController : AuthorizedControllerBase
     {
-
         private readonly ILogger<MessagesController> _logger;
         private readonly Supabase.Client _supabase;
         private readonly IMessageRepository _messageRepository;
@@ -19,11 +18,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
         private readonly ISocialMediaCacheService _socialMediaCacheService;
 
         public MessagesController(
-            ILogger<MessagesController> logger, 
+            ILogger<MessagesController> logger,
             Supabase.Client supabase,
             IMessageRepository messageRepository,
             IUserCacheService userCacheService,
-            ISocialMediaCacheService socialMediaCacheService)
+            ISocialMediaCacheService socialMediaCacheService
+        )
         {
             _logger = logger;
             _supabase = supabase;
@@ -39,8 +39,8 @@ namespace AlSaqr.API.Controllers.SocialMedia
         /// <returns></returns>
         [HttpPost("sendMessage")]
         public async Task<IActionResult> SendMessage(
-                [FromBody] AlSaqrUpsertRequest<Messages.MessageFormDto> request
-            )
+            [FromBody] AlSaqrUpsertRequest<Messages.MessageFormDto> request
+        )
         {
             var authError = ValidateAccessToken();
             if (authError != null)
@@ -64,6 +64,5 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             return Ok(new { Success = true });
         }
-
     }
 }
