@@ -45,7 +45,8 @@ namespace  AlSaqr.Domain.SocialMedia
             public string? Phone { get; set; }
             public object Avatar { get; set; }
             public DateTime? DateOfBirth { get; set; }
-            
+            public string? Web3Address { get; set; }
+
         }
         public class UpdateUserDto
         {
@@ -94,6 +95,8 @@ namespace  AlSaqr.Domain.SocialMedia
             public string[]? Hobbies { get; set; }
             public string? Religion { get; set; }
             public string? CountryOfOrigin { get; set; }
+            public string? Email { get; set; }
+            public string? Web3Address { get; set; }
         }
 
         public class UserProfilePostsResponse

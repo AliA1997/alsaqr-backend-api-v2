@@ -8,6 +8,15 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
     public interface IUserRepository
     {
         Task<(Guid userId, string username)> GetUserIdAndUsernameByEmail(Supabase.Client supabase, string email);
+        Task<AlSaqrUser?> GetUserByEmail(Supabase.Client supabase, string email);
+        Task<AlSaqrUser?> GetUserByWeb3Address(Supabase.Client supabase, string web3Address);
+
+        Task<string?> SetWeb3Address(
+            Supabase.Client supabase,
+            Guid userId,
+            string? web3Address,
+            CancellationToken ct);
+
         Task<AlSaqrUser> CreateInitialUser(Supabase.Client supabase, CreateInitialUserDto newUser);
         Task<Guid> UpdateUser(Supabase.Client supabase, Guid userId, UpdateUserDto updatedUser, CancellationToken ct);
 

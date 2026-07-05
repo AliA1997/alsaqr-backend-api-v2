@@ -20,6 +20,7 @@ namespace AlSaqr.API.Controllers.Meetup
         private readonly IAttendeeRepository _attendeeRepository;
         private readonly ICityRepository _cityRepository;
         private readonly IGroupRepository _groupRepository;
+        private readonly IGroupMemberRepository _groupMemberRepository;
         private readonly ITopicRepository _topicRepository;
 
         public GroupsController(
@@ -29,6 +30,7 @@ namespace AlSaqr.API.Controllers.Meetup
             IAttendeeRepository attendeeRepository,
             ICityRepository cityRepository,
             IGroupRepository groupRepository,
+            IGroupMemberRepository groupMemberRepository,
             ITopicRepository topicRepository
         )
         {
@@ -38,6 +40,7 @@ namespace AlSaqr.API.Controllers.Meetup
             _attendeeRepository = attendeeRepository;
             _cityRepository = cityRepository;
             _groupRepository = groupRepository;
+            _groupMemberRepository = groupMemberRepository;
             _topicRepository = topicRepository;
         }
 
@@ -262,6 +265,88 @@ namespace AlSaqr.API.Controllers.Meetup
             {
                 Console.WriteLine($"Error updating group: {err.Message}");
                 return StatusCode(500, new { message = "Update group error!", success = false });
+            }
+        }
+
+        /// <summary>
+        /// Join a group as the logged-in user.
+        /// </summary>
+        /// <param name="groupId"></param>
+        /// <returns></returns>
+        [HttpPut("{groupId:guid}/join")]
+        public async Task<IActionResult> JoinGroup(Guid groupId)
+        {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
+            if (userId == Guid.Empty)
+                return Unauthorized("User must be logged in to join a group.");
+
+            try
+            {
+                await _groupMemberRepository.JoinGroup(_supabase, userId, groupId, ct);
+
+                _logger.LogInformation("User {userId} joined group {groupId}", userId, groupId);
+                return Ok(new { success = true, message = "Joined Successfully" });
+            }
+            catch (Exception err)
+            {
+                Console.WriteLine($"Error joining group: {err.Message}");
+                return StatusCode(500, new { message = "Join group error!", success = false });
+            }
+        }
+
+        /// <summary>
+        /// Remove a member from a group. Only the group founder may do this.
+        /// </summary>
+        /// <param name="groupId"></param>
+        /// <param name="memberUserId"></param>
+        /// <returns></returns>
+        [HttpDelete("{groupId:guid}/members/{memberUserId:guid}")]
+        public async Task<IActionResult> RemoveGroupMember(Guid groupId, Guid memberUserId)
+        {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
+            if (userId == Guid.Empty)
+                return Unauthorized("User must be logged in to remove a group member.");
+
+            try
+            {
+                await _groupMemberRepository.RemoveGroupMember(
+                    _supabase,
+                    userId,
+                    groupId,
+                    memberUserId,
+                    ct
+                );
+
+                _logger.LogInformation(
+                    "User {memberUserId} removed from group {groupId}",
+                    memberUserId,
+                    groupId
+                );
+                return Ok(new { success = true });
+            }
+            catch (Exception err)
+            {
+                Console.WriteLine($"Error removing group member: {err.Message}");
+                return StatusCode(
+                    500,
+                    new { message = "Remove group member error!", success = false }
+                );
             }
         }
 

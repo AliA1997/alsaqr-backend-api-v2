@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using AlSaqr.Data.Entities.Zook;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Zook.Impl;
@@ -68,16 +67,16 @@ namespace AlSaqr.API.Controllers.Zook
         /// <summary>
         /// Get products by category
         /// </summary>
-        /// <param name="categoryId"></param>
+        /// <param name="categoryTypeId"></param>
         /// <param name="latitude"></param>
         /// <param name="longitude"></param>
         /// <param name="currentPage"></param>
         /// <param name="itemsPerPage"></param>
         /// <param name="searchTerm"></param>
         /// <returns></returns>
-        [HttpGet("{categoryId}")]
+        [HttpGet("{categoryTypeId}")]
         public async Task<IActionResult> GetNearbyProductsByCategory(
-            Guid categoryId,
+            int categoryTypeId,
             [FromQuery] string latitude,
             [FromQuery] string longitude,
             [FromQuery] int currentPage = 1,
@@ -87,7 +86,7 @@ namespace AlSaqr.API.Controllers.Zook
         {
             var result = await _productRepository.NearbyProductsByCategory(
                 _supabase,
-                categoryId,
+                categoryTypeId,
                 latitude,
                 longitude,
                 currentPage,

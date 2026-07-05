@@ -18,13 +18,15 @@ namespace AlSaqr.API.Controllers.Meetup
         private readonly Supabase.Client _supabase;
         private readonly ICityRepository _cityRepository;
         private readonly IEventRepository _eventRepository;
+        private readonly IEventMemberRepository _eventMemberRepository;
 
         public EventsController(
             ILogger<EventsController> logger,
             Supabase.Client supabase,
             IUserCacheService userCacheService,
             ICityRepository cityRepository,
-            IEventRepository eventRepository
+            IEventRepository eventRepository,
+            IEventMemberRepository eventMemberRepository
         )
         {
             _logger = logger;
@@ -32,6 +34,7 @@ namespace AlSaqr.API.Controllers.Meetup
             _userCacheService = userCacheService;
             _cityRepository = cityRepository;
             _eventRepository = eventRepository;
+            _eventMemberRepository = eventMemberRepository;
         }
 
         /// <summary>
@@ -247,6 +250,90 @@ namespace AlSaqr.API.Controllers.Meetup
             {
                 Console.WriteLine($"Error updating event: {err.Message}");
                 return StatusCode(500, new { message = "Update event error!", success = false });
+            }
+        }
+
+        /// <summary>
+        /// Join an event as the logged-in user. Also joins the event's group
+        /// when the user is not a member of it yet.
+        /// </summary>
+        /// <param name="eventId"></param>
+        /// <returns></returns>
+        [HttpPut("{eventId:guid}/join")]
+        public async Task<IActionResult> JoinEvent(Guid eventId)
+        {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
+            if (userId == Guid.Empty)
+                return Unauthorized("User must be logged in to join an event.");
+
+            try
+            {
+                await _eventMemberRepository.JoinEvent(_supabase, userId, eventId, ct);
+
+                _logger.LogInformation("User {userId} joined event {eventId}", userId, eventId);
+                return Ok(new { success = true, message = "Joined Successfully" });
+            }
+            catch (Exception err)
+            {
+                Console.WriteLine($"Error joining event: {err.Message}");
+                return StatusCode(500, new { message = "Join event error!", success = false });
+            }
+        }
+
+        /// <summary>
+        /// Remove a member from an event. Only the parent group's founder may do this;
+        /// the member stays in the group.
+        /// </summary>
+        /// <param name="eventId"></param>
+        /// <param name="memberUserId"></param>
+        /// <returns></returns>
+        [HttpDelete("{eventId:guid}/members/{memberUserId:guid}")]
+        public async Task<IActionResult> RemoveEventMember(Guid eventId, Guid memberUserId)
+        {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
+            if (userId == Guid.Empty)
+                return Unauthorized("User must be logged in to remove an event member.");
+
+            try
+            {
+                await _eventMemberRepository.RemoveEventMember(
+                    _supabase,
+                    userId,
+                    eventId,
+                    memberUserId,
+                    ct
+                );
+
+                _logger.LogInformation(
+                    "User {memberUserId} removed from event {eventId}",
+                    memberUserId,
+                    eventId
+                );
+                return Ok(new { success = true });
+            }
+            catch (Exception err)
+            {
+                Console.WriteLine($"Error removing event member: {err.Message}");
+                return StatusCode(
+                    500,
+                    new { message = "Remove event member error!", success = false }
+                );
             }
         }
 

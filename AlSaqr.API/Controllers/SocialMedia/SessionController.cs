@@ -1,14 +1,13 @@
-﻿using AlSaqr.Data.Entities.SocialMedia;
-using AlSaqr.Data.Entities.SocialMedia.Views;
-using AlSaqr.Data.Repositories.SocialMedia.Impl;
+﻿using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Domain.Utils;
 using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
-using static AlSaqr.Domain.SocialMedia.Session;
-using static AlSaqr.Domain.SocialMedia.User;
 
 namespace AlSaqr.API.Controllers.SocialMedia
 {
+    /// <summary>
+    /// Checks the logged-in user's session. Sign-in lives in <see cref="AuthController"/>.
+    /// </summary>
     [ApiController]
     [Route("[controller]")]
     public class SessionController : ControllerBase
@@ -35,93 +34,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
         }
 
         /// <summary>
-        /// Signin or check neo4j data when signing in with supabase.
-        /// </summary>
-        /// <returns></returns>
-        [HttpPost("signin")]
-        public async Task<IActionResult> SignInWithSupabase(
-            [FromBody] Common.AlSaqrUpsertRequest<OAuthUserProfile> request
-        )
-        {
-            var data = request.Values;
-
-            // Input validation
-            if (string.IsNullOrEmpty(data.Email))
-            {
-                return BadRequest("Enail is required");
-            }
-
-            try
-            {
-                var selectUserResult = _supabase
-                    .From<AlSaqrUser>()
-                    .Filter("email", Supabase.Postgrest.Constants.Operator.Equals, data.Email)
-                    .Limit(1);
-
-                var existingUser = (await selectUserResult.Get()).Models.FirstOrDefault();
-
-                if (existingUser == null && !string.IsNullOrEmpty(data.Email))
-                {
-                    var isDiscordAccount = !string.IsNullOrEmpty(data.ProfileAvatar)
-                        ? data.ProfileAvatar.Contains("discord")
-                        : false;
-
-                    var newUser = new CreateInitialUserDto()
-                    {
-                        Id = Guid.NewGuid(),
-                        FirstName = data.UserMetadata.FullName?.Split(' ')[0] ?? "",
-                        LastName =
-                            data.UserMetadata.FullName?.Split(' ').Length > 1
-                                ? data.UserMetadata.FullName.Split(' ')[1]
-                                : null,
-                        Username = isDiscordAccount
-                            ? data.GlobalName
-                            : data.DisplayName ?? GetEmailUsername(data.Email ?? ""),
-                        Email = data.Email!,
-                        CreatedAt = DateTime.UtcNow,
-                        Bio = "",
-                        CountryOfOrigin = "United States",
-                        Phone = data.Phone,
-                        Avatar =
-                            !string.IsNullOrEmpty(data.ProfileAvatar) ? data.ProfileAvatar
-                            : !string.IsNullOrEmpty(data?.UserMetadata?.Picture)
-                                ? data.UserMetadata?.Picture
-                            : data?.UserMetadata?.AvatarUrl ?? "",
-                        BgThumbnail = CityBackgrounds.GetRandomCityImage(),
-                        DateOfBirth = null,
-                        Religion = "Muslim",
-                        Hobbies = new string[] { },
-                        FrequentMasjid = "",
-                        FavoriteQuranReciters = new string[] { },
-                        FavoriteIslamicScholars = new string[] { },
-                        IslamicStudyTopics = new string[] { },
-                        MaritalStatus = "Single",
-                        PreferredMadhab = "Hanafi",
-                    };
-
-                    await _userRepository.CreateInitialUser(_supabase, newUser);
-                }
-
-                _logger.LogInformation("User signed in successfully!");
-                return Ok(new { success = true });
-            }
-            catch (Exception err)
-            {
-                _logger.LogError(err, "Fetch User Signin error!");
-                return StatusCode(
-                    500,
-                    new { message = "Fetch User Signin error!", success = false }
-                );
-            }
-        }
-
-        /// <summary>
         /// Check user if he's logged in.
         /// </summary>
         /// <returns></returns>
         [HttpPost("check")]
         public async Task<IActionResult> Check(
-            [FromBody] Common.AlSaqrUpsertRequest<SessionCheckRequest> request
+            [FromBody] Common.AlSaqrUpsertRequest<AlSaqr.Domain.SocialMedia.Session.SessionCheckRequest> request
         )
         {
             var data = request.Values;
@@ -146,6 +64,17 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
                 if (sessionUserResult.Id == Guid.Empty || sessionUserResult.Id == null)
                     return BadRequest("Invalid user retrieved");
+
+                // Set (when passed in) and retrieve the user's web3 address; web3 users
+                // display differently compared to normal oauth users.
+                var web3Address = await _userRepository.SetWeb3Address(
+                    _supabase,
+                    userId,
+                    data.Web3Address,
+                    ct
+                );
+                sessionUserResult.Web3Address = !string.IsNullOrEmpty(web3Address) ? web3Address : sessionUserResult.Web3Address;
+                sessionUserResult.IsWeb3 = !string.IsNullOrEmpty(web3Address);
 
                 _userCacheService.SetLoggedInUser(sessionUserResult);
 

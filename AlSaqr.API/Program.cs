@@ -69,7 +69,9 @@ builder.Services.AddSingleton<Supabase.Client>(sp =>
 builder.Services.AddScoped<ICityRepository, CityRepository>();
 builder.Services.AddScoped<IAttendeeRepository, AttendeeRepository>();
 builder.Services.AddScoped<IEventRepository, EventRepository>();
+builder.Services.AddScoped<IEventMemberRepository, EventMemberRepository>();
 builder.Services.AddScoped<IGroupRepository, GroupRepository>();
+builder.Services.AddScoped<IGroupMemberRepository, GroupMemberRepository>();
 builder.Services.AddScoped<ILocalGuidesRepository, LocalGuidesRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<ITopicRepository, TopicRepository>();

@@ -58,6 +58,9 @@ namespace AlSaqr.Data.Entities.SocialMedia
         [Column("islamic_study_topics")]
         public string[]? IslamicStudyTopics { get; set; }
 
+        [Column("web3_address")]
+        public string? Web3Address { get; set; }
+
         [Column("is_completed")]
         public bool IsCompleted { get; set; }
 

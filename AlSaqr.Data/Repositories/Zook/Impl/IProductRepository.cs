@@ -32,7 +32,7 @@ namespace AlSaqr.Data.Repositories.Zook.Impl
 
         Task<PaginatedResult<ProductDto>> NearbyProductsByCategory(
             Supabase.Client client,
-            Guid categoryId,
+            int categoryTypeId,
             string latitude,
             string longitude,
             int currentPage,

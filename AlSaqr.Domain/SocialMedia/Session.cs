@@ -11,6 +11,7 @@ namespace  AlSaqr.Domain.SocialMedia
         public class SessionCheckRequest
         {
             public string Email { get; set; }
+            public string? Web3Address { get; set; }
         }
 
 
@@ -57,6 +58,10 @@ namespace  AlSaqr.Domain.SocialMedia
 
             [JsonPropertyName("is_anonymous")]
             public bool IsAnonymous { get; set; }
+
+            /// <summary>Wallet address supplied when the user signs in via web3.</summary>
+            [JsonPropertyName("web3_address")]
+            public string? Web3Address { get; set; }
 
             // ----- Computed convenience members (not serialized) -----
 
@@ -320,6 +325,12 @@ namespace  AlSaqr.Domain.SocialMedia
             public Guid[] Bookmarks { get; set; }
             public Guid[] Reposts { get; set; }
             public Guid[] LikedPosts { get; set; }
+
+            /// <summary>Wallet address linked to the account, when the user signed in via web3.</summary>
+            public string? Web3Address { get; set; }
+
+            /// <summary>Web3 users display differently compared to normal oauth users.</summary>
+            public bool IsWeb3 { get; set; }
         }
     }
      

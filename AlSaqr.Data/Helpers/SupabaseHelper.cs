@@ -361,7 +361,7 @@ namespace AlSaqr.Data.Helpers
         public static IDictionary<string, object> DefineGetProductByCategoryParams(
             string latitude,
             string longitude,
-            Guid productCategoryId,
+            int productCategoryTypeId,
             int skip,
             int currentPage,
             int itemsPerPage,
@@ -372,30 +372,15 @@ namespace AlSaqr.Data.Helpers
             var latitudeParsed = double.Parse(latitude);
             var longitudeParsed = double.Parse(longitude);
 
-            if (!string.IsNullOrEmpty(searchTerm))
+            return new Dictionary<string, object>()
             {
-                return new Dictionary<string, object>()
-                {
-                    { "skip", skip },
-                    { "itemsperpage", itemsPerPage },
-                    { "target_lat", latitudeParsed },
-                    { "target_lon", longitudeParsed },
-                    { "target_category_id", productCategoryId },
-                    { "max_distance_km", maxDistanceKm }
-                };
-            }
-            else
-            {
-                return new Dictionary<string, object>()
-                {
-                    { "skip", skip },
-                    { "itemsperpage", itemsPerPage },
-                    { "target_lat", latitudeParsed },
-                    { "target_lon", longitudeParsed },
-                    { "target_category_id", productCategoryId },
-                    { "max_distance_km", maxDistanceKm }
-                };
-            }
+                { "skip", skip },
+                { "itemsperpage", itemsPerPage },
+                { "target_lat", latitudeParsed },
+                { "target_lon", longitudeParsed },
+                { "target_category_id", productCategoryTypeId.ToString() },
+                { "max_distance_km", maxDistanceKm  ?? 500 }
+            };
         }
 
         public static IDictionary<string, dynamic> DefineGetUsersToAddParams(

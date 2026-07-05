@@ -1,10 +1,5 @@
 ﻿using Supabase.Postgrest.Attributes;
 using Supabase.Postgrest.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace AlSaqr.Data.Entities.Zook
 {
@@ -20,5 +15,8 @@ namespace AlSaqr.Data.Entities.Zook
 
         [Column("created_at")]
         public DateTime? CreatedAt { get; set; }
+
+        [Column("product_category_type")]
+        public int ProductCategoryType { get; set; } = 0;
     }
 }

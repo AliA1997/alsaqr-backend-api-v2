@@ -33,6 +33,60 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             }
         }
 
+        public async Task<AlSaqrUser?> GetUserByEmail(Supabase.Client supabase, string email)
+        {
+            return (await supabase
+                .From<AlSaqrUser>()
+                .Where(u => u.Email == email)
+                .Limit(1)
+                .Get()).Models.FirstOrDefault();
+        }
+
+        public async Task<AlSaqrUser?> GetUserByWeb3Address(Supabase.Client supabase, string web3Address)
+        {
+            return (await supabase
+                .From<AlSaqrUser>()
+                .Where(u => u.Web3Address == web3Address)
+                .Limit(1)
+                .Get()).Models.FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Sets the user's web3 address when a new one is passed in, and returns the
+        /// address currently stored on the record (set-and-retrieve for the session).
+        /// </summary>
+        public async Task<string?> SetWeb3Address(
+            Supabase.Client supabase,
+            Guid userId,
+            string? web3Address,
+            CancellationToken ct)
+        {
+            try
+            {
+                AlSaqrUser? user = await supabase.From<AlSaqrUser>().Where(u => u.Id == userId).Single(ct);
+                if (user == null)
+                    throw new Exception("User not found");
+
+                if (!string.IsNullOrEmpty(web3Address) && user.Web3Address != web3Address)
+                {
+                    user.Web3Address = web3Address;
+                    user.UpdatedAt = DateTime.UtcNow;
+
+                    await supabase.From<AlSaqrUser>().Where(u => u.Id == userId).Upsert(user, null, ct);
+                }
+
+                return user.Web3Address;
+            }
+            catch(UpdateUserException ex)
+            {
+                throw ex;
+            }
+            catch(Exception ex)
+            {
+                throw new UpdateUserException(userId, ex);
+            }
+        }
+
         public async Task<PaginatedResult<UserToAdd>> GetUsersToAdd(
             Supabase.Client supabase, 
             Guid userGuid, 
@@ -139,6 +193,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 IslamicStudyTopics = newUser.IslamicStudyTopics,
                 FavoriteIslamicScholars = newUser.FavoriteIslamicScholars,
                 FavoriteQuranReciters = newUser.FavoriteQuranReciters,
+                Web3Address = newUser.Web3Address,
                 IsCompleted = false,
                 IsVerified = false,
             };
@@ -202,6 +257,23 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         {
             try
             {
+                // Web3 flow: when the email already belongs to another existing account,
+                // just record the web3 address on that record instead of registering anew.
+                if (!string.IsNullOrEmpty(data.Email))
+                {
+                    var existingByEmail = (await supabase
+                        .From<AlSaqrUser>()
+                        .Where(u => u.Email == data.Email)
+                        .Limit(1)
+                        .Get(ct)).Models.FirstOrDefault();
+
+                    if (existingByEmail != null && existingByEmail.Id != userId)
+                    {
+                        await SetWeb3Address(supabase, existingByEmail.Id, data.Web3Address, ct);
+                        return existingByEmail.Id;
+                    }
+                }
+
                 AlSaqrUser? userToUpdate = await supabase
                     .From<AlSaqrUser>()
                     .Where(u => u.Id == userId)
@@ -210,6 +282,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 if (userToUpdate == null)
                     throw new Exception("User not found");
 
+                userToUpdate.Email = Common.AssignStringValue(userToUpdate.Email, data.Email);
+                userToUpdate.Web3Address = Common.AssignStringValue(userToUpdate.Web3Address, data.Web3Address);
                 userToUpdate.Username = Common.AssignStringValue(userToUpdate.Username, data.Username);
                 userToUpdate.Avatar = Common.AssignStringValue(userToUpdate.Avatar, data.Avatar?.ToString());
                 userToUpdate.BannerImage = Common.AssignStringValue(userToUpdate.BannerImage, data.BgThumbnail);

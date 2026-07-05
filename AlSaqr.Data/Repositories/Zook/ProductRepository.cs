@@ -135,7 +135,7 @@ namespace AlSaqr.Data.Repositories.Zook
 
         public async Task<PaginatedResult<ProductDto>> NearbyProductsByCategory(
             Supabase.Client client,
-            Guid categoryId,
+            int categoryTypeId,
             string latitude,
             string longitude,
             int currentPage,
@@ -145,7 +145,7 @@ namespace AlSaqr.Data.Repositories.Zook
         {
             var products = new List<ProductDto>();
             var functionName = "get_nearby_products_by_category";
-            var pagingFunctionName = "get_nearby_products_by_category_total";
+            var pagingFunctionName = "get_nearby_products_by_category_count";
 
             Pagination? pagination = null;
             var skip = (currentPage - 1) * itemsPerPage;
@@ -158,11 +158,11 @@ namespace AlSaqr.Data.Repositories.Zook
                     SupabaseHelper.DefineGetProductByCategoryParams(
                         latitude: latitude,
                         longitude: longitude,
-                        productCategoryId: categoryId,
+                        productCategoryTypeId: categoryTypeId,
                         skip: skip,
                         currentPage: currentPage,
                         itemsPerPage: itemsPerPage,
-                        maxDistanceKm: 100,
+                        maxDistanceKm: 1000,
                         searchTerm: searchTerm
                     );
 
