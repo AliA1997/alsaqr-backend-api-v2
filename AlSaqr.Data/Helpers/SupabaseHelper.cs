@@ -21,18 +21,18 @@ namespace AlSaqr.Data.Helpers
             Guid userId,
             CancellationToken ct = default)
         {
-            var attendee = (await client.From<Attendee>()
-                .Filter("user_id", Operator.Equals, userId.ToString())
-                .Get(ct)).Models.FirstOrDefault();
+            var attendee = await client.From<Attendee>()
+                                        .Filter("user_id", Operator.Equals, userId.ToString())
+                                        .Single(ct);
 
             if (attendee == null)
                 return false;
 
-            var organizerLink = (await client.From<GroupAttendees>()
-                .Filter("group_id", Operator.Equals, groupId.ToString())
-                .Filter("attendee_id", Operator.Equals, attendee.Id.ToString())
-                .Filter("is_group_organizer", Operator.Equals, "true")
-                .Get(ct)).Models.FirstOrDefault();
+            var organizerLink = await client.From<GroupAttendees>()
+                                            .Filter("group_id", Operator.Equals, groupId.ToString())
+                                            .Filter("attendee_id", Operator.Equals, attendee.Id.ToString())
+                                            .Filter("is_group_organizer", Operator.Equals, "true")
+                                            .Single(ct);
 
             return organizerLink != null;
         }

@@ -39,10 +39,10 @@ namespace AlSaqr.Data.Repositories.Meetup
                     await _groupMemberRepository.JoinGroup(supabase, userId, groupId, ct);
 
                 // Already attending — nothing to do (event_member is unique per user/event).
-                var existingEventMember = (await supabase
-                    .From<EventMember>()
-                    .Where(em => em.UserId == userId && em.EventId == eventId)
-                    .Get(ct)).Models.FirstOrDefault();
+                var existingEventMember = await supabase
+                                                .From<EventMember>()
+                                                .Where(em => em.UserId == userId && em.EventId == eventId)
+                                                .Single(ct);
 
                 if (existingEventMember != null)
                     return;
@@ -88,11 +88,11 @@ namespace AlSaqr.Data.Repositories.Meetup
                     throw new Exception($"Event with ID: {eventId} not found.");
 
                 // Check the acting user is the founder of the event's group, if he isn't return an exception.
-                var group = (await supabase
-                    .From<Groups>()
-                    .Filter("id", Operator.Equals, eventToUpdate.GroupId.ToString())
-                    .Filter("founder_id", Operator.Equals, founderId.ToString())
-                    .Get(ct)).Models.FirstOrDefault();
+                var group = await supabase
+                                    .From<Groups>()
+                                    .Filter("id", Operator.Equals, eventToUpdate.GroupId.ToString())
+                                    .Filter("founder_id", Operator.Equals, founderId.ToString())
+                                    .Single(ct);
 
                 if (group == null)
                     throw new Exception("Only the group founder can remove event members.");

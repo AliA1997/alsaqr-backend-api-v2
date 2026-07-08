@@ -261,11 +261,11 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 // just record the web3 address on that record instead of registering anew.
                 if (!string.IsNullOrEmpty(data.Email))
                 {
-                    var existingByEmail = (await supabase
-                        .From<AlSaqrUser>()
-                        .Where(u => u.Email == data.Email)
-                        .Limit(1)
-                        .Get(ct)).Models.FirstOrDefault();
+                    var existingByEmail = await supabase
+                                            .From<AlSaqrUser>()
+                                            .Where(u => u.Email == data.Email)
+                                            .Limit(1)
+                                            .Single(ct);
 
                     if (existingByEmail != null && existingByEmail.Id != userId)
                     {

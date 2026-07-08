@@ -74,11 +74,11 @@ namespace AlSaqr.Data.Repositories.Meetup
             try
             {
                 // Check the acting user is the group founder, if he isn't return an exception.
-                var group = (await supabase
-                    .From<Groups>()
-                    .Filter("id", Operator.Equals, groupId.ToString())
-                    .Filter("founder_id", Operator.Equals, founderId.ToString())
-                    .Get(ct)).Models.FirstOrDefault();
+                var group = await supabase
+                                    .From<Groups>()
+                                    .Filter("id", Operator.Equals, groupId.ToString())
+                                    .Filter("founder_id", Operator.Equals, founderId.ToString())
+                                    .Single(ct);
 
                 if (group == null)
                     throw new Exception("Only the group founder can remove group members.");

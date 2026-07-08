@@ -8,6 +8,7 @@ namespace AlSaqr.API.Config
         public JwtSettings JwtSettings { get; set; } = new();
         public SupabaseSettings Supabase { get; set; } = new();
         public GoogleGeminiSettings GoogleGemini { get; set; } = new();
+        public CloudflareCallsSettings CloudflareCalls { get; set; } = new();
     }
 
     public sealed class GraphDBSettings
@@ -39,6 +40,24 @@ namespace AlSaqr.API.Config
         public string Url { get; set; } = default!;
         public string Schema { get; set; } = default!;
         public string Key { get; set; } = default!;
+
+        /// <summary>
+        /// Service-role key. Server-side only — used to publish authoritative
+        /// realtime events on space channels (specs/audio-spaces.md). MUST never
+        /// be sent to a client or written to a log.
+        /// </summary>
+        public string ServiceRoleSecret { get; set; } = default!;
+    }
+
+    /// <summary>
+    /// Cloudflare Calls (Realtime SFU) credentials (specs/audio-spaces.md).
+    /// The app secret never leaves the server; every SFU call is proxied.
+    /// </summary>
+    public sealed class CloudflareCallsSettings
+    {
+        public string AppId { get; set; } = default!;
+        public string AppSecret { get; set; } = default!;
+        public string BaseUrl { get; set; } = default!;
     }
 
     public sealed class GoogleGeminiSettings
