@@ -27,7 +27,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                     throw new Exception("User not found");
 
                 return (userInfo.Id, userInfo.Username);
-            } catch(Exception ex)
+            }
+            catch (Exception ex)
             {
                 throw ex;
             }
@@ -77,21 +78,21 @@ namespace AlSaqr.Data.Repositories.SocialMedia
 
                 return user.Web3Address;
             }
-            catch(UpdateUserException ex)
+            catch (UpdateUserException ex)
             {
                 throw ex;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 throw new UpdateUserException(userId, ex);
             }
         }
 
         public async Task<PaginatedResult<UserToAdd>> GetUsersToAdd(
-            Supabase.Client supabase, 
-            Guid userGuid, 
-            string? searchTerm, 
-            int currentPage, 
+            Supabase.Client supabase,
+            Guid userGuid,
+            string? searchTerm,
+            int currentPage,
             int itemsPerPage)
         {
             var usersToAdd = new List<UserToAdd>();
@@ -207,8 +208,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         }
 
         public async Task<Guid> UpdateUser(
-            Supabase.Client client, 
-            Guid userId, 
+            Supabase.Client client,
+            Guid userId,
             UpdateUserDto updatedUser,
             CancellationToken ct)
         {
@@ -227,22 +228,22 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 userToUpdate.CountryOfOrigin = Common.AssignStringValue(userToUpdate!.CountryOfOrigin, updatedUser?.CountryOfOrigin);
                 userToUpdate.Hobbies = updatedUser?.Hobbies ?? new string[] { };
                 userToUpdate.MaritalStatus = Common.AssignStringValue(userToUpdate.MaritalStatus, updatedUser?.MaritalStatus);
-                userToUpdate.PreferredMadhab = !string.IsNullOrEmpty(userToUpdate.PreferredMadhab) ? userToUpdate.PreferredMadhab 
-                                                    :  userToUpdate.PreferredMadhab?.ToString() == string.Empty ? null 
+                userToUpdate.PreferredMadhab = !string.IsNullOrEmpty(userToUpdate.PreferredMadhab) ? userToUpdate.PreferredMadhab
+                                                    : userToUpdate.PreferredMadhab?.ToString() == string.Empty ? null
                                                         : updatedUser?.PreferredMadhab; // Go back to original value, if value is invalid. 
 
                 userToUpdate.IslamicStudyTopics = updatedUser?.IslamicStudyTopics ?? new string[] { };
-                userToUpdate.FavoriteIslamicScholars = updatedUser?.FavoriteIslamicScholars ?? new string[] { }; 
+                userToUpdate.FavoriteIslamicScholars = updatedUser?.FavoriteIslamicScholars ?? new string[] { };
                 userToUpdate.FavoriteQuranReciters = updatedUser?.FavoriteQuranReciters ?? new string[] { };
 
                 await client.From<AlSaqrUser>().Where(u => u.Id == userToUpdate!.Id).Upsert(userToUpdate, null, ct);
                 return userToUpdate.Id;
             }
-            catch(UpdateUserException ex)
+            catch (UpdateUserException ex)
             {
                 throw ex;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 throw new UpdateUserException(userId, ex);
             }
@@ -306,15 +307,17 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 return userToUpdate.Id;
 
             }
-            catch(CompleteRegistrationException ex)
+            catch (CompleteRegistrationException ex)
             {
                 throw ex;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 throw new CompleteRegistrationException(userId, ex);
             }
         }
+
+
 
         public async Task<Guid> DeleteUser(Supabase.Client client, Guid userId)
         {

@@ -22,7 +22,6 @@ using Amazon.SecretsManager;
 using Amazon.SecretsManager.Model;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Neo4j.Driver;
 using NewsAPI;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -59,6 +58,7 @@ var supabaseUrl = configuration["Supabase:Url"];
 var supabaseKey = configuration["Supabase:Key"];
 var supabaseSchema = configuration["Supabase:Schema"];
 var newsApiKey = configuration["NewsApiKey"];
+var jwtSecret = configuration["JwtSettings:Secret"];
 
 builder.Services.AddSingleton<Supabase.Client>(sp =>
 {
@@ -69,6 +69,13 @@ builder.Services.AddSingleton<Supabase.Client>(sp =>
     };
     return new Supabase.Client(supabaseUrl, supabaseKey, options);
 });
+
+builder.Services.AddSingleton<TokenService>(sp =>
+{
+    return new TokenService(jwtSecret);
+});
+
+
 builder.Services.AddScoped<ICityRepository, CityRepository>();
 builder.Services.AddScoped<IAttendeeRepository, AttendeeRepository>();
 builder.Services.AddScoped<IEventRepository, EventRepository>();

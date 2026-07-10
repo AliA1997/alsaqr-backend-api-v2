@@ -10,7 +10,9 @@ namespace  AlSaqr.Domain.SocialMedia
     {
         public class SessionCheckRequest
         {
-            public string Email { get; set; }
+            [JsonPropertyName("email")]
+            public string? Email { get; set; }
+            [JsonPropertyName("web3_address")]
             public string? Web3Address { get; set; }
         }
 
@@ -235,6 +237,40 @@ namespace  AlSaqr.Domain.SocialMedia
         public static string GetEmailUsername(string email)
         {
             return email?.Split('@').FirstOrDefault() ?? string.Empty;
+        }
+
+        // Word pools for pseudonymous wallet handles. Kept human-readable on
+        // purpose — a wallet user's public name should read like a name, not hex.
+        private static readonly string[] UsernameAdjectives =
+        {
+            "Swift", "Bright", "Noble", "Golden", "Silent", "Brave", "Amber",
+            "Steady", "Radiant", "Gentle", "Bold", "Silver", "Keen", "Calm",
+            "Vivid", "Lofty", "Clever", "Sunny", "Rapid", "Stellar",
+        };
+
+        private static readonly string[] UsernameNouns =
+        {
+            "Falcon", "Oasis", "Dune", "Crescent", "Palm", "Horizon", "Comet",
+            "Meadow", "Summit", "Harbor", "Lantern", "Breeze", "Canyon", "Star",
+            "River", "Garden", "Voyager", "Compass", "Beacon", "Skyline",
+        };
+
+        /// <summary>
+        /// Wallet sign-ups must not expose the full wallet address as a public
+        /// username: generate a readable adjective+noun handle carrying only the
+        /// first 5 characters of the address as a suffix, so the owner can still
+        /// recognize it (e.g. "SwiftFalcon_0x1a2").
+        /// </summary>
+        public static string GetRandomWeb3Username(string? web3Address)
+        {
+            var adjective = UsernameAdjectives[Random.Shared.Next(UsernameAdjectives.Length)];
+            var noun = UsernameNouns[Random.Shared.Next(UsernameNouns.Length)];
+
+            var suffix = string.IsNullOrEmpty(web3Address)
+                ? string.Empty
+                : $"_{web3Address[..Math.Min(5, web3Address.Length)]}";
+
+            return $"{adjective}{noun}{suffix}";
         }
 
         public class SessionUser

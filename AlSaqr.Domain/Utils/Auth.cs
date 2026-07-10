@@ -4,13 +4,6 @@ namespace  AlSaqr.Domain.Utils
 {
     public static class Auth
     {
-        public class JwtSettings
-        {
-            public string Secret { get; set; }
-            public string Issuer { get; set; }
-            public string Audience { get; set; }
-            public int ExpiryMinutes { get; set; }
-        }
 
         /// <summary>
         /// Lightweight Bearer access-token gate (see specs/access-token.md). Reads the JWT

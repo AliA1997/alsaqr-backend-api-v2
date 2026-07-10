@@ -43,6 +43,39 @@ namespace AlSaqr.Data.Repositories.SocialMedia
             }
         }
 
+        public async Task<SessionUser> GetSessionInfoByWeb3(
+            Supabase.Client supabase,
+            string web3Address)
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource();
+                CancellationToken ct = cts.Token;
+
+                var user = await supabase
+                    .From<AlSaqrUser>()
+                    .Where(x => x.Web3Address == web3Address)
+                    .Single(ct);
+                
+                if (user == null)
+                    throw new Exception($"User Profile with a web3 address of {web3Address} not found");
+
+                var sessionUserInfo = await supabase
+                        .From<VwSessionUser>()
+                        .Where(x => x.Id == user.Id)
+                        .Single(ct);
+
+                if (sessionUserInfo == null)
+                    throw new Exception($"User Profile with a user ID of {user.Id} not found");
+
+                return new SessionUser(sessionUserInfo);
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
         /// <summary>
         /// Gets profile info for a username: user details, bookmark ids,
         /// following/followers and their counts. Sourced from vw_user_profile_info.

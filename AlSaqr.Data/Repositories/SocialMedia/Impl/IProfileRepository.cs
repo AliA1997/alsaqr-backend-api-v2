@@ -7,6 +7,8 @@ namespace AlSaqr.Data.Repositories.SocialMedia.Impl
     {
         Task<SessionUser> GetSessionInfo(Supabase.Client supabase, Guid userId);
 
+        Task<SessionUser> GetSessionInfoByWeb3(Supabase.Client supabase, string web3Address);
+
         Task<UserProfilePostsDto> GetProfilePosts(
             Supabase.Client supabase,
             string username,

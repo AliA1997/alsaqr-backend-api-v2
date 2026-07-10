@@ -44,37 +44,42 @@ namespace AlSaqr.API.Controllers.SocialMedia
         {
             var data = request.Values;
             // Input validation
-            if (string.IsNullOrEmpty(data.Email))
+            if (string.IsNullOrEmpty(data.Email) && string.IsNullOrEmpty(data.Web3Address))
             {
-                return BadRequest("Enail is required");
+                return BadRequest("Email or web3 address is required");
             }
+
             var cts = new CancellationTokenSource();
             var ct = cts.Token;
-
+            dynamic sessionUserResult;
             try
             {
-                var (userId, username) = await _userRepository.GetUserIdAndUsernameByEmail(
-                    _supabase,
-                    data.Email
-                );
+                if(string.IsNullOrEmpty(data.Email) && !string.IsNullOrEmpty(data.Web3Address))
+                {
+                    sessionUserResult = await _profileRepository.GetSessionInfoByWeb3(_supabase, data.Web3Address);
 
-                var sessionUserResult = await _profileRepository.GetSessionInfo(_supabase, userId);
+                    sessionUserResult.Web3Address = !string.IsNullOrEmpty(data.Web3Address) ? data.Web3Address : sessionUserResult.Web3Address;
+                    sessionUserResult.IsWeb3 = !string.IsNullOrEmpty(data.Web3Address);
+
+                }
+                else if(!string.IsNullOrEmpty(data.Email))
+                {
+                    var (userId, username) = await _userRepository.GetUserIdAndUsernameByEmail(
+                        _supabase,
+                        data.Email
+                    );
+                
+                    sessionUserResult = await _profileRepository.GetSessionInfo(_supabase, userId);
+                }
+                else
+                {
+                    return BadRequest("Either email or web3 address is required");
+                }
 
                 _logger.LogInformation("User signed in successfully!");
 
                 if (sessionUserResult.Id == Guid.Empty || sessionUserResult.Id == null)
                     return BadRequest("Invalid user retrieved");
-
-                // Set (when passed in) and retrieve the user's web3 address; web3 users
-                // display differently compared to normal oauth users.
-                var web3Address = await _userRepository.SetWeb3Address(
-                    _supabase,
-                    userId,
-                    data.Web3Address,
-                    ct
-                );
-                sessionUserResult.Web3Address = !string.IsNullOrEmpty(web3Address) ? web3Address : sessionUserResult.Web3Address;
-                sessionUserResult.IsWeb3 = !string.IsNullOrEmpty(web3Address);
 
                 _userCacheService.SetLoggedInUser(sessionUserResult);
 

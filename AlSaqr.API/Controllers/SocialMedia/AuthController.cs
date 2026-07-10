@@ -1,6 +1,7 @@
 using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Repositories.SocialMedia.Impl;
 using AlSaqr.Domain.Utils;
+using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using static AlSaqr.Domain.SocialMedia.Session;
 using static AlSaqr.Domain.SocialMedia.User;
@@ -16,16 +17,19 @@ namespace AlSaqr.API.Controllers.SocialMedia
     {
         private readonly ILogger<AuthController> _logger;
         private readonly IUserRepository _userRepository;
+        private readonly TokenService _tokenService;
         private readonly Supabase.Client _supabase;
 
         public AuthController(
             ILogger<AuthController> logger,
             IUserRepository userRepository,
+            TokenService tokenService,
             Supabase.Client supabase
         )
         {
             _logger = logger;
             _userRepository = userRepository;
+            _tokenService = tokenService;
             _supabase = supabase;
         }
 
@@ -39,14 +43,14 @@ namespace AlSaqr.API.Controllers.SocialMedia
         )
         {
             var data = request.Values;
-
+            Guid userId = Guid.Empty;
             // Input validation
             if (string.IsNullOrEmpty(data.Email) && string.IsNullOrEmpty(data.Web3Address))
             {
                 return BadRequest("Email or web3 address is required");
             }
 
-            var cts = new CancellationTokenSource();
+            using var cts = new CancellationTokenSource();
             var ct = cts.Token;
 
             try
@@ -76,6 +80,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
                             ct
                         );
                     }
+
                 }
 
                 if (existingUser == null)
@@ -83,6 +88,19 @@ namespace AlSaqr.API.Controllers.SocialMedia
                     var isDiscordAccount = !string.IsNullOrEmpty(data.ProfileAvatar)
                         ? data.ProfileAvatar.Contains("discord")
                         : false;
+                    var username = isDiscordAccount
+                            ? data.GlobalName
+                            : data.DisplayName
+                                ?? (
+                                    !string.IsNullOrEmpty(data.Email)
+                                        ? GetEmailUsername(data.Email)
+                                        : GetRandomWeb3Username(data.Web3Address)
+                                );
+                    var avatar =  !string.IsNullOrEmpty(data.ProfileAvatar) 
+                                    ? data.ProfileAvatar
+                                    : !string.IsNullOrEmpty(data?.UserMetadata?.Picture)
+                                         ? data.UserMetadata?.Picture
+                                         : data?.UserMetadata?.AvatarUrl ?? $"https://robohash.org/{username}" ?? "";
 
                     var newUser = new CreateInitialUserDto()
                     {
@@ -92,24 +110,13 @@ namespace AlSaqr.API.Controllers.SocialMedia
                             data.UserMetadata?.FullName?.Split(' ').Length > 1
                                 ? data.UserMetadata.FullName.Split(' ')[1]
                                 : null,
-                        Username = isDiscordAccount
-                            ? data.GlobalName
-                            : data.DisplayName
-                                ?? (
-                                    !string.IsNullOrEmpty(data.Email)
-                                        ? GetEmailUsername(data.Email)
-                                        : data.Web3Address
-                                ),
+                        Username = username,
                         Email = data.Email!,
                         CreatedAt = DateTime.UtcNow,
                         Bio = "",
                         CountryOfOrigin = "United States",
                         Phone = data.Phone,
-                        Avatar =
-                            !string.IsNullOrEmpty(data.ProfileAvatar) ? data.ProfileAvatar
-                            : !string.IsNullOrEmpty(data?.UserMetadata?.Picture)
-                                ? data.UserMetadata?.Picture
-                            : data?.UserMetadata?.AvatarUrl ?? "",
+                        Avatar = avatar,
                         BgThumbnail = CityBackgrounds.GetRandomCityImage(),
                         DateOfBirth = null,
                         Religion = "Muslim",
@@ -123,11 +130,17 @@ namespace AlSaqr.API.Controllers.SocialMedia
                         Web3Address = data?.Web3Address,
                     };
 
-                    await _userRepository.CreateInitialUser(_supabase, newUser);
+                    var insertedUser = await _userRepository.CreateInitialUser(_supabase, newUser);
+                    userId = insertedUser.Id;
+                }
+                else
+                {
+                    userId = existingUser.Id;
                 }
 
                 _logger.LogInformation("User signed in successfully!");
-                return Ok(new { success = true });
+                var accessTokenResult = _tokenService.GenerateTokens(userId.ToString());
+                return Ok(new { success = true, accessToken = accessTokenResult.AccessToken });
             }
             catch (Exception err)
             {
