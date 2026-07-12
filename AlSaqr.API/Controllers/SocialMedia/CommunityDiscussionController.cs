@@ -120,8 +120,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
             CancellationToken ct = cts.Token;
 
             var data = request.Values;
-            if (userId == Guid.Empty || communityId == Guid.Empty || communityDiscussionId == Guid.Empty
-                || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
+            if (
+                userId == Guid.Empty 
+                || communityId == Guid.Empty 
+                || communityDiscussionId == Guid.Empty
+                || (string.IsNullOrEmpty(data.Email) && string.IsNullOrEmpty(data.Web3Address))
+                || string.IsNullOrEmpty(data.Username))
             {
                 return BadRequest("Missing required fields");
             }
@@ -157,8 +161,11 @@ namespace AlSaqr.API.Controllers.SocialMedia
             CancellationToken ct = cts.Token;
 
             var data = request.Values;
-            if (userId == Guid.Empty || communityId == Guid.Empty || communityDiscussionId == Guid.Empty
-                || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
+            if (userId == Guid.Empty 
+                || communityId == Guid.Empty 
+                || communityDiscussionId == Guid.Empty
+                || (string.IsNullOrEmpty(data.Email) && string.IsNullOrEmpty(data.Web3Address)) 
+                || string.IsNullOrEmpty(data.Username))
             {
                 return BadRequest("Missing required fields");
             }
@@ -284,8 +291,11 @@ namespace AlSaqr.API.Controllers.SocialMedia
             CancellationToken ct = cts.Token;
 
             var data = request.Values;
-            if (userId == Guid.Empty || communityId == Guid.Empty || communityDiscussionId == Guid.Empty
-                || string.IsNullOrEmpty(data.Email) || string.IsNullOrEmpty(data.Username))
+            if (userId == Guid.Empty 
+                || communityId == Guid.Empty 
+                || communityDiscussionId == Guid.Empty
+                || (string.IsNullOrEmpty(data.Email) && string.IsNullOrEmpty(data.Web3Address))
+                || string.IsNullOrEmpty(data.Username))
             {
                 return BadRequest("Missing required fields");
             }
@@ -419,7 +429,9 @@ namespace AlSaqr.API.Controllers.SocialMedia
 
             var data = request.Values;
 
-            if (communityId == Guid.Empty || communityDiscussionId == Guid.Empty || string.IsNullOrEmpty(data.Content))
+            if (communityId == Guid.Empty 
+                || communityDiscussionId == Guid.Empty 
+                || string.IsNullOrEmpty(data.Content))
                 return BadRequest("Missing required fields");
 
             await _communityDiscussionRepository.CreateCommunityDiscussionMessage(_supabase, userId, communityDiscussionId, data);

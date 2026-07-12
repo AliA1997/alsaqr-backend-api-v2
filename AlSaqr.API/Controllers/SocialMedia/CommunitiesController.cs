@@ -265,7 +265,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
             if (
                 userId == Guid.Empty
                 || communityId == Guid.Empty
-                || string.IsNullOrEmpty(data.Email)
+                || (string.IsNullOrEmpty(data.Email) && string.IsNullOrEmpty(data.Web3Address))
                 || string.IsNullOrEmpty(data.Username)
             )
             {
@@ -306,7 +306,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
             if (
                 userId == Guid.Empty
                 || communityId == Guid.Empty
-                || string.IsNullOrEmpty(data.Email)
+                || (string.IsNullOrEmpty(data.Email) && string.IsNullOrEmpty(data.Web3Address))
                 || string.IsNullOrEmpty(data.Username)
             )
             {
@@ -354,7 +354,7 @@ namespace AlSaqr.API.Controllers.SocialMedia
             if (
                 userId == Guid.Empty
                 || communityId == Guid.Empty
-                || string.IsNullOrEmpty(data.Email)
+                || (string.IsNullOrEmpty(data.Email) && string.IsNullOrEmpty(data.Web3Address))
                 || string.IsNullOrEmpty(data.Username)
             )
             {

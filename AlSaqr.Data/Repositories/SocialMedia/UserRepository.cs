@@ -258,22 +258,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
         {
             try
             {
-                // Web3 flow: when the email already belongs to another existing account,
-                // just record the web3 address on that record instead of registering anew.
-                if (!string.IsNullOrEmpty(data.Email))
-                {
-                    var existingByEmail = await supabase
-                                            .From<AlSaqrUser>()
-                                            .Where(u => u.Email == data.Email)
-                                            .Limit(1)
-                                            .Single(ct);
-
-                    if (existingByEmail != null && existingByEmail.Id != userId)
-                    {
-                        await SetWeb3Address(supabase, existingByEmail.Id, data.Web3Address, ct);
-                        return existingByEmail.Id;
-                    }
-                }
+                
 
                 AlSaqrUser? userToUpdate = await supabase
                     .From<AlSaqrUser>()

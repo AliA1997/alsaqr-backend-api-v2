@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using AlSaqr.API.Config;
 using AlSaqr.API.Extensions;
+using AlSaqr.API.HostedServices;
 using AlSaqr.Data;
 using AlSaqr.Data.Repositories.Meetup;
 using AlSaqr.Data.Repositories.Meetup.Impl;
@@ -11,12 +12,14 @@ using AlSaqr.Data.Repositories.Yumna;
 using AlSaqr.Data.Repositories.Yumna.Impl;
 using AlSaqr.Data.Repositories.Zook;
 using AlSaqr.Data.Repositories.Zook.Impl;
-// using AlSaqr.API.HostedServices;
-// using AlSaqr.API.Middleware;
+using AlSaqr.API.HostedServices;
+using AlSaqr.API.Middleware;
 using AlSaqr.Infrastructure;
 using AlSaqr.Infrastructure.Config;
 using AlSaqr.Infrastructure.SocialMediaCache;
-// using AlSaqr.Infrastructure.Spaces;
+using AlSaqr.Infrastructure.Spaces;
+
+using AlSaqr.Infrastructure.Spaces;
 using AlSaqr.Infrastructure.Yumna;
 using Amazon.SecretsManager;
 using Amazon.SecretsManager.Model;
@@ -113,12 +116,12 @@ builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 // Audio spaces (specs/audio-spaces.md): repository, Cloudflare SFU proxy,
 // service-role realtime broadcaster, and the silent-death reaper. The Cloudflare
 // app secret and Supabase service-role key stay server-side only.
-// builder.Services.AddScoped<ISpaceRepository, SpaceRepository>();
-// builder.Services.Configure<CloudflareCallsConfig>(builder.Configuration.GetSection("CloudflareCalls"));
-// builder.Services.Configure<SupabaseRealtimeConfig>(builder.Configuration.GetSection("Supabase"));
-// builder.Services.AddHttpClient<ICloudflareCallsService, CloudflareCallsService>();
-// builder.Services.AddHttpClient<ISpaceEventBroadcaster, SpaceEventBroadcaster>();
-// builder.Services.AddHostedService<SpaceReaperService>();
+builder.Services.AddScoped<ISpaceRepository, SpaceRepository>();
+builder.Services.Configure<CloudflareCallsConfig>(builder.Configuration.GetSection("CloudflareCalls"));
+builder.Services.Configure<SupabaseRealtimeConfig>(builder.Configuration.GetSection("Supabase"));
+builder.Services.AddHttpClient<ICloudflareCallsService, CloudflareCallsService>();
+builder.Services.AddHttpClient<ISpaceEventBroadcaster, SpaceEventBroadcaster>();
+builder.Services.AddHostedService<SpaceReaperService>();
 
 builder.Services.Configure<GoogleGeminiConfig>(builder.Configuration.GetSection("GoogleGemini"));
 builder.Services.AddHttpClient<IYumnaService, YumnaService>();

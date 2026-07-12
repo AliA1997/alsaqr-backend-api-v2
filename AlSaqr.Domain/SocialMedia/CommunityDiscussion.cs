@@ -33,8 +33,10 @@ namespace  AlSaqr.Domain.SocialMedia
 
         public class CommunityDiscussionInviteConfirmationDto
         {
+            public string? Web3Address { get;set; }
+
+            public string? Email { get; set; }
             public string Username { get; set; }
-            public string Email { get; set; }
         }
 
         public class AcceptOrDenyCommunityDiscussionInviteConfirmationDto

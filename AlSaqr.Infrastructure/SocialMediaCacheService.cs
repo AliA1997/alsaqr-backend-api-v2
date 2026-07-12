@@ -12,21 +12,29 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
 {
     public interface ISocialMediaCacheService
     {
+        /// USERS TO SHOW ON MODALS
         void ClearUsersToAdd(Guid userId);
         void SetUsersToAdd(PaginatedResult<UserToAdd> pagination, Guid userId);
         bool CheckIfInitialUsersToAddCanBeRetrieved(int currentPage, Guid userId);
         PaginatedResult<UserToAdd>? GetInitialUsersToAdd(Guid userId);
+        //////////////////////////////////////////////////////////////////////////////
+        
+        /// MESSAGE THREADS FOR USER
 
         void ClearInitialMessageThreads(Guid userId);
         void SetInitialMessageThreads(PaginatedResult<MessageHistoryDto> pagination, Guid userId);
         PaginatedResult<MessageHistoryDto>? GetInitialMessageThreads(Guid userId);
         bool CheckIfInitialMessageThreadsCanBeRetrieved(Guid userId);
+        //////////////////////////////////////////////////////////////////////////////
 
+        /// COMMUNITIES FOR USER
         void ClearInitialCommunities(Guid userId);
         void SetInitialCommunities(PaginatedResult<CommunityDto> pagination, Guid userId);
         PaginatedResult<CommunityDto>? GetInitialCommunities(Guid userId);
         bool CheckIfInitialCommunitiesCanBeRetrieved(Guid userId);
+        //////////////////////////////////////////////////////////////////////////////
 
+        /// COMMUNITY DISCUSSIONS FOR USER
         void ClearInitialCommunityDiscussions(Guid userId, Guid communityId);
         void SetInitialCommunityDiscussions(
             PaginatedResult<CommunityDiscussionDto> communityDiscussionsPagination,
@@ -38,7 +46,10 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
             Guid communityId
         );
         bool CheckIfInitialCommunityDiscussionsCanBeRetrieved(Guid userId, Guid communityId);
+        //////////////////////////////////////////////////////////////////////////////
 
+
+        /// COMMUNITY DISCUSSION MESSAGES FOR USER
         void ClearInitialCommunityDiscussionMessages(
             Guid userId,
             Guid communityId,
@@ -60,11 +71,16 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
             Guid communityId,
             Guid communityDiscussionId
         );
+        //////////////////////////////////////////////////////////////////////////////
 
+        /// LISTS FOR USER
         void ClearInitialLists(Guid userId);
         void SetInitialLists(PaginatedResult<ListDto> pagination, Guid userId);
         PaginatedResult<ListDto>? GetInitialLists(Guid userId);
         bool CheckIfInitialListsCanBeRetrieved(int currentPage, Guid userId);
+        //////////////////////////////////////////////////////////////////////////////
+
+        /// LIST ITEMS FOR LIST PAGE
         void ClearInitialListItemsForList(Guid userId, Guid listId, int currentPage);
         void SetInitialListItemForList(
             PaginatedResult<ListItemDto> userListsPagination,
@@ -78,12 +94,17 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
             int currentPage
         );
         bool CheckIfInitialListItemForListCanBeRetrieved(int currentPage, Guid userId, Guid listId);
+        //////////////////////////////////////////////////////////////////////////////
 
-        void ClearInitialPosts(Guid userId, int currentPage);
-        void SetInitialPosts(Guid userId, int currentPage, PaginatedResult<PostDto> pagination);
-        PaginatedResult<PostDto>? GetInitialPosts(Guid userId, int currentPage);
-        bool CheckIfInitialPostsCanBeRetrieved(Guid userId, int currentPage);
+        /// POSTS
 
+        void ClearInitialPosts(Guid userId);
+        void SetInitialPosts(Guid userId, PaginatedResult<PostDto> pagination);
+        PaginatedResult<PostDto>? GetInitialPosts(Guid userId);
+        bool CheckIfInitialPostsCanBeRetrieved(Guid userId);
+        //////////////////////////////////////////////////////////////////////////////
+
+        /// POSTS THAT DISPLAY IN MODALS
         void ClearInitialPostsToAdd(Guid userId);
         void SetInitialPostsToAdd(
             Guid userid,
@@ -91,29 +112,38 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
         );
         bool CheckIfInitialPostsToAddCanBeRetrieved(Guid userid);
         PaginatedResult<PostsToAdd>? GetInitialPostsToAdd(Guid userid);
-
+        //////////////////////////////////////////////////////////////////////////////
+        
+        /// COMMENTS
         void ClearInitialComments(Guid postId);
         void SetInitialComments(Guid postId, PaginatedResult<PostDto> pagination);
         PaginatedResult<PostDto>? GetInitialComments(Guid postId);
         bool CheckIfInitialCommentsCanBeRetrieved(Guid postId);
+        //////////////////////////////////////////////////////////////////////////////
 
+        /// EXPLORE ALL NEWS 
         void SetInitialExploreAllNews(
             PaginatedResult<Explore.ExploreToDisplay> exploreAllNewsPaginatedResult
         );
         bool CheckIfInitialExploreAllNewsCanBeRetrieved();
         PaginatedResult<Explore.ExploreToDisplay>? GetInitialAllExploreNews();
+        //////////////////////////////////////////////////////////////////////////////
 
+        /// EXPLORE NEWS BY SOURCE
         void SetInitialExploreNewsBySource(
             string source,
             PaginatedResult<Explore.ExploreToDisplay> exploreNewsBySourcePaginatedResult
         );
         bool CheckIfInitialExploreNewsBySourceCanBeRetrieved(string source);
         PaginatedResult<Explore.ExploreToDisplay>? GetInitialExploreNewsBySource(string source);
+        //////////////////////////////////////////////////////////////////////////////
 
+        /// PRODUCT CATEGORIES
         List<ProductCategoryDto>? GetInitialProductCategories();
 
         bool CheckIfInitialProductCategories();
         void SetInitialProductCategories(List<ProductCategoryDto> productCategoriesToSet);
+        //////////////////////////////////////////////////////////////////////////////
     }
 
     public partial class SocialMediaCacheService : ISocialMediaCacheService

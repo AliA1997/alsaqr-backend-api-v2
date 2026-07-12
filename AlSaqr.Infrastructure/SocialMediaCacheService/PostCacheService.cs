@@ -11,29 +11,24 @@ namespace AlSaqr.Infrastructure.SocialMediaCache
         const string commentsPrefix = "initialComments_";
 
 
-        public void ClearInitialPosts(Guid userId, int currentPage)
-        {
-            // Means clear all initial posts cache for the user, as the change can affect all pages
-            if (currentPage == -1)
-                for(var pageKey = 1; pageKey <= 10; pageKey++)
-                    _cache.Remove($"{postsPrefix}{userId}_page_{pageKey}");
-
+        public void ClearInitialPosts(Guid userId)
+        {            
+            _cache.Remove($"{postsPrefix}{userId}");
         }
-        public void SetInitialPosts(Guid userId, int currentPage, PaginatedResult<PostDto> postsPaginatedResult)
+        public void SetInitialPosts(Guid userId, PaginatedResult<PostDto> postsPaginatedResult)
         {
-            if (currentPage >= 10) return;
 
-            _cache.Set($"{postsPrefix}{userId}_page_{currentPage}", postsPaginatedResult, CommonCacheOptions);
+            _cache.Set($"{postsPrefix}{userId}", postsPaginatedResult, CommonCacheOptions);
         }
-        public bool CheckIfInitialPostsCanBeRetrieved(Guid userId, int currentPage)
+        public bool CheckIfInitialPostsCanBeRetrieved(Guid userId)
         {
-            _cache.TryGetValue($"{postsPrefix}{userId}_page_{currentPage}", out PaginatedResult<PostDto>? postsPaginatedResult);
+            _cache.TryGetValue($"{postsPrefix}{userId}", out PaginatedResult<PostDto>? postsPaginatedResult);
 
-            return (postsPaginatedResult != null && postsPaginatedResult.Pagination.CurrentPage == currentPage);
+            return (postsPaginatedResult != null);
         }
-        public PaginatedResult<PostDto>? GetInitialPosts(Guid userId, int currentPage)
+        public PaginatedResult<PostDto>? GetInitialPosts(Guid userId)
         {
-            _cache.TryGetValue($"{postsPrefix}{userId}_page_{currentPage}", out PaginatedResult<PostDto>? postsPaginatedResult);
+            _cache.TryGetValue($"{postsPrefix}{userId}", out PaginatedResult<PostDto>? postsPaginatedResult);
 
             return postsPaginatedResult;
         }
