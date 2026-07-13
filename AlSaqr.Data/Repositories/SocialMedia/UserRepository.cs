@@ -268,7 +268,7 @@ namespace AlSaqr.Data.Repositories.SocialMedia
                 if (userToUpdate == null)
                     throw new Exception("User not found");
 
-                userToUpdate.Email = Common.AssignStringValue(userToUpdate.Email, data.Email);
+                userToUpdate.Email = !string.IsNullOrEmpty(userToUpdate.Web3Address) ? null : Common.AssignStringValue(userToUpdate.Email, data.Email);
                 userToUpdate.Web3Address = Common.AssignStringValue(userToUpdate.Web3Address, data.Web3Address);
                 userToUpdate.Username = Common.AssignStringValue(userToUpdate.Username, data.Username);
                 userToUpdate.Avatar = Common.AssignStringValue(userToUpdate.Avatar, data.Avatar?.ToString());

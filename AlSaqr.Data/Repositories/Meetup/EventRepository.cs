@@ -4,6 +4,7 @@ using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
+using AlSaqr.Domain.Meetup.Exceptions;
 using Newtonsoft.Json;
 using Supabase.Postgrest;
 using static AlSaqr.Domain.Utils.Common;
@@ -291,48 +292,77 @@ namespace AlSaqr.Data.Repositories.Meetup
 
         public async Task<Event> CreateEvent(
             Guid userId,
+            Guid attendeeId,
             Supabase.Client client,
             CreateEventForm form,
             CancellationToken ct
         )
         {
-            string eventSlug = Regex
-                .Replace(input: form.Name!, pattern: @"[^a-zA-Z0-9]", replacement: "_")
-                .ToLower();
-
-            var model = new Event()
+            try
             {
-                Id = Guid.NewGuid(),
-                Name = form.Name,
-                Slug = eventSlug,
-                Description = form.Description,
-                Images = form.Images ?? new string[] { },
-                GroupId = form.GroupId,
-                IsOnline = form.IsOnline,
-                TimesOccurred = 0,
-                LastOccurredAt = form.DateToOccur,
-                CreatedAt = DateTime.UtcNow,
-            };
 
-            var insertedEvent = (
+                string eventSlug = Regex
+                    .Replace(input: form.Name!, pattern: @"[^a-zA-Z0-9]", replacement: "_")
+                    .ToLower();
+
+                var model = new Event()
+                {
+                    Id = Guid.NewGuid(),
+                    Name = form.Name,
+                    Slug = eventSlug,
+                    Description = form.Description,
+                    Images = form.Images ?? new string[] { },
+                    GroupId = form.GroupId,
+                    IsOnline = form.IsOnline,
+                    TimesOccurred = 0,
+                    LastOccurredAt = form.DateToOccur,
+                    CreatedAt = DateTime.UtcNow,
+                };
+
+                var insertedEvent = (
+                    await client
+                        .From<Event>()
+                        .Upsert(
+                            model,
+                            new QueryOptions() { Returning = QueryOptions.ReturnType.Representation }
+                        )
+                ).Model;
+
                 await client
-                    .From<Event>()
+                    .From<EventAttendees>()
                     .Upsert(
-                        model,
-                        new QueryOptions() { Returning = QueryOptions.ReturnType.Representation }
-                    )
-            ).Model;
+                        new EventAttendees()
+                        {
+                            Id = Guid.NewGuid(),
+                            EventId = insertedEvent!.Id,
+                            GroupId = model.GroupId ?? Guid.Empty,
+                            AttendeeId = attendeeId,
+                            IsEventOrganizer = true,
+                            CreatedAt = DateTime.UtcNow,
+                        },
+                        null,
+                        ct
+                    );
 
-            await CreateEventNotification(
-                client,
-                userId,
-                insertedEvent.Id,
-                "Started a new event with a name of {event}",
-                "event_created",
-                ct
-            );
+                await CreateEventNotification(
+                    client,
+                    userId,
+                    insertedEvent!.Id,
+                    "Started a new event with a name of {event}",
+                    "event_created",
+                    ct
+                );
 
-            return insertedEvent!;
+                return insertedEvent!;
+            }
+            catch (CreateEventException ex)
+            {
+                throw ex;
+            }
+            catch (Exception ex)
+            {
+                throw new CreateEventException(userId, form?.Name ?? "", ex);
+            }
         }
 
         public async Task<Event> UpdateEvent(

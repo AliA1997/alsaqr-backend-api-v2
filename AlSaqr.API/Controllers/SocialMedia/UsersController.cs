@@ -302,8 +302,12 @@ namespace AlSaqr.API.Controllers.SocialMedia
                 Guid userId,
                 [FromBody] AlSaqrUpsertRequest<User.UserRegisterFormDto> request)
         {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
             var data = request.Values;
-            var cts = new CancellationTokenSource();
+            using var cts = new CancellationTokenSource();
             var ct = cts.Token;
 
             if (userId == Guid.Empty)
@@ -328,6 +332,10 @@ namespace AlSaqr.API.Controllers.SocialMedia
                     ct: ct
                 );
 
+                var completedUserSession = await _profileRepository.GetSessionInfo(_supabase, userId);
+
+                _userCacheService.SetLoggedInUser(completedUserSession);
+                
                 return Ok(new { success = true });
             }
             catch (Exception err)

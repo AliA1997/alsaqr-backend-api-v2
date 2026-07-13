@@ -4,6 +4,7 @@ using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
+using AlSaqr.Domain.Meetup.Exceptions;
 using Newtonsoft.Json;
 using Supabase.Postgrest;
 using static AlSaqr.Domain.Utils.Common;
@@ -246,11 +247,12 @@ namespace AlSaqr.Data.Repositories.Meetup
         )
         {
             Groups? insertedGroup = null;
+
             try
             {
                 string groupSlug = Regex
-                    .Replace(input: form.Name!, pattern: @"[^a-zA-Z0-9]", replacement: "_")
-                    .ToLower();
+    .Replace(input: form.Name!, pattern: @"[^a-zA-Z0-9]", replacement: "_")
+    .ToLower();
 
                 var model = new Groups()
                 {
@@ -300,11 +302,15 @@ namespace AlSaqr.Data.Repositories.Meetup
                     ct
                 );
             }
+            catch (CreateGroupException ex)
+            {
+                throw ex;
+            }
             catch (Exception ex)
             {
-                Console.WriteLine("Error creating group in repository layer:", ex.Message);
+                throw new CreateGroupException(userId, form?.Name ?? "", ex);
             }
-            finally { }
+
             return insertedGroup!;
         }
 

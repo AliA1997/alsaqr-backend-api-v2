@@ -3,9 +3,11 @@ drop view if exists "alsaqr-2026".vw_group_attendees;
 create view "alsaqr-2026".vw_group_attendees as
 with detailed_attendees AS (
         select
+                ga.id as id,
+                u.id as user_id,
                 u.username as username,
-                u.id as id,
                 ga.group_id as group_id,
+                ga.is_group_organizer as is_group_organizer,
                 ga.created_at as created_at
         from "alsaqr-2026".group_attendees ga
         inner join "alsaqr-2026".attendees a ON a.id = ga.attendee_id
@@ -40,7 +42,9 @@ detailed_groups AS (
 )
 select
         da.id,
+        da.user_id,
         da.username,
+        da.is_group_organizer,
         da.created_at as joined_at,
         dg.group_id,
         dg.group_name,
@@ -55,4 +59,4 @@ select
         dg.topics
 from detailed_attendees da
 inner join detailed_groups dg ON da.group_id = dg.group_id
-order by da.created_at desc;
+order by da.created_at desc, da.id desc;

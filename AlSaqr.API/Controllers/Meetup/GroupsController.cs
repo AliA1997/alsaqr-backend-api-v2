@@ -20,7 +20,7 @@ namespace AlSaqr.API.Controllers.Meetup
         private readonly IAttendeeRepository _attendeeRepository;
         private readonly ICityRepository _cityRepository;
         private readonly IGroupRepository _groupRepository;
-        private readonly IGroupMemberRepository _groupMemberRepository;
+        private readonly IGroupAttendeeRepository _groupAttendeeRepository;
         private readonly ITopicRepository _topicRepository;
 
         public GroupsController(
@@ -30,7 +30,7 @@ namespace AlSaqr.API.Controllers.Meetup
             IAttendeeRepository attendeeRepository,
             ICityRepository cityRepository,
             IGroupRepository groupRepository,
-            IGroupMemberRepository groupMemberRepository,
+            IGroupAttendeeRepository groupAttendeeRepository,
             ITopicRepository topicRepository
         )
         {
@@ -40,7 +40,7 @@ namespace AlSaqr.API.Controllers.Meetup
             _attendeeRepository = attendeeRepository;
             _cityRepository = cityRepository;
             _groupRepository = groupRepository;
-            _groupMemberRepository = groupMemberRepository;
+            _groupAttendeeRepository = groupAttendeeRepository;
             _topicRepository = topicRepository;
         }
 
@@ -188,10 +188,11 @@ namespace AlSaqr.API.Controllers.Meetup
                         { "user_id", userId },
                     }
                 );
-                await _attendeeRepository.InsertGroupAttendees(
+                await _groupAttendeeRepository.InsertGroupAttendees(
                     _supabase,
                     insertedGroup.Id!,
-                    attendees.ToList()
+                    attendees.ToList(),
+                    ct
                 );
 
                 await _topicRepository.InsertGroupTopics(
@@ -290,7 +291,7 @@ namespace AlSaqr.API.Controllers.Meetup
 
             try
             {
-                await _groupMemberRepository.JoinGroup(_supabase, userId, groupId, ct);
+                await _groupAttendeeRepository.JoinGroup(_supabase, userId, groupId, ct);
 
                 _logger.LogInformation("User {userId} joined group {groupId}", userId, groupId);
                 return Ok(new { success = true, message = "Joined Successfully" });
@@ -303,13 +304,13 @@ namespace AlSaqr.API.Controllers.Meetup
         }
 
         /// <summary>
-        /// Remove a member from a group. Only the group founder may do this.
+        /// Remove an attendee from a group. Only the group founder may do this.
         /// </summary>
         /// <param name="groupId"></param>
-        /// <param name="memberUserId"></param>
+        /// <param name="attendeeUserId"></param>
         /// <returns></returns>
-        [HttpDelete("{groupId:guid}/members/{memberUserId:guid}")]
-        public async Task<IActionResult> RemoveGroupMember(Guid groupId, Guid memberUserId)
+        [HttpDelete("{groupId:guid}/members/{attendeeUserId:guid}")]
+        public async Task<IActionResult> RemoveGroupAttendee(Guid groupId, Guid attendeeUserId)
         {
             var authError = ValidateAccessToken();
             if (authError != null)
@@ -321,31 +322,31 @@ namespace AlSaqr.API.Controllers.Meetup
             var loggedInUser = _userCacheService.GetLoggedInUser();
             Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
             if (userId == Guid.Empty)
-                return Unauthorized("User must be logged in to remove a group member.");
+                return Unauthorized("User must be logged in to remove a group attendee.");
 
             try
             {
-                await _groupMemberRepository.RemoveGroupMember(
+                await _groupAttendeeRepository.RemoveGroupAttendee(
                     _supabase,
                     userId,
                     groupId,
-                    memberUserId,
+                    attendeeUserId,
                     ct
                 );
 
                 _logger.LogInformation(
-                    "User {memberUserId} removed from group {groupId}",
-                    memberUserId,
+                    "User {attendeeUserId} removed from group {groupId}",
+                    attendeeUserId,
                     groupId
                 );
                 return Ok(new { success = true });
             }
             catch (Exception err)
             {
-                Console.WriteLine($"Error removing group member: {err.Message}");
+                Console.WriteLine($"Error removing group attendee: {err.Message}");
                 return StatusCode(
                     500,
-                    new { message = "Remove group member error!", success = false }
+                    new { message = "Remove group attendee error!", success = false }
                 );
             }
         }

@@ -48,6 +48,7 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
 
         Task<Event> CreateEvent(
             Guid userId,
+            Guid attendeeId,
             Supabase.Client client,
             CreateEventForm form,
             CancellationToken ct);

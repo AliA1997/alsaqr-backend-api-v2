@@ -1,4 +1,5 @@
 ﻿using AlSaqr.Data.Entities.Meetup;
+using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Repositories.Meetup.Impl;
 using Supabase.Postgrest;
 using static Supabase.Postgrest.Constants;
@@ -54,34 +55,26 @@ namespace AlSaqr.Data.Repositories.Meetup
             return attendee!;
         }
 
-        public async Task InsertGroupAttendees(
+        public async Task<Attendee> InsertOrRetrieveAttendeeForUser(
             Supabase.Client client,
-            Guid groupId,
-            List<IDictionary<string, object>> groupAttendees
+            Guid userId,
+            CancellationToken ct = default
         )
         {
-            foreach (var groupAttendee in groupAttendees)
-            {
-                var attendee = await InsertOrRetrieveAttendee(
-                    client,
-                    groupAttendee["name"].ToString(),
-                    Guid.Parse(groupAttendee["user_id"].ToString())
-                );
+            var user = await client
+                .From<AlSaqrUser>()
+                .Where(u => u.Id == userId)
+                .Single(ct);
 
-                await client
-                    .From<GroupAttendees>()
-                    .Upsert(
-                        new GroupAttendees()
-                        {
-                            Id = Guid.NewGuid(),
-                            GroupId = groupId,
-                            AttendeeId = attendee.Id,
-                            IsGroupOrganizer = false,
-                            CreatedAt = DateTime.UtcNow,
-                        }
-                    );
-            }
+            if (user == null)
+                throw new Exception($"User with ID: {userId} not found.");
+
+            // Attendees are named the way GroupsController names the organizer on group creation.
+            var name = $"{user.FirstName} {user.LastName}".Trim();
+            if (string.IsNullOrEmpty(name))
+                name = user.Username;
+
+            return await InsertOrRetrieveAttendee(client, name, userId);
         }
-
     }
 }

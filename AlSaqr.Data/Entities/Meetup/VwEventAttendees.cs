@@ -5,9 +5,8 @@ namespace AlSaqr.Data.Entities.Meetup
 {
     /// <summary>
     /// Read model for an event a user attended, sourced from vw_event_attendees.
-    /// A user "attends" an event by being an attendee of the group that hosts it,
-    /// so rows are keyed by the attendee's username and annotated with when that
-    /// attendance began (joined_at).
+    /// A row exists per event_attendees record, resolved back to the user through the
+    /// attendees table, and annotated with when that attendance began (joined_at).
     /// </summary>
     [Table("vw_event_attendees")]
     public class VwEventAttendees : BaseModel
@@ -45,6 +44,9 @@ namespace AlSaqr.Data.Entities.Meetup
         // Who attended and when their attendance began.
         [Column("username")]
         public string? Username { get; set; }
+
+        [Column("is_event_organizer")]
+        public bool IsEventOrganizer { get; set; }
 
         [Column("joined_at")]
         public DateTime JoinedAt { get; set; }

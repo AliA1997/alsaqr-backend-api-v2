@@ -17,24 +17,27 @@ namespace AlSaqr.API.Controllers.Meetup
         private readonly IUserCacheService _userCacheService;
         private readonly Supabase.Client _supabase;
         private readonly ICityRepository _cityRepository;
+        private readonly IAttendeeRepository _attendeeRepository;
         private readonly IEventRepository _eventRepository;
-        private readonly IEventMemberRepository _eventMemberRepository;
+        private readonly IEventAttendeeRepository _eventAttendeeRepository;
 
         public EventsController(
             ILogger<EventsController> logger,
             Supabase.Client supabase,
             IUserCacheService userCacheService,
             ICityRepository cityRepository,
+            IAttendeeRepository attendeeRepository,
             IEventRepository eventRepository,
-            IEventMemberRepository eventMemberRepository
+            IEventAttendeeRepository eventAttendeeRepository
         )
         {
             _logger = logger;
             _supabase = supabase;
             _userCacheService = userCacheService;
             _cityRepository = cityRepository;
+            _attendeeRepository = attendeeRepository;
             _eventRepository = eventRepository;
-            _eventMemberRepository = eventMemberRepository;
+            _eventAttendeeRepository = eventAttendeeRepository;
         }
 
         /// <summary>
@@ -195,7 +198,14 @@ namespace AlSaqr.API.Controllers.Meetup
                     data.Longitude
                 );
 
-                var insertedEvent = await _eventRepository.CreateEvent(userId, _supabase, data, ct);
+                var organizerAttendee = await _attendeeRepository.InsertOrRetrieveAttendee(
+                    _supabase,
+                    $"{loggedInUser.FirstName + " " + loggedInUser.LastName}",
+                    loggedInUser.Id ?? Guid.Empty
+                );
+
+
+                var insertedEvent = await _eventRepository.CreateEvent(userId, organizerAttendee.Id, _supabase, data, ct);
 
                 await _cityRepository.InsertCityEvent(_supabase, city.Id, insertedEvent.Id);
 
@@ -276,7 +286,7 @@ namespace AlSaqr.API.Controllers.Meetup
 
             try
             {
-                await _eventMemberRepository.JoinEvent(_supabase, userId, eventId, ct);
+                await _eventAttendeeRepository.JoinEvent(_supabase, userId, eventId, ct);
 
                 _logger.LogInformation("User {userId} joined event {eventId}", userId, eventId);
                 return Ok(new { success = true, message = "Joined Successfully" });
@@ -289,14 +299,14 @@ namespace AlSaqr.API.Controllers.Meetup
         }
 
         /// <summary>
-        /// Remove a member from an event. Only the parent group's founder may do this;
-        /// the member stays in the group.
+        /// Remove an attendee from an event. Only the parent group's founder may do this;
+        /// the attendee stays in the group.
         /// </summary>
         /// <param name="eventId"></param>
-        /// <param name="memberUserId"></param>
+        /// <param name="attendeeUserId"></param>
         /// <returns></returns>
-        [HttpDelete("{eventId:guid}/members/{memberUserId:guid}")]
-        public async Task<IActionResult> RemoveEventMember(Guid eventId, Guid memberUserId)
+        [HttpDelete("{eventId:guid}/members/{attendeeUserId:guid}")]
+        public async Task<IActionResult> RemoveEventAttendee(Guid eventId, Guid attendeeUserId)
         {
             var authError = ValidateAccessToken();
             if (authError != null)
@@ -308,31 +318,31 @@ namespace AlSaqr.API.Controllers.Meetup
             var loggedInUser = _userCacheService.GetLoggedInUser();
             Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
             if (userId == Guid.Empty)
-                return Unauthorized("User must be logged in to remove an event member.");
+                return Unauthorized("User must be logged in to remove an event attendee.");
 
             try
             {
-                await _eventMemberRepository.RemoveEventMember(
+                await _eventAttendeeRepository.RemoveEventAttendee(
                     _supabase,
                     userId,
                     eventId,
-                    memberUserId,
+                    attendeeUserId,
                     ct
                 );
 
                 _logger.LogInformation(
-                    "User {memberUserId} removed from event {eventId}",
-                    memberUserId,
+                    "User {attendeeUserId} removed from event {eventId}",
+                    attendeeUserId,
                     eventId
                 );
                 return Ok(new { success = true });
             }
             catch (Exception err)
             {
-                Console.WriteLine($"Error removing event member: {err.Message}");
+                Console.WriteLine($"Error removing event attendee: {err.Message}");
                 return StatusCode(
                     500,
-                    new { message = "Remove event member error!", success = false }
+                    new { message = "Remove event attendee error!", success = false }
                 );
             }
         }

@@ -7,16 +7,18 @@ using static Supabase.Postgrest.QueryOptions;
 
 namespace AlSaqr.Data.Repositories.Meetup
 {
-    public class EventMemberRepository : IEventMemberRepository
+    public class EventAttendeeRepository : IEventAttendeeRepository
     {
-        private readonly IGroupMemberRepository _groupMemberRepository;
+        private readonly IGroupAttendeeRepository _groupAttendeeRepository;
+        private readonly IAttendeeRepository _attendeeRepository;
 
-        public EventMemberRepository(IGroupMemberRepository groupMemberRepository)
+        public EventAttendeeRepository(
+            IGroupAttendeeRepository groupAttendeeRepository,
+            IAttendeeRepository attendeeRepository)
         {
-            _groupMemberRepository = groupMemberRepository;
+            _groupAttendeeRepository = groupAttendeeRepository;
+            _attendeeRepository = attendeeRepository;
         }
-
-        private const string RoleMember = "member";
 
         public async Task JoinEvent(
             Supabase.Client supabase,
@@ -34,31 +36,41 @@ namespace AlSaqr.Data.Repositories.Meetup
                 if (existingEvent == null)
                     throw new Exception($"Event with ID: {eventId} not found.");
 
-                // Joining an event also joins its group when the user isn't a member yet (spec rule).
-                if (existingEvent.GroupId is Guid groupId)
-                    await _groupMemberRepository.JoinGroup(supabase, userId, groupId, ct);
+                // event_attendees.group_id is not nullable, so an event with no host group
+                // cannot be attended.
+                if (existingEvent.GroupId is not Guid groupId)
+                    throw new Exception($"Event with ID: {eventId} has no host group.");
 
-                // Already attending — nothing to do (event_member is unique per user/event).
-                var existingEventMember = await supabase
-                                                .From<EventMember>()
-                                                .Where(em => em.UserId == userId && em.EventId == eventId)
+                // Joining an event also joins its group when the user isn't on it yet (spec rule).
+                await _groupAttendeeRepository.JoinGroup(supabase, userId, groupId, ct);
+
+                var attendee = await _attendeeRepository.InsertOrRetrieveAttendeeForUser(
+                    supabase,
+                    userId,
+                    ct);
+
+                // Already attending — nothing to do (one row per attendee/event).
+                var existingEventAttendee = await supabase
+                                                .From<EventAttendees>()
+                                                .Where(ea => ea.AttendeeId == attendee.Id && ea.EventId == eventId)
                                                 .Single(ct);
 
-                if (existingEventMember != null)
+                if (existingEventAttendee != null)
                     return;
 
-                var member = new EventMember
+                var eventAttendee = new EventAttendees
                 {
                     Id = Guid.NewGuid(),
                     EventId = eventId,
-                    UserId = userId,
-                    Role = RoleMember,
-                    JoinedAt = DateTime.UtcNow,
+                    AttendeeId = attendee.Id,
+                    GroupId = groupId,
+                    IsEventOrganizer = false,
+                    CreatedAt = DateTime.UtcNow,
                 };
 
                 await supabase
-                    .From<EventMember>()
-                    .Insert(member, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+                    .From<EventAttendees>()
+                    .Insert(eventAttendee, new QueryOptions { Returning = ReturnType.Minimal }, ct);
             }
             catch (JoinEventException ex)
             {
@@ -70,11 +82,11 @@ namespace AlSaqr.Data.Repositories.Meetup
             }
         }
 
-        public async Task RemoveEventMember(
+        public async Task RemoveEventAttendee(
             Supabase.Client supabase,
             Guid founderId,
             Guid eventId,
-            Guid memberUserId,
+            Guid attendeeUserId,
             CancellationToken ct)
         {
             try
@@ -95,12 +107,21 @@ namespace AlSaqr.Data.Repositories.Meetup
                                     .Single(ct);
 
                 if (group == null)
-                    throw new Exception("Only the group founder can remove event members.");
+                    throw new Exception("Only the group founder can remove event attendees.");
 
-                // Only the event membership is removed — the user stays in the group (spec rule).
+                var attendee = await supabase
+                    .From<Attendee>()
+                    .Filter("user_id", Operator.Equals, attendeeUserId.ToString())
+                    .Single(ct);
+
+                // No attendee record means the user was never attending anything.
+                if (attendee == null)
+                    return;
+
+                // Only the event attendance is removed — the user stays in the group (spec rule).
                 await supabase
-                    .From<EventMember>()
-                    .Where(em => em.UserId == memberUserId && em.EventId == eventId)
+                    .From<EventAttendees>()
+                    .Where(ea => ea.AttendeeId == attendee.Id && ea.EventId == eventId)
                     .Delete(null, ct);
             }
             catch (UnjoinEventException ex)

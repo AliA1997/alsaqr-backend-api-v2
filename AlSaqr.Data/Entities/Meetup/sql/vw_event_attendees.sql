@@ -3,12 +3,14 @@ drop view if exists "alsaqr-2026".vw_event_attendees;
 create view "alsaqr-2026".vw_event_attendees as
 with detailed_attendees AS (
         select
-                u.id as id,
-                u.username as username,
-                ga.group_id as group_id,
-                ga.created_at as created_at
-        from "alsaqr-2026".group_attendees ga
-        inner join "alsaqr-2026".attendees a ON a.id = ga.attendee_id
+                ea.event_id as event_id,
+                ea.group_id as group_id,
+                ea.is_event_organizer as is_event_organizer,
+                ea.created_at as created_at,
+                u.id as user_id,
+                u.username as username
+        from "alsaqr-2026".event_attendees ea
+        inner join "alsaqr-2026".attendees a ON a.id = ea.attendee_id
         inner join "alsaqr-2026".users u ON u.id = a.user_id
 ),
 detailed_events AS (
@@ -48,8 +50,10 @@ select
         de.group_id,
         de.group_name,
         de.cities_hosted,
+        da.user_id as user_id,
         da.username as username,
+        da.is_event_organizer as is_event_organizer,
         da.created_at as joined_at
 from detailed_events de
-left join detailed_attendees da ON da.group_id = de.group_id
-order by da.created_at, de.event_name DESC;
+inner join detailed_attendees da ON da.event_id = de.event_id
+order by da.created_at desc, de.event_id desc;

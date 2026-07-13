@@ -5,7 +5,8 @@ namespace AlSaqr.Data.Entities.Meetup
 {
     /// <summary>
     /// Read model for a group a user has joined, sourced from vw_group_attendees.
-    /// Keyed by the joining user's username; one row per (user, group) membership.
+    /// One row per group_attendees record, resolved back to the user through the
+    /// attendees table. Id is the group_attendees row; UserId is who joined.
     /// </summary>
     [Table("vw_group_attendees")]
     public class VwGroupAttendees : BaseModel
@@ -19,6 +20,9 @@ namespace AlSaqr.Data.Entities.Meetup
 
         [Column("username")]
         public string? Username { get; set; }
+
+        [Column("is_group_organizer")]
+        public bool IsGroupOrganizer { get; set; }
 
         [Column("joined_at")]
         public DateTime JoinedAt { get; set; }

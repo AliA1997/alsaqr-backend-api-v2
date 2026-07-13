@@ -1,18 +1,18 @@
 namespace AlSaqr.Data.Repositories.Meetup.Impl
 {
-    public interface IGroupMemberRepository
+    public interface IEventAttendeeRepository
     {
-        Task JoinGroup(
+        Task JoinEvent(
             Supabase.Client supabase,
             Guid userId,
-            Guid groupId,
+            Guid eventId,
             CancellationToken ct);
 
-        Task RemoveGroupMember(
+        Task RemoveEventAttendee(
             Supabase.Client supabase,
             Guid founderId,
-            Guid groupId,
-            Guid memberUserId,
+            Guid eventId,
+            Guid attendeeUserId,
             CancellationToken ct);
     }
 }
