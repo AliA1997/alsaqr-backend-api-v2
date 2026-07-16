@@ -274,7 +274,7 @@ namespace AlSaqr.API.Controllers.Meetup
         /// </summary>
         /// <param name="groupId"></param>
         /// <returns></returns>
-        [HttpPut("{groupId:guid}/join")]
+        [HttpPost("{groupId:guid}/join")]
         public async Task<IActionResult> JoinGroup(Guid groupId)
         {
             var authError = ValidateAccessToken();

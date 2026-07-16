@@ -269,7 +269,7 @@ namespace AlSaqr.API.Controllers.Meetup
         /// </summary>
         /// <param name="eventId"></param>
         /// <returns></returns>
-        [HttpPut("{eventId:guid}/join")]
+        [HttpPost("{eventId:guid}/join")]
         public async Task<IActionResult> JoinEvent(Guid eventId)
         {
             var authError = ValidateAccessToken();
