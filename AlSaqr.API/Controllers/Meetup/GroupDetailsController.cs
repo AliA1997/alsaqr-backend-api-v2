@@ -31,25 +31,59 @@ namespace AlSaqr.API.Controllers.Meetup
         /// </summary>
         /// <param name="groupId"></param>
         /// <returns></returns>
-        [HttpGet("{groupId}")]
-        public async Task<IActionResult> GetGroupDetails(Guid groupId)
+        [HttpGet("{groupSlug}")]
+        public async Task<IActionResult> GetGroupDetails(string groupSlug)
         {
-            var (groupDetails, events) = await _groupRepository.GetGroupDetails(_supabase, groupId);
+            // Anonymous callers have no member to exclude, so an empty id excludes no one.
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
+
+            var (groupDetails, events) = await _groupRepository.GetGroupDetails(_supabase, groupSlug, userId);
    
 
             return Ok(new { events, groupDetails, success = true });
         }
 
-        [HttpGet("{groupId}/similar")]
+        /// <summary>
+        /// Get the members belonging to a group
+        /// </summary>
+        /// <param name="groupSlug"></param>
+        /// <returns></returns>
+        [HttpGet("{groupSlug}/members")]
+        public async Task<IActionResult> GetGroupMembers(
+            string groupSlug,
+            [FromQuery] int currentPage = 1,
+            [FromQuery] int itemsPerPage = 10,
+            [FromQuery] string? searchTerm = null)
+        {
+            // Anonymous callers have no member to exclude, so an empty id excludes no one.
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
+
+            var result = await _groupRepository.GetGroupMembers(
+                _supabase,
+                groupSlug: groupSlug,
+                userId: userId,
+                currentPage: currentPage,
+                itemsPerPage: itemsPerPage,
+                searchTerm: searchTerm);
+
+            var groupMembers = result.Items;
+            var pagination = result.Pagination;
+
+            return Ok(new { groupMembers, pagination, success = true });
+        }
+
+        [HttpGet("{groupSlug}/similar")]
         public async Task<IActionResult> GetSimilarGroups(
-            Guid groupId,
+            string groupSlug,
             [FromQuery] string latitude,
             [FromQuery] string longitude)
         {
             
             var result = await _groupRepository.GetSimilarGroups(
                 _supabase,
-                groupId,
+                groupSlug,
                 latitude,
                 longitude);
 

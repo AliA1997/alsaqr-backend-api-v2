@@ -28,4 +28,10 @@ namespace AlSaqr.Domain.Meetup
         [JsonProperty("distance_km")]
         public decimal? DistanceKm { get; set; }
     }
+
+    public class EventDetailsDto: EventDto
+    {
+        [JsonProperty("userAttendanceStatus")]
+        public string? UserAttendeeStatus { get; set; }
+    }
 }

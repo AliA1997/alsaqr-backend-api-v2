@@ -10,6 +10,12 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
             Guid groupId,
             CancellationToken ct);
 
+        Task LeaveGroup(
+            Supabase.Client supabase,
+            Guid userId,
+            Guid groupId,
+            CancellationToken ct);
+
         Task RemoveGroupAttendee(
             Supabase.Client supabase,
             Guid founderId,

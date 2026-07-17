@@ -298,6 +298,42 @@ namespace AlSaqr.API.Controllers.Meetup
             }
         }
 
+
+        /// <summary>
+        /// Leave an event as the logged-in user. 
+        /// when the user is not a member of it yet.
+        /// </summary>
+        /// <param name="eventId"></param>
+        /// <returns></returns>
+        [HttpPost("{eventId:guid}/leave")]
+        public async Task<IActionResult> LeaveEvent(Guid eventId)
+        {
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
+            if (userId == Guid.Empty)
+                return Unauthorized("User must be logged in to leave an event.");
+
+            try
+            {
+                await _eventAttendeeRepository.LeaveEvent(_supabase, userId, eventId, ct);
+
+                _logger.LogInformation("User {userId} leave event {eventId}", userId, eventId);
+                return Ok(new { success = true, message = "Leaved Successfully" });
+            }
+            catch (Exception err)
+            {
+                Console.WriteLine($"Error leaving event: {err.Message}");
+                return StatusCode(500, new { message = "Leave event error!", success = false });
+            }
+        }
+
         /// <summary>
         /// Remove an attendee from an event. Only the parent group's founder may do this;
         /// the attendee stays in the group.

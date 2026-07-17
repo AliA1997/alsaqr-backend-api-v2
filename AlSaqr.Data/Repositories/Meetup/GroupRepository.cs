@@ -208,15 +208,18 @@ namespace AlSaqr.Data.Repositories.Meetup
 
         public async Task<List<SimilarGroupDto>> GetSimilarGroups(
             Supabase.Client client,
-            Guid groupId,
+            string groupSlug,
             string latitude,
             string longitude
         )
         {
             var similarGroups = new List<SimilarGroupDto>();
+
             var functionName = "get_similar_groups";
             try
             {
+                var groupId = (await client.From<Groups>().Filter("slug", Operator.Equals, groupSlug).Single())?.Id ?? Guid.Empty;
+
                 int totalItems;
                 IDictionary<string, object> functionParams =
                     SupabaseHelper.DefineGetSimilarGroupsParams(
@@ -250,16 +253,14 @@ namespace AlSaqr.Data.Repositories.Meetup
 
             try
             {
-                string groupSlug = Regex
-    .Replace(input: form.Name!, pattern: @"[^a-zA-Z0-9]", replacement: "_")
-    .ToLower();
+                var groupId = Guid.NewGuid();
 
                 var model = new Groups()
                 {
-                    Id = Guid.NewGuid(),
+                    Id = groupId,
                     Name = form.Name,
-                    Slug = groupSlug,
                     Description = form.Description,
+                    Slug = Regex.Replace(input: form.Name!, pattern: @"[^a-zA-Z0-9]", replacement: "_").ToLower() + $"_{groupId.ToString().Substring(0, 5)}",
                     Images = form.Images ?? new string[] { },
                     HqCityId = cityId,
                     CreatedAt = DateTime.UtcNow,
@@ -314,15 +315,18 @@ namespace AlSaqr.Data.Repositories.Meetup
             return insertedGroup!;
         }
 
-        public async Task<(GroupDto groups, List<EventDto> events)> GetGroupDetails(
+        public async Task<(GroupDetailsDto groups, List<EventDto> events)> GetGroupDetails(
             Supabase.Client client,
-            Guid groupId
+            string groupSlug,
+            Guid userId
         )
         {
             var events = new List<EventDto>();
-            var groupDetails = new GroupDto();
+            var groupDetails = new GroupDetailsDto();
             try
             {
+                var groupId = (await client.From<Groups>().Filter("slug", Operator.Equals, groupSlug).Single())?.Id ?? Guid.Empty;
+
                 events = (
                     await client
                         .From<VwEvent>()
@@ -357,10 +361,19 @@ namespace AlSaqr.Data.Repositories.Meetup
                 if (groupResult == null)
                     throw new Exception("Group does not exist");
 
-                groupDetails = new GroupDto()
+                var userIsGroupMember = await client
+                                            .From<VwGroupMembers>()
+                                            .Filter("group_id", Operator.Equals, groupId.ToString())
+                                            .Filter("user_id", Operator.Equals, userId.ToString())
+                                            .Single();
+
+                groupDetails = new GroupDetailsDto()
                 {
                     Id = groupResult.Id,
                     Slug = groupResult.Slug,
+                    UserMembershipStatus = groupResult.FounderId == userId 
+                        ? "joined" : userIsGroupMember != null 
+                            ? "joined" : "not joined",
                     Name = groupResult.Name,
                     Description = groupResult.Description,
                     City = groupResult.HqCity,
@@ -378,6 +391,90 @@ namespace AlSaqr.Data.Repositories.Meetup
             }
 
             return (groupDetails, events);
+        }
+
+        /// <summary>
+        /// Gets the members belonging to a group, addressed by group slug, from vw_group_members.
+        /// The requesting user is excluded from their own group's member list.
+        /// </summary>
+        public async Task<PaginatedResult<GroupMemberDto>> GetGroupMembers(
+            Supabase.Client client,
+            string groupSlug,
+            Guid userId,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm
+        )
+        {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            var groupId =
+                (await client.From<Groups>().Filter("slug", Operator.Equals, groupSlug).Single(ct))?.Id
+                ?? throw new Exception($"Group with slug {groupSlug} does not exist");
+
+            var members = new List<GroupMemberDto>();
+            var skip = (currentPage - 1) * itemsPerPage;
+
+            var baseQuery = client
+                .From<VwGroupMembers>()
+                .Filter("group_id", Operator.Equals, groupId.ToString())
+                .Filter("user_id", Operator.NotEqual, userId.ToString());
+
+            var totalParams = new Dictionary<string, dynamic>()
+            {
+                { "p_group_id", groupId.ToString() },
+                { "p_user_id", userId.ToString() },
+            };
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                totalParams.Add("p_search_term", searchTerm);
+                baseQuery = baseQuery.Filter("username", Operator.ILike, $"%{searchTerm}%");
+            }
+
+            var result = await SupabaseHelper.CallFunction(
+                client,
+                "get_group_members_count",
+                totalParams
+            );
+            var totalItems = result != null ? long.Parse(result) : 0;
+
+            if (totalItems == 0)
+            {
+                return new PaginatedResult<GroupMemberDto>(
+                    members,
+                    new Pagination
+                    {
+                        ItemsPerPage = itemsPerPage,
+                        CurrentPage = currentPage,
+                        TotalItems = 0,
+                        TotalPages = 0,
+                    }
+                );
+            }
+
+            // Mirrors the view's own ORDER BY: id is the unique group_attendees row, so it
+            // keeps page boundaries stable when two members joined at the same instant.
+            members = (
+                await baseQuery
+                    .Order("created_at", Ordering.Descending)
+                    .Order("id", Ordering.Descending)
+                    .Range(skip, skip + itemsPerPage - 1)
+                    .Get(ct)
+            )
+                .Models.Select(vwGroupMember => new GroupMemberDto(vwGroupMember))
+                .ToList();
+
+            var pagination = new Pagination
+            {
+                ItemsPerPage = itemsPerPage,
+                CurrentPage = currentPage,
+                TotalItems = (int)totalItems,
+                TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage),
+            };
+
+            return new PaginatedResult<GroupMemberDto>(members, pagination);
         }
 
         public async Task<Groups> UpdateGroup(

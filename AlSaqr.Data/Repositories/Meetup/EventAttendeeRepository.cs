@@ -82,6 +82,58 @@ namespace AlSaqr.Data.Repositories.Meetup
             }
         }
 
+        public async Task LeaveEvent(
+            Supabase.Client supabase,
+            Guid userId,
+            Guid eventId,
+            CancellationToken ct)
+        {
+            try
+            {
+                var existingEvent = await supabase
+                                    .From<Event>()
+                                    .Filter("id", Operator.Equals, eventId.ToString())
+                                    .Single(ct);
+
+                if (existingEvent == null)
+                    throw new Exception($"Event with ID: {eventId} not found.");
+
+                // event_attendees.group_id is not nullable, so an event with no host group
+                // cannot be attended.
+                if (existingEvent.GroupId is not Guid groupId)
+                    throw new Exception($"Event with ID: {eventId} has no host group.");
+
+
+                var attendee = await _attendeeRepository.InsertOrRetrieveAttendeeForUser(
+                    supabase,
+                    userId,
+                    ct);
+
+                // Already attending — nothing to do (one row per attendee/event).
+                var existingEventAttendee = await supabase
+                                                .From<EventAttendees>()
+                                                .Where(ea => ea.AttendeeId == attendee.Id && ea.EventId == eventId)
+                                                .Single(ct);
+
+                if (existingEventAttendee == null)
+                    return;
+
+
+                await supabase
+                    .From<EventAttendees>()
+                    .Delete(existingEventAttendee, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+            }
+            catch (UnjoinEventException ex)
+            {
+                throw ex;
+            }
+            catch (Exception ex)
+            {
+                throw new UnjoinEventException(eventId, ex);
+            }
+        }
+
+
         public async Task RemoveEventAttendee(
             Supabase.Client supabase,
             Guid founderId,

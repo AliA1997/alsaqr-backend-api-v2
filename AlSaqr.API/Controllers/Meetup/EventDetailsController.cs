@@ -30,12 +30,46 @@ namespace AlSaqr.API.Controllers.Meetup
         /// </summary>
         /// <param name="eventId"></param>
         /// <returns></returns>
-        [HttpGet("{eventId}")]
-        public async Task<IActionResult> GetEventDetails(Guid eventId)
+        [HttpGet("{eventSlug}")]
+        public async Task<IActionResult> GetEventDetails(string eventSlug)
         {
-            var eventDetails = await _eventRepository.GetEventDetails(_supabase, eventId);
+            // Anonymous callers have no member to exclude, so an empty id excludes no one.
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
+
+            var eventDetails = await _eventRepository.GetEventDetails(_supabase, eventSlug, userId);
 
             return Ok(new { eventDetails, success = true });
+        }
+
+        /// <summary>
+        /// Get the members attending an event
+        /// </summary>
+        /// <param name="eventSlug"></param>
+        /// <returns></returns>
+        [HttpGet("{eventSlug}/members")]
+        public async Task<IActionResult> GetEventMembers(
+            string eventSlug,
+            [FromQuery] int currentPage = 1,
+            [FromQuery] int itemsPerPage = 10,
+            [FromQuery] string? searchTerm = null)
+        {
+            // Anonymous callers have no member to exclude, so an empty id excludes no one.
+            var loggedInUser = _userCacheService.GetLoggedInUser();
+            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
+
+            var result = await _eventRepository.GetEventMembers(
+                _supabase,
+                eventSlug: eventSlug,
+                userId: userId,
+                currentPage: currentPage,
+                itemsPerPage: itemsPerPage,
+                searchTerm: searchTerm);
+
+            var eventMembers = result.Items;
+            var pagination = result.Pagination;
+
+            return Ok(new { eventMembers, pagination, success = true });
         }
 
         /// <summary>
@@ -43,9 +77,9 @@ namespace AlSaqr.API.Controllers.Meetup
         /// </summary>
         /// <param name="eventId"></param>
         /// <returns></returns>
-        [HttpGet("{eventId}/nearby")]
+        [HttpGet("{eventSlug}/nearby")]
         public async Task<IActionResult> GetNearbyEventByCurrentEvent(
-            Guid eventId,
+            string eventSlug,
             [FromQuery] string latitude,
             [FromQuery] string longitude)
         {

@@ -190,26 +190,42 @@ namespace AlSaqr.Data.Repositories.Meetup
             return new PaginatedResult<EventDto>(events ?? new List<EventDto>(), pagination!);
         }
 
-        public async Task<EventDto> GetEventDetails(Supabase.Client client, Guid eventId)
+        public async Task<EventDetailsDto> GetEventDetails(
+            Supabase.Client client, 
+            string eventSlug,
+            Guid userId
+            )
         {
-            EventDto eventDetails = new EventDto();
+            EventDetailsDto eventDetails = new EventDetailsDto();
             try
             {
+                var eventId = (await client.From<Event>().Filter("slug", Operator.Equals, eventSlug).Single())?.Id ?? Guid.Empty;
+
                 var eventResult = await client
                     .From<VwEvent>()
                     .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, eventId.ToString())
                     .Single();
 
-                eventDetails = new EventDto()
+                var userIsEventMember = await client
+                                            .From<VwEventMembers>()
+                                            .Filter("event_id", Operator.Equals, eventId.ToString())
+                                            .Filter("user_id", Operator.Equals, userId.ToString())
+                                            .Single();
+
+                eventDetails = new EventDetailsDto()
                 {
                     Id = eventResult.Id,
                     Slug = eventResult.Slug,
                     GroupId = eventResult.GroupId,
                     GroupName = eventResult.GroupName,
+                    GroupFounderId = eventResult.GroupFounderId,
                     Name = eventResult.Name,
                     Description = eventResult.Description,
                     CitiesHosted = eventResult.CitiesHosted,
                     Images = eventResult.Images,
+                    UserAttendeeStatus = eventResult.GroupFounderId == userId 
+                                            ? "attending" : userIsEventMember != null 
+                                                ? "attending" : "not attending",
                     DistanceKm = 0,
                 };
             }
@@ -219,6 +235,90 @@ namespace AlSaqr.Data.Repositories.Meetup
             }
 
             return eventDetails;
+        }
+
+        /// <summary>
+        /// Gets the members attending an event, addressed by event slug, from vw_event_members.
+        /// The requesting user is excluded from their own event's member list.
+        /// </summary>
+        public async Task<PaginatedResult<EventMemberDto>> GetEventMembers(
+            Supabase.Client client,
+            string eventSlug,
+            Guid userId,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm
+        )
+        {
+            using var cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
+            var eventId =
+                (await client.From<Event>().Filter("slug", Operator.Equals, eventSlug).Single(ct))?.Id
+                ?? throw new Exception($"Event with slug {eventSlug} does not exist");
+
+            var members = new List<EventMemberDto>();
+            var skip = (currentPage - 1) * itemsPerPage;
+
+            var baseQuery = client
+                .From<VwEventMembers>()
+                .Filter("event_id", Operator.Equals, eventId.ToString())
+                .Filter("user_id", Operator.NotEqual, userId.ToString());
+
+            var totalParams = new Dictionary<string, dynamic>()
+            {
+                { "p_event_id", eventId.ToString() },
+                { "p_user_id", userId.ToString() },
+            };
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                totalParams.Add("p_search_term", searchTerm);
+                baseQuery = baseQuery.Filter("username", Operator.ILike, $"%{searchTerm}%");
+            }
+
+            var result = await SupabaseHelper.CallFunction(
+                client,
+                "get_event_members_count",
+                totalParams
+            );
+            var totalItems = result != null ? long.Parse(result) : 0;
+
+            if (totalItems == 0)
+            {
+                return new PaginatedResult<EventMemberDto>(
+                    members,
+                    new Pagination
+                    {
+                        ItemsPerPage = itemsPerPage,
+                        CurrentPage = currentPage,
+                        TotalItems = 0,
+                        TotalPages = 0,
+                    }
+                );
+            }
+
+            // event_id is fixed by the filter above, so user_id is the tie-breaker that
+            // makes page boundaries stable when two members joined at the same instant.
+            members = (
+                await baseQuery
+                    .Order("created_at", Ordering.Descending)
+                    .Order("user_id", Ordering.Descending)
+                    .Range(skip, skip + itemsPerPage - 1)
+                    .Get(ct)
+            )
+                .Models.Select(vwEventMember => new EventMemberDto(vwEventMember))
+                .ToList();
+
+            var pagination = new Pagination
+            {
+                ItemsPerPage = itemsPerPage,
+                CurrentPage = currentPage,
+                TotalItems = (int)totalItems,
+                TotalPages = (int)Math.Ceiling((double)totalItems / itemsPerPage),
+            };
+
+            return new PaginatedResult<EventMemberDto>(members, pagination);
         }
 
         public async Task<PaginatedResult<AttendedEventDto>> GetAttendedEvents(
@@ -300,17 +400,14 @@ namespace AlSaqr.Data.Repositories.Meetup
         {
             try
             {
-
-                string eventSlug = Regex
-                    .Replace(input: form.Name!, pattern: @"[^a-zA-Z0-9]", replacement: "_")
-                    .ToLower();
+                var eventId = Guid.NewGuid();
 
                 var model = new Event()
                 {
-                    Id = Guid.NewGuid(),
+                    Id = eventId,
                     Name = form.Name,
-                    Slug = eventSlug,
                     Description = form.Description,
+                    Slug = Regex.Replace(input: form.Name!, pattern: @"[^a-zA-Z0-9]", replacement: "_").ToLower() + $"_{eventId.ToString().Substring(0, 5)}",
                     Images = form.Images ?? new string[] { },
                     GroupId = form.GroupId,
                     IsOnline = form.IsOnline,

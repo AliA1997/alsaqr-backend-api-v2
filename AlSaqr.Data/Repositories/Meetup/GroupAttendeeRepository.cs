@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using AlSaqr.Data.Entities.Meetup;
 using AlSaqr.Data.Entities.SocialMedia;
 using AlSaqr.Data.Repositories.Meetup.Impl;
@@ -43,6 +44,56 @@ namespace AlSaqr.Data.Repositories.Meetup
                     userId: userId,
                     groupId: groupId,
                     messageTemplate: "{username} joined your group of {group}.",
+                    notificationType: "user_joined_group",
+                    ct
+                );
+            }
+            catch (JoinGroupException ex)
+            {
+                throw ex;
+            }
+            catch (Exception ex)
+            {
+                throw new JoinGroupException(groupId, ex);
+            }
+        }
+
+        public async Task LeaveGroup(
+            Supabase.Client supabase,
+            Guid userId,
+            Guid groupId,
+            CancellationToken ct)
+        {
+            try
+            {
+                var group = await supabase.From<Groups>().Filter("id", Operator.Equals, groupId.ToString()).Single();
+                if (group == null)
+                    throw new Exception($"Group doesn't exist with name of {group?.Name}");
+                Guid.TryParse(group?.FounderId?.ToString(), out var founderId);
+
+                if (founderId == Guid.Empty)
+                    throw new Exception("Group doesn't have a founder");
+
+                var attendee = await _attendeeRepository.InsertOrRetrieveAttendeeForUser(
+                    supabase,
+                    userId,
+                    ct);
+
+                // Already on the group — nothing to do, and no second notification.
+                var existingGroupAttendee = await FindGroupAttendee(supabase, groupId, attendee.Id, ct);
+
+                if (existingGroupAttendee == null)
+                    return;
+
+                await supabase
+                    .From<GroupAttendees>()
+                    .Delete(existingGroupAttendee, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+
+                await CreateGroupAttendeeNotification(
+                    supabase,
+                    userId:founderId,
+                    groupId: groupId,
+                    messageTemplate: "{username} left your group of {group}.",
                     notificationType: "user_joined_group",
                     ct
                 );

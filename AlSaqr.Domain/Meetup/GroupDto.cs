@@ -38,4 +38,9 @@ namespace AlSaqr.Domain.Meetup
         public decimal? DistanceKm { get; set; }
 
     }
+
+    public class GroupDetailsDto: GroupDto {
+        [JsonProperty("userMembershipStatus")]
+        public string UserMembershipStatus { get;set; }
+    }
 }

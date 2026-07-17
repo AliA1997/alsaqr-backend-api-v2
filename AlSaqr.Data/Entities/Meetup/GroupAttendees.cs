@@ -11,7 +11,7 @@ namespace AlSaqr.Data.Entities.Meetup
     [Table("group_attendees")]
     public class GroupAttendees: BaseModel
     {
-        [Column("id")]
+        [PrimaryKey("id")]
         public Guid Id { get; set; }
         [Column("group_id")]
         public Guid GroupId { get; set; }

@@ -37,7 +37,7 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
 
         Task<List<SimilarGroupDto>> GetSimilarGroups(
             Supabase.Client client,
-            Guid groupId,
+            string groupSlug,
             string latitude,
             string longitude
         );
@@ -51,10 +51,19 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
             CancellationToken ct
         );
 
-        Task<(GroupDto groups, List<EventDto> events)> GetGroupDetails(
+        Task<(GroupDetailsDto groups, List<EventDto> events)> GetGroupDetails(
             Supabase.Client client,
-            Guid groupId
+            string groupSlug,
+            Guid userId
         );
+
+        Task<PaginatedResult<GroupMemberDto>> GetGroupMembers(
+            Supabase.Client client,
+            string groupSlug,
+            Guid userId,
+            int currentPage,
+            int itemsPerPage,
+            string? searchTerm);
 
         Task<Groups> UpdateGroup(
             Supabase.Client client,
