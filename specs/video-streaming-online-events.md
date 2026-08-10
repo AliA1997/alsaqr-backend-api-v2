@@ -1,10 +1,11 @@
 # Specification: Video Streaming for Online Events (Meetup)
 
+> **Version 2** (2026-08-09) — supersedes v1. See *Changelog* at the end for the
+> defects this revision closes.
+>
 > **Scope:** live video calls for **online events only** (`events.is_online = true`).
 > Conformance keywords (**MUST**, **MUST NOT**, **SHOULD**, **MAY**) follow RFC 2119.
-> This document governs a new, self-contained feature; it is written against the
-> project constitution (`CLAUDE.md`) and mirrors the architecture already proven by
-> `specs/audio-spaces.md`.
+> Product context: [`video-streaming-online-events.prd.md`](./video-streaming-online-events.prd.md).
 >
 > **Constraint compliance (explicit).** The audio-spaces implementation is
 > **frozen**: this feature **MUST NOT** edit `SpacesController.cs`, `Space`,
@@ -15,13 +16,35 @@
 
 ---
 
+## 0. Blocking Prerequisites
+
+This feature is an **authorization feature**: its entire value is "only users in the
+event can join the video call." Three platform defects break that guarantee. None are
+caused by this design, and none can be worked around inside it.
+
+| ID | Defect | What it breaks | Required fix |
+|---|---|---|---|
+| **DEP-1** | `app.UseMiddleware<ExceptionHandlingMiddleware>()` is commented out ([`Program.cs:189`](../AlSaqr.API/Program.cs#L189)) | Every 400/403/404/409 in this spec returns **500**. The authorization matrix cannot be tested, let alone enforced | Uncomment. One line, middleware already written. Also silently affects audio spaces today |
+| **DEP-2** | The access token's **signature is never verified** — [`Auth.cs:13`](../AlSaqr.Domain/Utils/Auth.cs#L13) decodes the payload and checks `exp` only, and [`access-token.md:53`](./access-token.md#L53) lists signature verification as out of scope | Any caller can mint a token with an arbitrary `sub` and a future `exp`. Identity is unauthenticated | Verify HS256 against the Supabase JWT secret before trusting any claim. See §1.2 |
+| **DEP-3** | `UserCacheService` stores the logged-in user under the single literal key `"loggedInUser"` ([`UserCacheService.cs:57`](../AlSaqr.Infrastructure/UserCacheService.cs#L57)) in a process-wide singleton | Under concurrency `GetLoggedInUser()` returns whoever logged in most recently — **not the caller**. A join could mint user A's token for user B's request | Resolve the caller from the verified token (DEP-2); keep `UserCacheService` as a profile cache **keyed by user id** |
+
+> **DEP-2 and DEP-3 compound.** Neither an unverified `sub` nor a global cache slot
+> can identify a caller. Together they mean the backend cannot currently tell who is
+> asking — and this feature's job is to sign a media credential for exactly one
+> person. **This spec MUST NOT be implemented on top of the current identity path.**
+> §1.2 defines the minimum correct resolver. Controllers here **MUST NOT** compensate
+> with try/catch (CLAUDE.md §3.3).
+
+---
+
 ## Overview
 
 An online event gets one live, **ephemeral** video room:
 
-- The event's **organizer** starts the stream and becomes its **host**. Any user
-  attending that event joins as a **viewer**; the host may promote a viewer to
-  **presenter** (may turn on camera/mic) and demote them back.
+- The event's **organizer** (or the host group's **founder** — see §6.1) starts the
+  stream and becomes its **host**. Any user attending that event joins as a
+  **viewer**; the host may promote a viewer to **presenter** (may turn on camera/mic)
+  and demote them back.
 - **Media** is WebRTC video/audio through **LiveKit** (Apache-2.0, self-hosted —
   see *SFU choice* below). The backend is a pure **control plane**: it mints
   short-lived, room-scoped join tokens and drives the LiveKit *server* API. The
@@ -32,12 +55,12 @@ An online event gets one live, **ephemeral** video room:
   truths and **MUST NOT** be conflated. A LiveKit participant is not proof of event
   attendance and vice versa.
 - **Ephemerality is guaranteed by omission**: the backend never calls any LiveKit
-  Egress, recording, or transcription API — no such code path may exist. Only
-  `started_at` / `ended_at` metadata is persisted; after a stream ends, no video
-  artifact exists in any store.
-- The backend is **authoritative for attendance and publish rights**. A client
-  cannot grant itself the camera: publish permission is baked into the signed
-  token, and a revoked permission is enforced server-side.
+  Egress, recording, or transcription API — no such code path may exist. No media is
+  ever at rest, and the participation metadata that *is* persisted has a bounded
+  retention (§9).
+- The backend is **authoritative for attendance and publish rights**. A client cannot
+  grant itself the camera: publish permission is baked into the signed token **and**
+  revocable server-side mid-session (§4).
 
 ### User-facing outcome
 
@@ -45,7 +68,7 @@ An online event gets one live, **ephemeral** video room:
 |---|---|
 | **Who needs it** | A person joining an online event stream. |
 | **Problem solved** | People attending the same online event can see and talk to each other. |
-| **Success** | The user joins the online event, the roster **indicates they are live**, and when they leave — or silently die — they are **automatically disconnected** from the room. |
+| **Success** | The user joins the online event, the roster **indicates they are live**, and when they leave — or silently die — they are **automatically disconnected**, without a transient network blip costing them their seat or their role. |
 
 ### SFU choice — why LiveKit
 
@@ -58,8 +81,8 @@ the closest open-source analogue to the existing pattern:
 | License | Apache-2.0, self-hostable |
 | Cost shape | Fixed VM cost, not per-participant-minute |
 | Local dev | `livekit/livekit-server --dev` in Docker — no cloud account, no secrets to obtain |
-| .NET integration | Plain HTTPS + HS256 JWT. **No proprietary SDK dependency is added** — `System.IdentityModel.Tokens.Jwt` is already referenced by `AlSaqr.Infrastructure` (`TokenService.cs`) |
-| Cost controls | Simulcast, dynacast, `emptyTimeout`, `maxParticipants`, per-source publish grants |
+| .NET integration | Plain HTTPS + HS256 JWT. **No proprietary SDK dependency is added** — `System.IdentityModel.Tokens.Jwt` is already referenced by `AlSaqr.Infrastructure` ([`TokenService.cs:2`](../AlSaqr.Infrastructure/TokenService.cs#L2)) |
+| Mid-session revocation | `UpdateParticipant` revokes publish rights server-side — required by §4 |
 
 Alternatives considered and rejected: **mediasoup** / **Janus** (no server REST
 control plane — would require a Node/C sidecar, breaking the "control plane in .NET"
@@ -70,30 +93,39 @@ shape), **Jitsi** (an application, not a library; its auth model does not map on
 
 ## Cost Model (binding)
 
-"Cost effective" is a requirement, not an aspiration. The following are **MUST**
-rules, each with the mechanism that enforces it.
+"Cost effective" is a requirement, not an aspiration. Each rule is paired with the
+mechanism that enforces it.
 
 | # | Rule | Mechanism |
 |---|---|---|
 | C1 | Video is available for **online events only**. | `is_online = false` → `ValidationException` (400) in the repository before any SFU call. |
 | C2 | A room is **created on demand**, never pre-provisioned. | The room is created inside `StartEventStream` only. |
-| C3 | An empty room **MUST** self-destruct. | `emptyTimeout = 120s` on `CreateRoom`, plus the reaper (step 7) as the authoritative backstop. |
+| C3 | An empty room **MUST** self-destruct. | `emptyTimeout = 120s` on `CreateRoom`, plus the reaper (§7) as the authoritative backstop. |
 | C4 | Only **presenters** may consume upstream bandwidth. | `canPublish` is false in a viewer's token; viewers are receive-only. |
-| C5 | Concurrent publishers **MUST** be capped. | `MaxPresenters` (default **9**) enforced in the repository on promote; the host counts toward it. |
-| C6 | Clients **MUST** publish simulcast with dynacast enabled. | Client-side `RoomOptions`; documented in step 10. Dynacast stops upstream layers nobody subscribes to. |
+| C5 | Concurrent publishers **MUST** be capped. | `LiveKitConfig.MaxPresenters` (default **9**) enforced in the repository on promote; the host counts toward it. |
+| C6 | Clients **MUST** publish simulcast with dynacast enabled. | Client-side `RoomOptions`; documented in §11. Dynacast stops upstream layers nobody subscribes to. |
 | C7 | Publish sources **MUST** be enumerated, not blanket. | `canPublishSources: ["camera","microphone"]` — screen share is out of scope, so its bitrate can never be incurred. |
-| C8 | Join tokens **MUST** be short-lived. | TTL **10 minutes**; the token authorizes *entry*, and the room does not need to outlive it. |
+| C8 | Join tokens **MUST** be short-lived. | TTL **90 seconds**. The token authorizes *entry*; the session outlives it via SFU connection state, so a long TTL buys nothing and only widens the replay window. |
 | C9 | Silently-dead participants **MUST** be evicted. | Reaper closes them at **60s** of `last_seen_at` staleness, so the SFU stops relaying video nobody watches. |
-| C10 | No recording, egress, or transcription. | No such call site may exist (see *Ephemerality*). This is also the single largest cost line in any video product. |
+| C10 | No recording, egress, or transcription. | No such call site may exist (§Rules). Also the largest cost line in any video product. |
+| C11 | A stream **MUST NOT** run unbounded. | Hard ceiling of **4 hours** from `started_at`, enforced by the reaper regardless of activity. C3 and C9 cannot catch an *occupied but abandoned* room; this can. |
+| C12 | Total room occupancy **MUST** be capped. | `LiveKitConfig.MaxParticipants` (default **50**) passed to `CreateRoom`. |
+
+> **Cost scales with publishers × subscribers, not attendance.** At ~0.24 GB per
+> subscriber-hour, 50 participants for one hour costs ~12 GB with one presenter and
+> ~108 GB with nine. C5 is therefore the single most important cost lever in this
+> document. See the PRD §5.2 for the full model.
 
 ---
 
 ## Implementation Steps
 
-### 1. Configuration (`AlSaqr.API/Config/AppSecrets.cs` + AWS secrets)
+### 1. Configuration
 
-Add `LiveKitSettings { ApiKey, ApiSecret, HttpUrl, WsUrl }` to `AppSecrets`, bound to
-a new `AlSaqr.Infrastructure/Config/LiveKitConfig.cs`:
+#### 1.1 LiveKit settings
+
+Add `LiveKitSettings { ApiKey, ApiSecret, HttpUrl, WsUrl, MaxParticipants, MaxPresenters }`
+to `AppSecrets`, bound to a new `AlSaqr.Infrastructure/Config/LiveKitConfig.cs`:
 
 ```csharp
 namespace AlSaqr.Infrastructure.Config
@@ -115,6 +147,12 @@ namespace AlSaqr.Infrastructure.Config
 
         /// <summary>Client signalling URL handed to the browser, e.g. ws://localhost:7880</summary>
         public string WsUrl { get; set; } = "ws://localhost:7880";
+
+        /// <summary>Total room occupancy cap (C12).</summary>
+        public int MaxParticipants { get; set; } = 50;
+
+        /// <summary>Concurrent publisher cap, host included (C5).</summary>
+        public int MaxPresenters { get; set; } = 9;
     }
 }
 ```
@@ -124,29 +162,131 @@ through the existing AWS Secrets Manager → `AddInMemoryCollection` path in
 `Program.cs` and **MUST NOT** appear in any response body, log line, or
 client-visible error.
 
+#### 1.2 Caller identity (closes DEP-2 + DEP-3)
+
+Identity **MUST NOT** come from `IUserCacheService` in this feature. A new
+`ICallerIdentityAccessor` in `AlSaqr.Infrastructure` resolves the caller from a
+**signature-verified** token. This is additive — no existing file changes, and
+`AuthorizedControllerBase.ValidateAccessToken()` keeps its current role as the
+presence/expiry gate.
+
+```csharp
+// AlSaqr.Infrastructure/Auth/CallerIdentityAccessor.cs
+using System.IdentityModel.Tokens.Jwt;
+using System.Text;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+
+namespace AlSaqr.Infrastructure.Auth
+{
+    /// <summary>
+    /// Resolves the acting user from the request's Bearer token, verifying the
+    /// signature (specs/video-streaming-online-events.md §0 DEP-2/DEP-3).
+    ///
+    /// Why this exists: Auth.AccessTokenValidator deliberately does NOT verify the
+    /// signature (specs/access-token.md, "Out of scope"), and UserCacheService keeps
+    /// one global "loggedInUser" slot shared by every concurrent request. Neither
+    /// can identify a caller. This feature signs a media credential for exactly one
+    /// person, so it needs an identity it can actually trust.
+    /// </summary>
+    public interface ICallerIdentityAccessor
+    {
+        /// <summary>
+        /// The verified caller id, or Guid.Empty when the token is absent, unsigned,
+        /// tampered with, expired, or carries no usable subject claim.
+        /// </summary>
+        Guid GetCallerId();
+    }
+
+    public sealed class CallerIdentityAccessor : ICallerIdentityAccessor
+    {
+        private readonly IHttpContextAccessor _http;
+        private readonly SupabaseAuthConfig _config;
+
+        public CallerIdentityAccessor(IHttpContextAccessor http, IOptions<SupabaseAuthConfig> config)
+        {
+            _http = http;
+            _config = config.Value;
+        }
+
+        public Guid GetCallerId()
+        {
+            var header = _http.HttpContext?.Request.Headers.Authorization.ToString();
+            if (string.IsNullOrWhiteSpace(header))
+                return Guid.Empty;
+
+            var token = header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                ? header["Bearer ".Length..].Trim()
+                : header.Trim();
+
+            var parameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config.JwtSecret)),
+                ValidateLifetime = true,
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ClockSkew = TimeSpan.FromSeconds(30),
+            };
+
+            try
+            {
+                new JwtSecurityTokenHandler().ValidateToken(token, parameters, out var validated);
+                var sub = ((JwtSecurityToken)validated).Subject;
+                return Guid.TryParse(sub, out var userId) ? userId : Guid.Empty;
+            }
+            catch (SecurityTokenException)
+            {
+                // A forged, tampered, or expired token is simply "no caller" — the
+                // action then fails its own Guid.Empty check and returns 401/400.
+                return Guid.Empty;
+            }
+        }
+    }
+}
+```
+
+Register `AddHttpContextAccessor()` and bind `SupabaseAuthConfig { JwtSecret }` from
+the `Supabase` configuration section.
+
+> **CLAUDE.md §4.1 note.** The constitution requires the logged-in *user profile* to
+> be read via `UserCacheService`, never re-fetched ad hoc — that rule still applies
+> here for display fields (username/avatar). What changes is that the **caller's
+> identity** comes from the verified token, and the profile cache is consulted
+> **keyed by that id**. §4.1 governs profile caching, not authentication.
+
 ### 2. Tables + entities (`AlSaqr.Data/Entities/Meetup`)
 
 Follow the existing entity conventions (`BaseModel`, `[Table]` / `[PrimaryKey]` /
 `[Column]`, snake_case plural table names). DDL goes in
 `AlSaqr.Data/Entities/Meetup/sql/video_streams.sql`.
 
-**`video_streams` → `VideoStream` entity** (one row per streaming session)
+> **Documented deviation from CLAUDE.md §3.2.** §3.2 requires
+> `[Table("name", Schema = "alsaqr-2026")]`. Entities here omit `Schema`, matching
+> every existing entity in the solution (`Space`, `Event`, `EventAttendees`), because
+> the schema is supplied once by `SupabaseOptions.Schema` in `Program.cs`. Adding
+> `Schema` to these two entities alone would double the schema in the query path —
+> the exact defect §3.2 forbids. This deviation is deliberate and consistent; it
+> should be resolved solution-wide or not at all.
+
+**`video_streams` → `VideoStream`** (one row per streaming session)
 
 | Column | C# | Notes |
 |---|---|---|
 | `id` | `Guid Id` | PK |
 | `event_id` | `Guid EventId` | FK → `events(id)` |
-| `room_name` | `string RoomName` | LiveKit room key, `event-{eventId}` |
-| `host_id` | `Guid HostId` | FK → `users(id)`; the organizer who started it |
+| `room_name` | `string RoomName` | LiveKit room key, **`stream-{id}`** — stream-scoped, never event-scoped (see §4) |
+| `host_id` | `Guid HostId` | FK → `users(id)`; whoever started it |
 | `started_at` | `DateTime StartedAt` | |
 | `ended_at` | `DateTime? EndedAt` | null while live; `IsLive == EndedAt is null` |
 
-**`video_participants` → `VideoParticipant` entity**
+**`video_participants` → `VideoParticipant`**
 
 | Column | C# | Notes |
 |---|---|---|
 | `id` | `Guid Id` | PK |
-| `event_id` | `Guid EventId` | FK → `events(id)` (per requirement; denormalized for direct per-event queries) |
+| `event_id` | `Guid EventId` | FK → `events(id)` (per requirement; kept consistent with the stream by composite FK) |
 | `participant_id` | `Guid ParticipantId` | FK → `users(id)` — see the design note below |
 | `video_stream_id` | `Guid VideoStreamId` | FK → `video_streams(id)` |
 | `role` | `string Role` | `host` \| `presenter` \| `viewer` |
@@ -154,26 +294,23 @@ Follow the existing entity conventions (`BaseModel`, `[Table]` / `[PrimaryKey]` 
 | `muted` | `bool Muted` | |
 | `sfu_identity` | `string? SfuIdentity` | LiveKit participant identity; set while connected |
 | `joined_at` | `DateTime JoinedAt` | |
-| `left_at` | `DateTime? LeftAt` | null while present — **this is the "he's in the live" indicator** |
-| `last_seen_at` | `DateTime LastSeenAt` | refreshed by any authenticated call from the participant; drives the reaper (step 7) |
+| `left_at` | `DateTime? LeftAt` | null while present — **the "he's in the live" indicator** |
+| `left_reason` | `string? LeftReason` | `explicit` \| `reaped` \| `ended` \| `demoted` \| `expired` — makes the involuntary-disconnect guardrail measurable in SQL (§10) |
+| `last_seen_at` | `DateTime LastSeenAt` | refreshed by any authenticated call from the participant; drives the reaper (§7) |
 
 > **Design note — `participant_id` references `users(id)`, not `attendees(id)`.**
 > Meetup attendance is keyed on `attendees` (`event_attendees.attendee_id`), but the
-> authenticated caller resolves to a **user id** (`IUserCacheService.GetLoggedInUser()`),
-> and the reference implementation `space_participants.user_id` is user-scoped.
-> Keying the roster on users keeps the join path free of an extra indirection and
-> lets `BuildParticipantDtos` fetch usernames/avatars in one `users` query.
-> Attendance is still verified through `attendees` → `event_attendees` on every join
-> (see `IsEventAttendee`). If the roster must instead be attendee-scoped, only
-> `IsEventAttendee` and the FK change — the rest of the design is unaffected.
-
-The one-live-stream-per-event invariant **MUST** be enforced in the database
-(partial unique index where `ended_at IS NULL`), not only in application code.
+> caller resolves to a **user id** (§1.2), and the reference implementation
+> `space_participants.user_id` is user-scoped. Keying the roster on users keeps the
+> join path free of an extra indirection and lets the roster query fetch
+> usernames/avatars in one `users` lookup. Attendance is still verified through
+> `attendees` → `event_attendees` on every join (§6.1). If the roster must instead be
+> attendee-scoped, only `IsEventAttendee` and the FK change.
 
 ```sql
 -- AlSaqr.Data/Entities/Meetup/sql/video_streams.sql
 -- Live video rooms for ONLINE events (specs/video-streaming-online-events.md).
--- Only started_at/ended_at metadata is persisted; no video artifact is ever stored.
+-- No media is ever stored; participation metadata is retained 90 days (§9).
 
 create table if not exists "alsaqr-2026".video_streams (
   id uuid not null default gen_random_uuid (),
@@ -186,16 +323,22 @@ create table if not exists "alsaqr-2026".video_streams (
   constraint video_streams_event_id_fkey foreign KEY (event_id)
     references "alsaqr-2026".events (id) on update CASCADE on delete CASCADE,
   constraint video_streams_host_id_fkey foreign KEY (host_id)
-    references "alsaqr-2026".users (id) on update CASCADE on delete CASCADE
+    references "alsaqr-2026".users (id) on update CASCADE on delete CASCADE,
+  -- Room names are stream-scoped, so they are globally unique by construction.
+  -- This is what makes a token from an earlier stream unusable on a later one (§4).
+  constraint video_streams_room_name_key unique (room_name),
+  -- Target for the composite FK below: keeps video_participants.event_id honest.
+  constraint video_streams_id_event_key unique (id, event_id)
 ) TABLESPACE pg_default;
 
--- One live stream per event (C2 / 409 on a second start), enforced in the DB.
+-- One live stream per event (409 on a second start), enforced in the DB.
 create unique INDEX IF not exists video_streams_one_live_per_event
   on "alsaqr-2026".video_streams using btree (event_id)
   where (ended_at is null) TABLESPACE pg_default;
 
+-- Reaper scan path: all live streams, for the C11 duration ceiling.
 create index IF not exists video_streams_live_lookup
-  on "alsaqr-2026".video_streams using btree (event_id)
+  on "alsaqr-2026".video_streams using btree (started_at)
   where (ended_at is null) TABLESPACE pg_default;
 
 create table if not exists "alsaqr-2026".video_participants (
@@ -209,14 +352,15 @@ create table if not exists "alsaqr-2026".video_participants (
   sfu_identity character varying null,
   joined_at timestamp with time zone not null default now(),
   left_at timestamp with time zone null,
+  left_reason character varying null,
   last_seen_at timestamp with time zone not null default now(),
   constraint video_participants_pkey primary key (id),
-  constraint video_participants_event_id_fkey foreign KEY (event_id)
-    references "alsaqr-2026".events (id) on update CASCADE on delete CASCADE,
   constraint video_participants_participant_id_fkey foreign KEY (participant_id)
     references "alsaqr-2026".users (id) on update CASCADE on delete CASCADE,
-  constraint video_participants_video_stream_id_fkey foreign KEY (video_stream_id)
-    references "alsaqr-2026".video_streams (id) on update CASCADE on delete CASCADE,
+  -- Composite FK: the denormalized event_id MUST match the stream's event_id.
+  -- Without this the two columns can silently disagree.
+  constraint video_participants_stream_event_fkey foreign KEY (video_stream_id, event_id)
+    references "alsaqr-2026".video_streams (id, event_id) on update CASCADE on delete CASCADE,
   constraint video_participants_role_check check (
     (role)::text = any (
       (array[
@@ -225,6 +369,22 @@ create table if not exists "alsaqr-2026".video_participants (
         'viewer'::character varying
       ])::text[]
     )
+  ),
+  constraint video_participants_left_reason_check check (
+    left_reason is null or (left_reason)::text = any (
+      (array[
+        'explicit'::character varying,
+        'reaped'::character varying,
+        'ended'::character varying,
+        'demoted'::character varying,
+        'expired'::character varying
+      ])::text[]
+    )
+  ),
+  -- left_at and left_reason are set together or not at all.
+  constraint video_participants_left_consistency check (
+    (left_at is null and left_reason is null)
+    or (left_at is not null and left_reason is not null)
   )
 ) TABLESPACE pg_default;
 
@@ -241,6 +401,57 @@ create index IF not exists video_participants_live
 create index IF not exists video_participants_last_seen
   on "alsaqr-2026".video_participants using btree (last_seen_at)
   where (left_at is null) TABLESPACE pg_default;
+
+-- Retention purge path (§9).
+create index IF not exists video_participants_left_at
+  on "alsaqr-2026".video_participants using btree (left_at)
+  where (left_at is not null) TABLESPACE pg_default;
+```
+
+```csharp
+// AlSaqr.Data/Entities/Meetup/VideoStream.cs
+using Supabase.Postgrest.Attributes;
+using Supabase.Postgrest.Models;
+
+namespace AlSaqr.Data.Entities.Meetup
+{
+    /// <summary>
+    /// An ephemeral video stream for an online event
+    /// (specs/video-streaming-online-events.md). Only started_at/ended_at metadata
+    /// is ever persisted — no video artifact exists in any store.
+    /// </summary>
+    [Table("video_streams")]
+    public class VideoStream : BaseModel
+    {
+        [PrimaryKey("id")]
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        [Column("event_id")]
+        public Guid EventId { get; set; }
+
+        /// <summary>
+        /// LiveKit room key. STREAM-scoped ("stream-{id}"), never event-scoped: a
+        /// reused room name would let a token minted for an earlier stream of the
+        /// same event be replayed into a later one (§4). Always read this column —
+        /// never recompute the name at a call site.
+        /// </summary>
+        [Column("room_name")]
+        public string RoomName { get; set; } = string.Empty;
+
+        [Column("host_id")]
+        public Guid HostId { get; set; }
+
+        [Column("started_at")]
+        public DateTime StartedAt { get; set; } = DateTime.UtcNow;
+
+        /// <summary>Null while the stream is live.</summary>
+        [Column("ended_at")]
+        public DateTime? EndedAt { get; set; }
+
+        /// <summary>The room name for a stream id. Used ONLY when creating a stream.</summary>
+        public static string RoomNameFor(Guid videoStreamId) => $"stream-{videoStreamId}";
+    }
+}
 ```
 
 ```csharp
@@ -253,8 +464,9 @@ namespace AlSaqr.Data.Entities.Meetup
     /// <summary>
     /// A participant of an online event's video stream
     /// (specs/video-streaming-online-events.md). Role is backend-authoritative:
-    /// publish rights are baked into the signed LiveKit token, so a client cannot
-    /// grant itself a camera. LeftAt == null is the "in the live" indicator.
+    /// publish rights are baked into the signed token AND revocable mid-session via
+    /// UpdateParticipant, so a client can neither grant nor keep a camera on its
+    /// own. LeftAt == null is the "in the live" indicator.
     /// </summary>
     [Table("video_participants")]
     public class VideoParticipant : BaseModel
@@ -262,6 +474,12 @@ namespace AlSaqr.Data.Entities.Meetup
         public const string RoleHost = "host";
         public const string RolePresenter = "presenter";
         public const string RoleViewer = "viewer";
+
+        public const string LeftExplicit = "explicit";
+        public const string LeftReaped = "reaped";
+        public const string LeftEnded = "ended";
+        public const string LeftDemoted = "demoted";
+        public const string LeftExpired = "expired";
 
         [PrimaryKey("id")]
         public Guid Id { get; set; } = Guid.NewGuid();
@@ -298,6 +516,14 @@ namespace AlSaqr.Data.Entities.Meetup
         public DateTime? LeftAt { get; set; }
 
         /// <summary>
+        /// Why the participant left. Set together with LeftAt. Distinguishing
+        /// "reaped" from "explicit" is what makes the involuntary-disconnect
+        /// guardrail a SQL query instead of a guess (§10).
+        /// </summary>
+        [Column("left_reason")]
+        public string? LeftReason { get; set; }
+
+        /// <summary>
         /// Refreshed by any authenticated stream call from the participant; drives
         /// the reaper that disconnects silently-dead participants (C9).
         /// </summary>
@@ -307,53 +533,125 @@ namespace AlSaqr.Data.Entities.Meetup
 }
 ```
 
-```csharp
-// AlSaqr.Data/Entities/Meetup/VideoStream.cs
-using Supabase.Postgrest.Attributes;
-using Supabase.Postgrest.Models;
+### 3. DTOs (`AlSaqr.Domain/Meetup/EventVideo.cs`)
 
-namespace AlSaqr.Data.Entities.Meetup
+A static class with nested DTOs, exactly as `AlSaqr.Domain.SocialMedia.Spaces`.
+Explicit `[JsonPropertyName]` on every response field — these shapes are the client
+contract.
+
+```csharp
+using System.Text.Json.Serialization;
+
+namespace AlSaqr.Domain.Meetup
 {
     /// <summary>
-    /// An ephemeral video stream for an online event
-    /// (specs/video-streaming-online-events.md). Only started_at/ended_at metadata
-    /// is ever persisted — no video artifact exists in any store.
+    /// DTOs for online-event video streaming
+    /// (specs/video-streaming-online-events.md). Field names are a contract with
+    /// the client and must serialize to exactly the documented TypeScript shapes.
     /// </summary>
-    [Table("video_streams")]
-    public class VideoStream : BaseModel
+    public static class EventVideo
     {
-        [PrimaryKey("id")]
-        public Guid Id { get; set; } = Guid.NewGuid();
+        // ----- Response DTOs -----
 
-        [Column("event_id")]
-        public Guid EventId { get; set; }
+        public class VideoStreamToDisplay
+        {
+            [JsonPropertyName("videoStreamId")]
+            public Guid VideoStreamId { get; set; }
 
-        /// <summary>LiveKit room key: "event-{eventId}".</summary>
-        [Column("room_name")]
-        public string RoomName { get; set; } = string.Empty;
+            [JsonPropertyName("eventId")]
+            public Guid EventId { get; set; }
 
-        [Column("host_id")]
-        public Guid HostId { get; set; }
+            [JsonPropertyName("eventName")]
+            public string? EventName { get; set; }
 
-        [Column("started_at")]
-        public DateTime StartedAt { get; set; } = DateTime.UtcNow;
+            [JsonPropertyName("hostId")]
+            public Guid HostId { get; set; }
 
-        /// <summary>Null while the stream is live.</summary>
-        [Column("ended_at")]
-        public DateTime? EndedAt { get; set; }
+            [JsonPropertyName("hostUsername")]
+            public string? HostUsername { get; set; }
 
-        public static string RoomNameFor(Guid eventId) => $"event-{eventId}";
+            [JsonPropertyName("hostAvatar")]
+            public string? HostAvatar { get; set; }
+
+            [JsonPropertyName("startedAt")]
+            public DateTime StartedAt { get; set; }
+
+            [JsonPropertyName("endedAt")]
+            public DateTime? EndedAt { get; set; }
+
+            [JsonPropertyName("participantCount")]
+            public int ParticipantCount { get; set; }
+
+            [JsonPropertyName("isLive")]
+            public bool IsLive { get; set; }
+        }
+
+        public class VideoParticipantDto
+        {
+            [JsonPropertyName("participantId")]
+            public Guid ParticipantId { get; set; }
+
+            [JsonPropertyName("username")]
+            public string Username { get; set; } = string.Empty;
+
+            [JsonPropertyName("avatar")]
+            public string? Avatar { get; set; }
+
+            /// <summary>"host" | "presenter" | "viewer"</summary>
+            [JsonPropertyName("role")]
+            public string Role { get; set; } = string.Empty;
+
+            [JsonPropertyName("cameraEnabled")]
+            public bool CameraEnabled { get; set; }
+
+            [JsonPropertyName("muted")]
+            public bool Muted { get; set; }
+        }
+
+        /// <summary>
+        /// The connect payload: everything the browser needs to reach the SFU, and
+        /// nothing more. wsUrl + token are the ONLY LiveKit values that leave the API.
+        /// </summary>
+        public class JoinVideoStreamResultDto
+        {
+            [JsonPropertyName("stream")]
+            public VideoStreamToDisplay Stream { get; set; } = new();
+
+            [JsonPropertyName("role")]
+            public string Role { get; set; } = string.Empty;
+
+            [JsonPropertyName("wsUrl")]
+            public string WsUrl { get; set; } = string.Empty;
+
+            [JsonPropertyName("token")]
+            public string Token { get; set; } = string.Empty;
+
+            [JsonPropertyName("expiresAt")]
+            public DateTime ExpiresAt { get; set; }
+
+            [JsonPropertyName("canPublish")]
+            public bool CanPublish { get; set; }
+
+            [JsonPropertyName("participants")]
+            public List<VideoParticipantDto> Participants { get; set; } = new();
+        }
+
+        // ----- Request forms (wrapped in AlSaqrUpsertRequest<T> { values: ... }) -----
+
+        /// <summary>Reserved for a future stream title; empty today.</summary>
+        public class StartVideoStreamForm { }
+
+        public class CameraStateForm
+        {
+            public bool CameraEnabled { get; set; }
+            public bool Muted { get; set; }
+        }
     }
 }
 ```
 
-### 3. DTOs (`AlSaqr.Domain/Meetup/EventVideo.cs`)
-
-Follow the existing pattern — a static class with nested DTOs, exactly as
-`AlSaqr.Domain.SocialMedia.Spaces`. Explicit `[JsonPropertyName]` on every response
-field; these shapes are the client contract:
-
 ```typescript
+// Serialized shapes (camelCase, System.Text.Json defaults + explicit names)
 type VideoRole = 'host' | 'presenter' | 'viewer';
 
 interface VideoStreamToDisplay {
@@ -368,35 +666,38 @@ interface VideoParticipantDto {
   role: VideoRole; cameraEnabled: boolean; muted: boolean;
 }
 
-// The connect payload: everything the browser needs to reach the SFU, and
-// nothing more. `wsUrl` + `token` are the ONLY LiveKit values that leave the API.
 interface JoinVideoStreamResultDto {
   stream: VideoStreamToDisplay; role: VideoRole;
   wsUrl: string; token: string; expiresAt: string;
-  canPublish: boolean;
-  participants: VideoParticipantDto[];
+  canPublish: boolean; participants: VideoParticipantDto[];
 }
 ```
 
-Request forms (each wrapped in the existing `AlSaqrUpsertRequest<T>` `{ values: ... }`
-envelope): `StartVideoStreamForm { }` (empty today — reserved for a future title),
-`CameraStateForm { CameraEnabled, Muted }`.
-
 ### 4. LiveKit control-plane service (`AlSaqr.Infrastructure/Video`)
 
-`ILiveKitVideoService`, registered as a typed `HttpClient`
-(`AddHttpClient<ILiveKitVideoService, LiveKitVideoService>`). This is the
-video-side analogue of `ICloudflareCallsService` — a **new** file that does not
-touch it.
+`ILiveKitVideoService`, registered as a typed `HttpClient`. This is the video-side
+analogue of `ICloudflareCallsService` — a **new** file that does not touch it.
 
 The service **MUST NOT** contain any call to LiveKit Egress, recording, or
 transcription endpoints — those code paths must not exist.
+
+**Two rules make the permission model real, and both are load-bearing:**
+
+1. **Room names are stream-scoped** (`stream-{videoStreamId}`, globally unique by DB
+   constraint). A token's grant is scoped to a room name, so a stream-scoped name
+   means a token minted for an earlier stream **cannot** be replayed into a later one.
+2. **Demotion revokes server-side via `UpdateParticipant`.** `RemoveParticipant` does
+   not invalidate an already-issued token — a demoted presenter holding a valid
+   `canPublish: true` token could otherwise reconnect and keep the floor.
+   `UpdateParticipant` changes the permission on the SFU itself, effective
+   immediately and independent of what the client holds.
 
 ```csharp
 // AlSaqr.Infrastructure/Video/LiveKitVideoService.cs
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using AlSaqr.Infrastructure.Config;
 using Microsoft.Extensions.Options;
@@ -418,22 +719,31 @@ namespace AlSaqr.Infrastructure.Video
     public interface ILiveKitVideoService
     {
         /// <summary>
-        /// Creates the room with the cost guards of the spec (C3/C5): an empty room
-        /// self-destructs and the participant count is capped. Idempotent — creating
-        /// an existing room returns it unchanged.
+        /// Creates the room with the cost guards of the spec (C3/C12): an empty room
+        /// self-destructs and occupancy is capped. Idempotent — creating an existing
+        /// room returns it unchanged.
         /// </summary>
         Task CreateRoomAsync(string roomName, int maxParticipants, CancellationToken ct = default);
 
         /// <summary>
         /// Mints a short-lived (C8), room-scoped token. <paramref name="canPublish"/>
-        /// is the whole permission model: a viewer's token cannot publish, so a
-        /// client that flips its own role locally still cannot send media.
+        /// is half the permission model: a viewer's token cannot publish. The other
+        /// half is <see cref="UpdatePublishPermissionAsync"/>, which revokes a
+        /// permission already granted to a live session.
         /// </summary>
         LiveKitJoinToken MintJoinToken(
             string roomName, string identity, string displayName, bool canPublish);
 
         /// <summary>
-        /// Force-disconnects one participant. Used on leave, demote, end, and reap.
+        /// Changes a connected participant's publish rights server-side, effective
+        /// immediately regardless of the token they hold. Required by demote: an
+        /// issued token cannot be recalled, only overridden here.
+        /// </summary>
+        Task UpdatePublishPermissionAsync(
+            string roomName, string identity, bool canPublish, CancellationToken ct = default);
+
+        /// <summary>
+        /// Force-disconnects one participant. Used on leave, end, and reap.
         /// Best-effort: a participant or room that is already gone is not an error.
         /// </summary>
         Task RemoveParticipantAsync(string roomName, string identity, CancellationToken ct = default);
@@ -449,10 +759,15 @@ namespace AlSaqr.Infrastructure.Video
     {
         // C8: the token authorizes ENTRY; the session outlives it via the SFU's own
         // connection state, so a long TTL buys nothing and widens the replay window.
-        private static readonly TimeSpan TokenTtl = TimeSpan.FromMinutes(10);
+        private static readonly TimeSpan TokenTtl = TimeSpan.FromSeconds(90);
 
         // C3: an empty room self-destructs without waiting for the reaper tick.
         private const int EmptyTimeoutSeconds = 120;
+
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        };
 
         private readonly HttpClient _httpClient;
         private readonly LiveKitConfig _config;
@@ -480,26 +795,29 @@ namespace AlSaqr.Infrastructure.Video
         {
             var expiresAt = DateTime.UtcNow.Add(TokenTtl);
 
-            // C4/C7: viewers get no publish grant at all, and presenters get an
-            // enumerated source list — screen share is out of scope, so its
-            // bitrate can never be incurred.
-            var grant = new Dictionary<string, object>
-            {
-                ["room"] = roomName,
-                ["roomJoin"] = true,
-                ["canSubscribe"] = true,
-                ["canPublish"] = canPublish,
-                ["canPublishData"] = true,
-                ["canPublishSources"] = canPublish
-                    ? new[] { "camera", "microphone" }
-                    : Array.Empty<string>(),
-            };
-
             return new LiveKitJoinToken(
-                WriteToken(identity, displayName, grant, expiresAt),
+                WriteToken(identity, displayName, PublishGrant(roomName, canPublish), expiresAt),
                 _config.WsUrl,
                 expiresAt);
         }
+
+        public Task UpdatePublishPermissionAsync(
+            string roomName, string identity, bool canPublish, CancellationToken ct = default) =>
+            PostAsync(
+                "UpdateParticipant",
+                new UpdateParticipantRequest
+                {
+                    Room = roomName,
+                    Identity = identity,
+                    Permission = new ParticipantPermission
+                    {
+                        CanSubscribe = true,
+                        CanPublish = canPublish,
+                        CanPublishData = true,
+                    },
+                },
+                adminRoom: roomName,
+                ct);
 
         public Task RemoveParticipantAsync(string roomName, string identity, CancellationToken ct = default) =>
             PostAsync(
@@ -509,13 +827,24 @@ namespace AlSaqr.Infrastructure.Video
                 ct);
 
         public Task DeleteRoomAsync(string roomName, CancellationToken ct = default) =>
-            PostAsync(
-                "DeleteRoom",
-                new DeleteRoomRequest { Room = roomName },
-                adminRoom: roomName,
-                ct);
+            PostAsync("DeleteRoom", new DeleteRoomRequest { Room = roomName }, adminRoom: roomName, ct);
 
         // ----- internals -----
+
+        // C4/C7: viewers get no publish grant at all, and presenters get an
+        // enumerated source list — screen share is out of scope, so its bitrate can
+        // never be incurred.
+        private static Dictionary<string, object> PublishGrant(string roomName, bool canPublish) => new()
+        {
+            ["room"] = roomName,
+            ["roomJoin"] = true,
+            ["canSubscribe"] = true,
+            ["canPublish"] = canPublish,
+            ["canPublishData"] = true,
+            ["canPublishSources"] = canPublish
+                ? new[] { "camera", "microphone" }
+                : Array.Empty<string>(),
+        };
 
         /// <summary>
         /// LiveKit's server API is Twirp-over-HTTP: POST /twirp/{service}/{method}
@@ -564,9 +893,9 @@ namespace AlSaqr.Infrastructure.Video
                 new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config.ApiSecret)),
                 SecurityAlgorithms.HmacSha256);
 
-            // Built as a raw JwtPayload rather than a ClaimsIdentity because
-            // LiveKit expects "video" to be a nested JSON object, which the claim
-            // pipeline would flatten to a string.
+            // Built as a raw JwtPayload rather than a ClaimsIdentity because LiveKit
+            // expects "video" to be a nested JSON object, which the claim pipeline
+            // would flatten to a string.
             var payload = new JwtPayload
             {
                 { "iss", _config.ApiKey },
@@ -580,11 +909,6 @@ namespace AlSaqr.Infrastructure.Video
             return new JwtSecurityTokenHandler()
                 .WriteToken(new JwtSecurityToken(new JwtHeader(credentials), payload));
         }
-
-        private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new()
-        {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        };
 
         // ----- LiveKit wire models (transport-only; not domain DTOs) -----
 
@@ -610,6 +934,30 @@ namespace AlSaqr.Infrastructure.Video
             public string Identity { get; set; } = string.Empty;
         }
 
+        private sealed class UpdateParticipantRequest
+        {
+            [JsonPropertyName("room")]
+            public string Room { get; set; } = string.Empty;
+
+            [JsonPropertyName("identity")]
+            public string Identity { get; set; } = string.Empty;
+
+            [JsonPropertyName("permission")]
+            public ParticipantPermission Permission { get; set; } = new();
+        }
+
+        private sealed class ParticipantPermission
+        {
+            [JsonPropertyName("canSubscribe")]
+            public bool CanSubscribe { get; set; }
+
+            [JsonPropertyName("canPublish")]
+            public bool CanPublish { get; set; }
+
+            [JsonPropertyName("canPublishData")]
+            public bool CanPublishData { get; set; }
+        }
+
         private sealed class DeleteRoomRequest
         {
             [JsonPropertyName("room")]
@@ -625,33 +973,81 @@ namespace AlSaqr.Infrastructure.Video
 
 ### 5. Supabase realtime broadcaster (`AlSaqr.Infrastructure/Video`)
 
-`IEventVideoBroadcaster` using the **service-role-secret** key to broadcast on
-`event_video:{eventId}`:
+```csharp
+// AlSaqr.Infrastructure/Video/EventVideoBroadcaster.cs
+namespace AlSaqr.Infrastructure.Video
+{
+    /// <summary>
+    /// Publishes the backend-authoritative events of
+    /// specs/video-streaming-online-events.md on the Supabase realtime channel
+    /// <c>event_video:{eventId}</c> using the service-role key. Camera/mic toggles
+    /// are client-emitted through LiveKit's own track events and are NOT re-emitted
+    /// here. Presence is Supabase, media is LiveKit — this service only ever touches
+    /// the Supabase side.
+    /// </summary>
+    public interface IEventVideoBroadcaster
+    {
+        /// <summary>After a stream is started, so attendees can surface "live now".</summary>
+        Task StreamStartedAsync(Guid eventId, Guid videoStreamId, DateTime startedAt, CancellationToken ct = default);
 
-- `participant_joined { participantId, role }` — after a successful join. **This is
-  the "he's in the live" signal** other clients react to.
-- `participant_left { participantId }` — after leave / removal / reap.
-- `role_changed { participantId, role }` — after promote / demote.
-- `stream_started { videoStreamId, eventId, startedAt }`
-- `stream_ended { videoStreamId, endedAt }` — after host end or reaper end.
+        /// <summary>After host end, C11 expiry, or the reaper ending an empty stream.</summary>
+        Task StreamEndedAsync(Guid eventId, Guid videoStreamId, DateTime endedAt, CancellationToken ct = default);
 
-Camera/mic toggles are **client-emitted** via LiveKit's own track events; the backend
-neither emits nor re-broadcasts them.
+        /// <summary>After a successful join — the "he's in the live" signal.</summary>
+        Task ParticipantJoinedAsync(Guid eventId, Guid participantId, string role, CancellationToken ct = default);
 
-> **Known DRY deviation (CLAUDE.md §4).** The Supabase broadcast POST is already
-> implemented in `SpaceEventBroadcaster`. Factoring it into a shared
-> `SupabaseBroadcastClient` would require editing the frozen audio-spaces file, so
-> this feature **MUST** add `AlSaqr.Infrastructure/Video/SupabaseBroadcastClient.cs`
-> (channel-agnostic: `BroadcastAsync(topic, eventName, payload, ct)`) and build
-> `EventVideoBroadcaster` on top of it. A follow-up **SHOULD** migrate
-> `SpaceEventBroadcaster` onto the same client once the freeze lifts; that
-> refactor is out of scope here and is recorded so the duplication is deliberate
-> and temporary rather than accidental.
+        /// <summary>After leave / removal / reap.</summary>
+        Task ParticipantLeftAsync(Guid eventId, Guid participantId, string reason, CancellationToken ct = default);
+
+        /// <summary>After promote / demote; the client re-joins to obtain a new token.</summary>
+        Task RoleChangedAsync(Guid eventId, Guid participantId, string role, CancellationToken ct = default);
+    }
+
+    public sealed class EventVideoBroadcaster : IEventVideoBroadcaster
+    {
+        private readonly ISupabaseBroadcastClient _broadcast;
+
+        public EventVideoBroadcaster(ISupabaseBroadcastClient broadcast) => _broadcast = broadcast;
+
+        private static string Topic(Guid eventId) => $"event_video:{eventId}";
+
+        public Task StreamStartedAsync(Guid eventId, Guid videoStreamId, DateTime startedAt, CancellationToken ct = default) =>
+            _broadcast.BroadcastAsync(Topic(eventId), "stream_started", new { videoStreamId, eventId, startedAt }, ct);
+
+        public Task StreamEndedAsync(Guid eventId, Guid videoStreamId, DateTime endedAt, CancellationToken ct = default) =>
+            _broadcast.BroadcastAsync(Topic(eventId), "stream_ended", new { videoStreamId, endedAt }, ct);
+
+        public Task ParticipantJoinedAsync(Guid eventId, Guid participantId, string role, CancellationToken ct = default) =>
+            _broadcast.BroadcastAsync(Topic(eventId), "participant_joined", new { participantId, role }, ct);
+
+        public Task ParticipantLeftAsync(Guid eventId, Guid participantId, string reason, CancellationToken ct = default) =>
+            _broadcast.BroadcastAsync(Topic(eventId), "participant_left", new { participantId, reason }, ct);
+
+        public Task RoleChangedAsync(Guid eventId, Guid participantId, string role, CancellationToken ct = default) =>
+            _broadcast.BroadcastAsync(Topic(eventId), "role_changed", new { participantId, role }, ct);
+    }
+}
+```
+
+`ISupabaseBroadcastClient` is a new, channel-agnostic
+`BroadcastAsync(topic, eventName, payload, ct)` over the Supabase
+`/realtime/v1/api/broadcast` endpoint using the service-role key — structurally the
+same POST already inside `SpaceEventBroadcaster.BroadcastAsync`.
+
+> **Known DRY deviation (CLAUDE.md §4).** Extracting that POST from
+> `SpaceEventBroadcaster` would require editing a frozen file, so it is
+> re-implemented once in `SupabaseBroadcastClient`. A follow-up **SHOULD** migrate
+> `SpaceEventBroadcaster` onto the same client when the freeze lifts. Recorded so the
+> duplication is deliberate and temporary rather than accidental.
 
 ### 6. Repository (`AlSaqr.Data/Repositories/Meetup`)
 
 `IVideoStreamRepository` + `VideoStreamRepository`, `Supabase.Client` passed per
-method (§3.1). Custom exceptions are thrown **inside the repository** per §3.3.
+method (§3.1). Custom exceptions are thrown **inside the repository** (§3.3).
+
+Every method is keyed on **`eventId`**, never `videoStreamId`: exactly one stream per
+event is live, so the event id addresses it unambiguously and clients never have to
+track two identifiers.
 
 ```csharp
 public interface IVideoStreamRepository
@@ -662,67 +1058,68 @@ public interface IVideoStreamRepository
 
     /// <summary>
     /// Starts the stream; the caller becomes host. Throws Validation when the event
-    /// is not online (C1), Forbidden when the caller is not the event organizer, and
-    /// Conflict when the event already has a live stream.
+    /// is not online (C1) or has no host group, Forbidden when the caller is neither
+    /// event organizer nor group founder, Conflict when a stream is already live.
     /// </summary>
     Task<VideoStream> StartEventStream(
         Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct);
 
     /// <summary>
-    /// Registers the caller on the live stream as host (organizer) or viewer, and
-    /// returns the participant row plus the stream. Throws NotFound when no stream
-    /// is live and Forbidden when the caller does not attend the event.
+    /// Registers the caller on the live stream and returns the stream plus their
+    /// participant row. Throws NotFound when no stream is live and Forbidden when
+    /// the caller does not attend the event. Honours the reconnect grace window.
     /// </summary>
     Task<(VideoStream Stream, VideoParticipant Participant)> JoinEventStream(
         Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct);
 
     /// <summary>
-    /// Marks the caller as left and clears SFU state. Returns the participant as it
-    /// was before leaving (so the SFU disconnect can be issued), or null when the
+    /// Marks the caller as left with the given reason and clears SFU state. Returns
+    /// the pre-leave snapshot so the SFU disconnect can be issued, or null when the
     /// caller was not live — leave is idempotent.
     /// </summary>
     Task<VideoParticipant?> LeaveEventStream(
-        Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct);
+        Supabase.Client supabase, Guid userId, Guid eventId, string reason, CancellationToken ct);
 
     /// <summary>
-    /// Ends a live stream (host only — Forbidden otherwise). Stamps ended_at, marks
-    /// every participant left, and returns the stream so its room can be deleted.
+    /// Ends a live stream (host or group founder only — Forbidden otherwise). Stamps
+    /// ended_at, marks every participant left with reason 'ended', and returns the
+    /// stream so its room can be deleted.
     /// </summary>
     Task<VideoStream> EndEventStream(
-        Supabase.Client supabase, Guid hostUserId, Guid eventId, CancellationToken ct);
+        Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct);
 
     /// <summary>
     /// The caller's live participant row; throws NotFound for a dead stream and
     /// Forbidden when the caller is not live on it. Refreshes last_seen_at.
     /// </summary>
     Task<VideoParticipant> GetLiveParticipant(
-        Supabase.Client supabase, Guid videoStreamId, Guid userId, CancellationToken ct);
+        Supabase.Client supabase, Guid eventId, Guid userId, CancellationToken ct);
 
     /// <summary>Records the LiveKit identity granted to a connected participant.</summary>
     Task SetSfuIdentity(
-        Supabase.Client supabase, Guid videoStreamId, Guid userId, string sfuIdentity, CancellationToken ct);
+        Supabase.Client supabase, Guid eventId, Guid userId, string sfuIdentity, CancellationToken ct);
 
-    /// <summary>Persists the caller's camera/mute state (a cost signal, not a permission).</summary>
+    /// <summary>Persists camera/mute state (a cost signal, not a permission).</summary>
     Task SetCameraState(
-        Supabase.Client supabase, Guid videoStreamId, Guid userId, bool cameraEnabled, bool muted, CancellationToken ct);
+        Supabase.Client supabase, Guid eventId, Guid userId, bool cameraEnabled, bool muted, CancellationToken ct);
 
     /// <summary>
-    /// Host promotes a viewer → presenter. Throws Forbidden unless the caller is the
-    /// host, NotFound when the target is not live, and Conflict when the presenter
-    /// cap (C5) is already reached.
+    /// Host promotes a viewer → presenter. Forbidden unless the caller is host or
+    /// founder, NotFound when the target is not live, Conflict when the presenter
+    /// cap (C5) is reached. Returns the updated participant.
     /// </summary>
     Task<VideoParticipant> PromotePresenter(
-        Supabase.Client supabase, Guid hostUserId, Guid videoStreamId, Guid targetUserId, CancellationToken ct);
+        Supabase.Client supabase, Guid callerId, Guid eventId, Guid targetUserId, CancellationToken ct);
 
     /// <summary>Host demotes a presenter → viewer. Returns the pre-demotion snapshot.</summary>
     Task<VideoParticipant> DemotePresenter(
-        Supabase.Client supabase, Guid hostUserId, Guid videoStreamId, Guid targetUserId, CancellationToken ct);
+        Supabase.Client supabase, Guid callerId, Guid eventId, Guid targetUserId, CancellationToken ct);
 
     /// <summary>Roster of a stream, deterministic order (joined_at asc, id asc).</summary>
     Task<List<VideoParticipantDto>> GetParticipants(
         Supabase.Client supabase, Guid videoStreamId, CancellationToken ct);
 
-    // ----- Reaper support (step 7) -----
+    // ----- Reaper support (§7) -----
 
     Task<List<VideoStream>> GetLiveStreams(Supabase.Client supabase, CancellationToken ct);
 
@@ -730,18 +1127,26 @@ public interface IVideoStreamRepository
         Supabase.Client supabase, Guid videoStreamId, CancellationToken ct);
 
     Task MarkParticipantLeft(
-        Supabase.Client supabase, VideoParticipant participant, CancellationToken ct);
+        Supabase.Client supabase, VideoParticipant participant, string reason, CancellationToken ct);
 
-    /// <summary>System end (reaper): stamps ended_at without a host check.</summary>
+    /// <summary>System end (reaper): stamps ended_at without an authority check.</summary>
     Task<VideoStream> EndStreamSystem(
         Supabase.Client supabase, VideoStream stream, CancellationToken ct);
+
+    // ----- Retention (§9) -----
+
+    /// <summary>Deletes participation rows whose left_at is older than the cutoff.</summary>
+    Task<int> PurgeParticipantsLeftBefore(
+        Supabase.Client supabase, DateTime cutoff, CancellationToken ct);
 }
 ```
 
-The two authorization gates, which are the heart of the feature:
+#### 6.1 Authorization gates
 
 ```csharp
 // ✓ C1 — video is for ONLINE events only; checked before any SFU call is made.
+// A groupless event is refused here too: event_attendees.group_id is NOT NULL, so
+// an event with no host group has no attendees and therefore no one to authorize.
 private static async Task<Event> GetOnlineEventOrThrow(
     Supabase.Client supabase, Guid eventId, CancellationToken ct)
 {
@@ -755,6 +1160,9 @@ private static async Task<Event> GetOnlineEventOrThrow(
 
     if (!existing.IsOnline)
         throw new ValidationException("Video streaming is available for online events only.");
+
+    if (existing.GroupId is null)
+        throw new ValidationException("This event has no host group and cannot host video.");
 
     return existing;
 }
@@ -781,27 +1189,246 @@ private static async Task<bool> IsEventAttendee(
 
     return attending != null;
 }
+
+// ✓ Two authorities exist in this codebase and BOTH are legitimate:
+//   - event_attendees.is_event_organizer — the person running this event;
+//   - groups.founder_id — the owner of the host group, already the authority for
+//     RemoveEventAttendee (EventAttendeeRepository.cs).
+// Founder-first resolution gives the founder an escalation path over an absent or
+// abusive organizer, without demoting the organizer's day-to-day control.
+private static async Task<bool> CanControlEventVideo(
+    Supabase.Client supabase, Event hostEvent, Guid userId, CancellationToken ct)
+{
+    var founded = await supabase
+        .From<Groups>()
+        .Filter("id", Operator.Equals, hostEvent.GroupId!.ToString())
+        .Filter("founder_id", Operator.Equals, userId.ToString())
+        .Single(ct);
+
+    if (founded != null)
+        return true;
+
+    var attendee = await supabase
+        .From<Attendee>()
+        .Filter("user_id", Operator.Equals, userId.ToString())
+        .Single(ct);
+
+    if (attendee == null)
+        return false;
+
+    var organizer = await supabase
+        .From<EventAttendees>()
+        .Filter("event_id", Operator.Equals, hostEvent.Id.ToString())
+        .Filter("attendee_id", Operator.Equals, attendee.Id.ToString())
+        .Filter("is_event_organizer", Operator.Equals, "true")
+        .Single(ct);
+
+    return organizer != null;
+}
+```
+
+#### 6.2 Start — the pre-check is not the guard
+
+```csharp
+/// <summary>
+/// The pre-check below is an optimisation for the common case; the partial unique
+/// index is the actual guard. Two organizers pressing Start simultaneously both
+/// pass the pre-check, and PostgREST returns a 23505 unique violation for the
+/// loser — which MUST surface as 409, not as an unhandled 500.
+/// </summary>
+public async Task<VideoStream> StartEventStream(
+    Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
+{
+    var hostEvent = await GetOnlineEventOrThrow(supabase, eventId, ct);
+
+    if (!await CanControlEventVideo(supabase, hostEvent, userId, ct))
+        throw new ForbiddenException("Only the event organizer or group founder may start the video stream.");
+
+    var live = await supabase
+        .From<VideoStream>()
+        .Filter("event_id", Operator.Equals, eventId.ToString())
+        .Filter("ended_at", Operator.Is, "null")
+        .Single(ct);
+
+    if (live != null)
+        throw new ConflictException("This event already has a live video stream.");
+
+    var streamId = Guid.NewGuid();
+    var stream = new VideoStream
+    {
+        Id = streamId,
+        EventId = eventId,
+        RoomName = VideoStream.RoomNameFor(streamId),   // stream-scoped (§4)
+        HostId = userId,
+        StartedAt = DateTime.UtcNow,
+    };
+
+    try
+    {
+        var created = (await supabase
+            .From<VideoStream>()
+            .Insert(stream, new QueryOptions { Returning = ReturnType.Representation }, ct))
+            .Models.FirstOrDefault()
+            ?? throw new ConflictException("The video stream could not be created.");
+
+        await UpsertParticipant(supabase, created, userId, VideoParticipant.RoleHost, ct);
+        return created;
+    }
+    catch (PostgrestException ex) when (IsUniqueViolation(ex))
+    {
+        // Lost the race against a concurrent start — the same outcome the
+        // pre-check would have produced a moment earlier.
+        throw new ConflictException("This event already has a live video stream.");
+    }
+}
+
+/// <summary>PostgreSQL 23505 — unique_violation.</summary>
+private static bool IsUniqueViolation(PostgrestException ex) =>
+    ex.Response?.Content?.Contains("23505", StringComparison.Ordinal) == true;
+```
+
+#### 6.3 Join — attendance, grace window, and multi-device
+
+```csharp
+/// <summary>
+/// Role on (re)join:
+///   - the stream host always resumes 'host';
+///   - a participant reaped or dropped within the GRACE WINDOW resumes their prior
+///     role, so a 70-second network blip does not cost a presenter the floor;
+///   - anyone else enters as 'viewer'.
+/// A duplicate join from a participant who never left is idempotent and MUST NOT
+/// reset their role.
+/// </summary>
+private static readonly TimeSpan RejoinGrace = TimeSpan.FromMinutes(5);
+
+public async Task<(VideoStream Stream, VideoParticipant Participant)> JoinEventStream(
+    Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
+{
+    var hostEvent = await GetOnlineEventOrThrow(supabase, eventId, ct);
+    var stream = await GetLiveStreamOrThrow(supabase, eventId, ct);
+
+    // Attendance is re-checked on EVERY join, including mid-stream, so a
+    // non-attendee can never enter after the fact.
+    if (!await IsEventAttendee(supabase, eventId, userId, ct))
+        throw new ForbiddenException("Only users attending this event may join its video stream.");
+
+    var existing = await supabase
+        .From<VideoParticipant>()
+        .Filter("video_stream_id", Operator.Equals, stream.Id.ToString())
+        .Filter("participant_id", Operator.Equals, userId.ToString())
+        .Single(ct);
+
+    var now = DateTime.UtcNow;
+
+    if (existing == null)
+    {
+        existing = new VideoParticipant
+        {
+            Id = Guid.NewGuid(),
+            EventId = eventId,
+            ParticipantId = userId,
+            VideoStreamId = stream.Id,
+            Role = stream.HostId == userId ? VideoParticipant.RoleHost : VideoParticipant.RoleViewer,
+            JoinedAt = now,
+            LastSeenAt = now,
+        };
+    }
+    else if (existing.LeftAt != null)
+    {
+        var withinGrace = now - existing.LeftAt.Value <= RejoinGrace;
+        var keepsRole = stream.HostId == userId
+            || (withinGrace && existing.LeftReason != VideoParticipant.LeftDemoted);
+
+        if (!keepsRole)
+            existing.Role = VideoParticipant.RoleViewer;
+
+        existing.LeftAt = null;
+        existing.LeftReason = null;
+        existing.SfuIdentity = null;
+        existing.LastSeenAt = now;
+    }
+    else
+    {
+        // Live already: a second device. The SFU identity is per (stream, user), so
+        // LiveKit disconnects the older connection — last device wins, one seat.
+        existing.LastSeenAt = now;
+    }
+
+    await supabase
+        .From<VideoParticipant>()
+        .Upsert(existing, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+
+    return (stream, existing);
+}
 ```
 
 ### 7. Reaper (`AlSaqr.API/HostedServices/VideoStreamReaperService.cs`)
 
-A `BackgroundService` registered like `SpaceReaperService` (a **new** file — the
-space reaper is not modified) that scans every ~30s:
+A `BackgroundService` registered like `SpaceReaperService` (a **new** file; the space
+reaper is not modified), scanning every ~30s. It owns three guarantees:
 
-- A participant with `left_at IS NULL` whose `last_seen_at` is older than the
-  timeout (default **60s**) is reaped: `RemoveParticipantAsync` on LiveKit, stamp
-  `left_at`, broadcast `participant_left`. **This is the "automatically disconnects
-  the user" guarantee of the success criteria.**
-- A live stream with zero un-left participants past the timeout is ended: stamp
-  `ended_at`, `DeleteRoomAsync`, broadcast `stream_ended`.
+1. **Dead participants (C9).** `left_at IS NULL` and `last_seen_at` older than **60s**
+   → `RemoveParticipantAsync`, stamp `left_at` + `left_reason = 'reaped'`, broadcast
+   `participant_left`. This is the *"automatically disconnects the user"* guarantee.
+2. **Empty streams (C3).** Zero un-left participants past the timeout → stamp
+   `ended_at`, `DeleteRoomAsync`, broadcast `stream_ended`.
+3. **Runaway streams (C11).** `started_at` older than **4 hours** → end regardless of
+   activity, marking participants `left_reason = 'expired'`. Rules 1 and 2 cannot
+   catch an occupied-but-abandoned room; this can.
 
-LiveKit's own `emptyTimeout` (C3) closes the room server-side as a second line of
-defence, but the database is authoritative and the reaper is what reconciles it.
+```csharp
+private static readonly TimeSpan ScanInterval = TimeSpan.FromSeconds(30);
+private static readonly TimeSpan ParticipantTimeout = TimeSpan.FromSeconds(60);
+private static readonly TimeSpan MaxStreamDuration = TimeSpan.FromHours(4);   // C11
 
-> **Optional hardening (MAY).** LiveKit can POST `participant_left` /
-> `room_finished` webhooks, which would make disconnects near-instant instead of
-> bounded by the 30s tick. That is an additive endpoint and is **out of scope** for
-> this spec; the reaper alone satisfies the requirement.
+private async Task ReapOnce(CancellationToken ct)
+{
+    // IVideoStreamRepository is scoped and the SFU/broadcast services are typed
+    // HttpClients — resolving them per scan keeps handler rotation working instead
+    // of pinning one handler in this singleton.
+    using var scope = _scopeFactory.CreateScope();
+    var streams = scope.ServiceProvider.GetRequiredService<IVideoStreamRepository>();
+    var livekit = scope.ServiceProvider.GetRequiredService<ILiveKitVideoService>();
+    var broadcaster = scope.ServiceProvider.GetRequiredService<IEventVideoBroadcaster>();
+
+    var now = DateTime.UtcNow;
+    var cutoff = now - ParticipantTimeout;
+
+    foreach (var stream in await streams.GetLiveStreams(_supabase, ct))
+    {
+        var expired = now - stream.StartedAt >= MaxStreamDuration;   // C11
+        var live = await streams.GetLiveParticipants(_supabase, stream.Id, ct);
+
+        var doomed = expired ? live : live.Where(p => p.LastSeenAt < cutoff).ToList();
+        var reason = expired ? VideoParticipant.LeftExpired : VideoParticipant.LeftReaped;
+
+        foreach (var participant in doomed)
+        {
+            var identity = participant.SfuIdentity;
+
+            await streams.MarkParticipantLeft(_supabase, participant, reason, ct);
+
+            if (!string.IsNullOrEmpty(identity))
+                await livekit.RemoveParticipantAsync(stream.RoomName, identity, ct);
+
+            await broadcaster.ParticipantLeftAsync(stream.EventId, participant.ParticipantId, reason, ct);
+        }
+
+        var remaining = expired ? 0 : (await streams.GetLiveParticipants(_supabase, stream.Id, ct)).Count;
+        if (remaining == 0)
+        {
+            var ended = await streams.EndStreamSystem(_supabase, stream, ct);
+            await livekit.DeleteRoomAsync(ended.RoomName, ct);
+            await broadcaster.StreamEndedAsync(ended.EventId, ended.Id, ended.EndedAt!.Value, ct);
+        }
+    }
+}
+```
+
+> **Optional hardening (MAY).** LiveKit can POST `participant_left` / `room_finished`
+> webhooks, making disconnects near-instant instead of bounded by the 30s tick. That
+> is an additive endpoint and is **out of scope**; the reaper alone satisfies the
+> requirement.
 
 ### 8. Controller (`AlSaqr.API/Controllers/Meetup/EventVideoController.cs`)
 
@@ -809,34 +1436,48 @@ A **new** controller — `SpacesController.cs` is not touched.
 `EventVideoController : AuthorizedControllerBase`, `[Route("[controller]")]` (the
 `api` prefix comes from `UseRoutePrefix`), constructor-injected `Supabase.Client`,
 `IVideoStreamRepository`, `ILiveKitVideoService`, `IEventVideoBroadcaster`,
-`IUserCacheService`. Every action validates the token via `ValidateAccessToken()`
-and resolves the caller from `IUserCacheService.GetLoggedInUser()` (never an ad-hoc
-re-fetch, §4.1).
+`ICallerIdentityAccessor`, `IUserCacheService`.
+
+Every action calls `ValidateAccessToken()` (presence/expiry gate) **and** resolves the
+caller via `ICallerIdentityAccessor.GetCallerId()` (§1.2). `IUserCacheService` is used
+**only** for display fields, keyed by the verified id.
+
+**All routes are event-scoped.** Exactly one stream is live per event, so `eventId`
+addresses it unambiguously and clients never track two identifiers.
 
 | Method | Route | Body | Returns |
 |---|---|---|---|
 | GET  | `api/EventVideo/event/{eventId}/live` | — | `VideoStreamToDisplay` or `null` |
-| POST | `api/EventVideo/event/{eventId}/start` | `{ values: {} }` | `VideoStreamToDisplay` — organizer only |
+| POST | `api/EventVideo/event/{eventId}/start` | `{ values: {} }` | `VideoStreamToDisplay` — organizer/founder only |
 | POST | `api/EventVideo/event/{eventId}/join` | `{}` | `JoinVideoStreamResultDto` |
 | POST | `api/EventVideo/event/{eventId}/leave` | `{}` | 204 |
-| POST | `api/EventVideo/event/{eventId}/end` | `{}` | 204 — host only |
-| POST | `api/EventVideo/{videoStreamId}/heartbeat` | `{}` | 204 — refreshes `last_seen_at` |
-| POST | `api/EventVideo/{videoStreamId}/camera` | `{ values: { cameraEnabled, muted } }` | 204 |
-| POST | `api/EventVideo/{videoStreamId}/presenters/{userId}/promote` | `{}` | 204 — host only |
-| POST | `api/EventVideo/{videoStreamId}/presenters/{userId}/demote` | `{}` | 204 — host only |
+| POST | `api/EventVideo/event/{eventId}/end` | `{}` | 204 — organizer/founder only |
+| POST | `api/EventVideo/event/{eventId}/heartbeat` | `{}` | 204 — refreshes `last_seen_at` |
+| POST | `api/EventVideo/event/{eventId}/camera` | `{ values: { cameraEnabled, muted } }` | 204 |
+| POST | `api/EventVideo/event/{eventId}/presenters/{userId}/promote` | `{}` | 204 — organizer/founder only |
+| POST | `api/EventVideo/event/{eventId}/presenters/{userId}/demote` | `{}` | 204 — organizer/founder only |
 
-These endpoints are **not paginated** — plain JSON bodies, no `pagination` header,
-no `currentPage` / `itemsPerPage` / `searchTerm` query params.
+Not paginated — plain JSON bodies, no `pagination` header, no
+`currentPage`/`itemsPerPage`/`searchTerm`.
 
-#### Reference example — connecting to the video stream
+> **Response envelope decision.** Meetup controllers wrap responses
+> (`Ok(new { eventDetails, success = true })`) while `SpacesController` returns bare
+> DTOs. This controller returns **bare DTOs**, matching the real-time feature it is
+> modeled on and the `JoinVideoStreamResultDto` contract above. Rationale: the
+> `success` envelope carries no information a status code does not, and a real-time
+> client parsing tokens benefits from the flatter shape. This is a deliberate,
+> recorded choice — not an oversight — and it MUST be applied consistently across all
+> nine routes.
+
+#### 8.1 Reference example — connecting to the video stream
 
 ```csharp
 /// <summary>
-/// Joins the live video stream of an online event. Returns the stream, the
-/// caller's role, and a short-lived room-scoped LiveKit token: the browser
-/// connects with { wsUrl, token } and never sees the API secret. Only users
-/// attending the event get past the repository's attendance gate — a
-/// non-attendee is rejected with 403 before any SFU call is made.
+/// Joins the live video stream of an online event. Returns the stream, the caller's
+/// role, and a short-lived room-scoped LiveKit token: the browser connects with
+/// { wsUrl, token } and never sees the API secret. Only users attending the event
+/// get past the repository's attendance gate — a non-attendee is rejected with 403
+/// before any SFU call is made and before any token is minted.
 /// </summary>
 [HttpPost("event/{eventId}/join")]
 public async Task<IActionResult> JoinEventStream(Guid eventId)
@@ -845,35 +1486,45 @@ public async Task<IActionResult> JoinEventStream(Guid eventId)
     if (authError != null)
         return authError;
 
-    var userId = GetLoggedInUserId();
-    if (userId == Guid.Empty || eventId == Guid.Empty)
+    // Identity comes from the SIGNATURE-VERIFIED token, never from the shared
+    // logged-in-user cache slot (§1.2, DEP-2/DEP-3).
+    var userId = _caller.GetCallerId();
+    if (userId == Guid.Empty)
+        return Unauthorized("A verified access token is required.");
+    if (eventId == Guid.Empty)
         return BadRequest("Missing required fields");
 
     var ct = HttpContext.RequestAborted;
 
-    // Gate first: online event (C1) + attendance + live stream. Every 403/404
-    // surfaces as a repository exception mapped by the global middleware, so no
-    // SFU work happens for an unauthorized caller.
+    // Gate first: online event (C1) + attendance + live stream. Every 400/403/404
+    // surfaces as a repository exception mapped by the global middleware, so no SFU
+    // work and no token minting happen for an unauthorized caller.
     var (stream, participant) = await _videoStreams.JoinEventStream(_supabase, userId, eventId, ct);
 
-    // The identity is stream-scoped so a stale token from a previous stream of
-    // the same event can never be replayed into the current one.
+    // Identity is stream-scoped, and so is the room name — together they make a
+    // token from an earlier stream unusable here (§4).
     var identity = $"{stream.Id}:{userId}";
     var canPublish = participant.Role != VideoParticipant.RoleViewer;   // C4
 
-    var currentUser = _userCacheService.GetLoggedInUser();
-    var token = _livekit.MintJoinToken(
-        stream.RoomName, identity, currentUser?.Username ?? userId.ToString(), canPublish);
+    var profile = _userCacheService.GetLoggedInUser();
+    var displayName = profile?.Id?.ToString() == userId.ToString()
+        ? profile?.Username ?? userId.ToString()
+        : userId.ToString();
 
-    await _videoStreams.SetSfuIdentity(_supabase, stream.Id, userId, identity, ct);
+    var token = _livekit.MintJoinToken(stream.RoomName, identity, displayName, canPublish);
 
-    // "Indicate he's in the live": the roster row (left_at == null) is the state,
+    await _videoStreams.SetSfuIdentity(_supabase, eventId, userId, identity, ct);
+
+    // "Indicate he's in the live": the roster row (left_at == null) is the state;
     // this broadcast is the notification other attendees react to.
     await _broadcaster.ParticipantJoinedAsync(eventId, userId, participant.Role, ct);
 
+    var display = await _videoStreams.GetLiveEventStream(_supabase, eventId, ct)
+        ?? throw new NotFoundException("The video stream ended while joining.");
+
     return Ok(new JoinVideoStreamResultDto
     {
-        Stream = await _videoStreams.GetLiveEventStream(_supabase, eventId, ct) ?? new(),
+        Stream = display,
         Role = participant.Role,
         WsUrl = token.WsUrl,
         Token = token.Token,
@@ -884,14 +1535,14 @@ public async Task<IActionResult> JoinEventStream(Guid eventId)
 }
 ```
 
-#### Reference example — disconnecting from the video stream
+#### 8.2 Reference example — disconnecting from the video stream
 
 ```csharp
 /// <summary>
 /// Leaves the event's video stream: force-disconnects the caller on the SFU and
 /// announces participant_left. Idempotent — every client exit path (unmount, tab
-/// close, explicit leave) calls it, and the reaper converges on the same steps
-/// for a client that dies without calling it at all.
+/// close, explicit leave) calls it, and the reaper converges on the same steps for
+/// a client that dies without calling it at all.
 /// </summary>
 [HttpPost("event/{eventId}/leave")]
 public async Task<IActionResult> LeaveEventStream(Guid eventId)
@@ -900,65 +1551,138 @@ public async Task<IActionResult> LeaveEventStream(Guid eventId)
     if (authError != null)
         return authError;
 
-    var userId = GetLoggedInUserId();
-    if (userId == Guid.Empty || eventId == Guid.Empty)
+    var userId = _caller.GetCallerId();
+    if (userId == Guid.Empty)
+        return Unauthorized("A verified access token is required.");
+    if (eventId == Guid.Empty)
         return BadRequest("Missing required fields");
 
     var ct = HttpContext.RequestAborted;
-    var participant = await _videoStreams.LeaveEventStream(_supabase, userId, eventId, ct);
 
-    if (participant != null)
+    var stream = await _videoStreams.GetLiveEventStream(_supabase, eventId, ct);
+    var participant = await _videoStreams.LeaveEventStream(
+        _supabase, userId, eventId, VideoParticipant.LeftExplicit, ct);
+
+    if (participant != null && stream != null)
     {
         // Removing the participant server-side is what actually stops the media;
         // trusting the client to close its own connection would leave the SFU
-        // relaying video nobody watches (C9).
+        // relaying video nobody watches (C9). The room name is READ from the
+        // stream — never recomputed, since it is stream-scoped (§4).
         if (!string.IsNullOrEmpty(participant.SfuIdentity))
-        {
-            await _livekit.RemoveParticipantAsync(
-                VideoStream.RoomNameFor(eventId), participant.SfuIdentity, ct);
-        }
+            await _livekit.RemoveParticipantAsync(stream.RoomName, participant.SfuIdentity, ct);
 
-        await _broadcaster.ParticipantLeftAsync(eventId, userId, ct);
+        await _broadcaster.ParticipantLeftAsync(
+            eventId, userId, VideoParticipant.LeftExplicit, ct);
     }
 
     return NoContent();
 }
 ```
 
-Orchestration for the remaining actions (controller → repo/service; no Supabase or
-LiveKit calls inline beyond the injected services):
-
-- **Start** (organizer only): repository validates online + organizer + no live
-  stream → `CreateRoomAsync(roomName, MaxParticipants)` → broadcast `stream_started`.
-- **End** (host only): repository stamps `ended_at` and marks everyone left →
-  `DeleteRoomAsync` → broadcast `stream_ended`.
-- **Promote / demote** (host only): flip the persisted role → broadcast
-  `role_changed`. Because publish rights live in the token, a demoted presenter is
-  **also** removed from the room (`RemoveParticipantAsync`) so their next join mints
-  a viewer token; the client reconnects automatically on `role_changed`.
-- **Heartbeat**: refreshes `last_seen_at` so the reaper does not evict a healthy
-  participant. The client **MUST** call it at an interval well under the 60s timeout
-  (~20s).
-
-### 9. DI registration (`Program.cs`)
+#### 8.3 Demote — the revocation that actually revokes
 
 ```csharp
-// Online-event video streaming (specs/video-streaming-online-events.md):
-// repository, self-hosted LiveKit control plane, realtime broadcaster, and the
-// silent-death reaper. The LiveKit API secret stays server-side only.
-builder.Services.AddScoped<IVideoStreamRepository, VideoStreamRepository>();
-builder.Services.Configure<LiveKitConfig>(builder.Configuration.GetSection("LiveKit"));
-builder.Services.AddHttpClient<ILiveKitVideoService, LiveKitVideoService>();
-builder.Services.AddHttpClient<IEventVideoBroadcaster, EventVideoBroadcaster>();
-builder.Services.AddHostedService<VideoStreamReaperService>();
+/// <summary>
+/// Demotes a presenter → viewer. Flipping the persisted role is not enough: the
+/// user still holds a signed token with canPublish = true until it expires.
+/// UpdateParticipant revokes the permission on the SFU itself, effective
+/// immediately, so the floor is taken back the moment the host asks.
+/// </summary>
+[HttpPost("event/{eventId}/presenters/{userId}/demote")]
+public async Task<IActionResult> DemotePresenter(Guid eventId, Guid userId)
+{
+    var authError = ValidateAccessToken();
+    if (authError != null)
+        return authError;
+
+    var callerId = _caller.GetCallerId();
+    if (callerId == Guid.Empty)
+        return Unauthorized("A verified access token is required.");
+    if (eventId == Guid.Empty || userId == Guid.Empty)
+        return BadRequest("Missing required fields");
+
+    var ct = HttpContext.RequestAborted;
+
+    var stream = await _videoStreams.GetLiveEventStream(_supabase, eventId, ct)
+        ?? throw new NotFoundException("No live video stream for this event.");
+
+    var demoted = await _videoStreams.DemotePresenter(_supabase, callerId, eventId, userId, ct);
+
+    if (!string.IsNullOrEmpty(demoted.SfuIdentity))
+    {
+        await _livekit.UpdatePublishPermissionAsync(
+            stream.RoomName, demoted.SfuIdentity, canPublish: false, ct);
+    }
+
+    await _broadcaster.RoleChangedAsync(eventId, userId, VideoParticipant.RoleViewer, ct);
+
+    return NoContent();
+}
 ```
 
-All against interfaces (§3.1). No code is added to `AlSaqr.Services` (§2).
+Remaining orchestration (controller → repo/service; no Supabase or LiveKit calls
+inline beyond the injected services):
 
-### 10. Local development
+- **Start**: repository validates online + group + authority + no live stream →
+  `CreateRoomAsync(stream.RoomName, config.MaxParticipants)` → broadcast
+  `stream_started`.
+- **End**: repository stamps `ended_at`, marks everyone left with reason `ended` →
+  `DeleteRoomAsync(stream.RoomName)` → broadcast `stream_ended`.
+- **Promote**: flip role (cap-checked, C5) → `UpdatePublishPermissionAsync(true)` →
+  broadcast `role_changed`. The client re-joins to obtain a publish token.
+- **Heartbeat**: refreshes `last_seen_at`. The client **MUST** call it every ~20s,
+  well under the 60s timeout.
 
-The SFU runs locally in Docker; the API and the React client talk to it over
-localhost. No cloud account and no paid service are involved.
+### 9. Retention (`AlSaqr.API/HostedServices` — daily job)
+
+No media is ever stored, but `video_participants` records **who was in a call with
+whom, when, and for how long** — a timestamped association graph across community
+events. Ephemerality **MUST** extend to it:
+
+- `video_participants` rows are deleted **90 days** after `left_at`.
+- `video_streams` rows are deleted once no participant rows reference them.
+- Account deletion is already covered: `ON DELETE CASCADE` on
+  `participant_id → users(id)`.
+
+The purge runs daily in the reaper's hosted service via
+`PurgeParticipantsLeftBefore(cutoff)`. The join UI **MUST** state plainly: *"This call
+is not recorded. We keep a record of who joined and for how long for 90 days."*
+
+### 10. Error contract
+
+Every failure below is produced by a repository exception and mapped by
+`ExceptionHandlingMiddleware` (DEP-1). Controllers **MUST NOT** try/catch for HTTP
+mapping (§3.3).
+
+| Condition | Exception | Status |
+|---|---|---|
+| Event does not exist / no live stream | `NotFoundException` | 404 |
+| Event is in-person (C1), or has no host group | `ValidationException` | 400 |
+| Not an attendee / not organizer-or-founder / not a participant | `ForbiddenException` | 403 |
+| Second live stream; presenter cap reached (C5) | `ConflictException` | 409 |
+
+```json
+// 403 — application/problem+json (RFC 7807)
+{
+  "type": null,
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "Only users attending this event may join its video stream.",
+  "instance": "/api/EventVideo/event/9f1c.../join"
+}
+```
+
+> **401 is shaped differently, by design.** `ValidateAccessToken()` returns
+> `Unauthorized(error)` — a bare JSON string, **not** ProblemDetails — because the
+> gate runs before the middleware can classify anything. Clients **MUST** handle 401
+> as a plain string body and 4xx/5xx as ProblemDetails. This asymmetry is inherited
+> from `access-token.md` and is documented here so clients are not surprised.
+
+### 11. Local development
+
+The SFU runs locally in Docker; the API and React client talk to it over localhost.
+No cloud account and no paid service are involved.
 
 ```yaml
 # docker-compose.livekit.yml — local dev only
@@ -972,23 +1696,19 @@ services:
       - "7882:7882/udp" # primary WebRTC media
 ```
 
-`--dev` starts with the well-known key pair `devkey` / `secret`, so
-`appsettings.Development.json` is:
-
 ```json
+// appsettings.Development.json — --dev uses the well-known devkey/secret pair
 {
   "LiveKit": {
     "ApiKey": "devkey",
     "ApiSecret": "secret",
     "HttpUrl": "http://localhost:7880",
-    "WsUrl": "ws://localhost:7880"
+    "WsUrl": "ws://localhost:7880",
+    "MaxParticipants": 50,
+    "MaxPresenters": 9
   }
 }
 ```
-
-The browser consumes the join response with the open-source `livekit-client` SDK.
-C6 lives here — simulcast plus dynacast is what keeps upstream bandwidth
-proportional to what is actually being watched:
 
 ```ts
 // The token and wsUrl come from POST api/EventVideo/event/{eventId}/join
@@ -1001,21 +1721,162 @@ const room = new Room({
 await room.connect(wsUrl, token);
 if (canPublish) await room.localParticipant.enableCameraAndMicrophone();
 
+// Heartbeat well under the 60s reaper timeout (C9).
+const beat = setInterval(
+  () => api.post(`api/EventVideo/event/${eventId}/heartbeat`, {}), 20_000);
+
 // Disconnect: call the API first so the backend is authoritative, then drop the
-// peer connection. Calling only room.disconnect() would leave the roster stale
-// until the reaper runs.
+// peer connection. Calling only room.disconnect() leaves the roster stale until
+// the reaper runs.
+clearInterval(beat);
 await api.post(`api/EventVideo/event/${eventId}/leave`, {});
 await room.disconnect();
 ```
 
-### 11. Integration tests
+### 12. DI registration (`Program.cs`)
 
-Per §Validation (Testcontainers or a dedicated test schema with per-test rollback;
-never the shared dev DB). LiveKit is faked behind `ILiveKitVideoService`; broadcasts
-are asserted through a fake `IEventVideoBroadcaster`. The authorization matrix below
-is the primary test surface, and the token grant is asserted by decoding the minted
-JWT — a viewer token whose `video.canPublish` is true is a security defect, not a
-cosmetic one.
+```csharp
+// Online-event video streaming (specs/video-streaming-online-events.md):
+// verified caller identity, repository, self-hosted LiveKit control plane, realtime
+// broadcaster, and the reaper/purge host. The LiveKit API secret stays server-side.
+builder.Services.AddHttpContextAccessor();
+builder.Services.Configure<SupabaseAuthConfig>(builder.Configuration.GetSection("Supabase"));
+builder.Services.AddScoped<ICallerIdentityAccessor, CallerIdentityAccessor>();
+
+builder.Services.AddScoped<IVideoStreamRepository, VideoStreamRepository>();
+builder.Services.Configure<LiveKitConfig>(builder.Configuration.GetSection("LiveKit"));
+builder.Services.AddHttpClient<ILiveKitVideoService, LiveKitVideoService>();
+builder.Services.AddHttpClient<ISupabaseBroadcastClient, SupabaseBroadcastClient>();
+builder.Services.AddScoped<IEventVideoBroadcaster, EventVideoBroadcaster>();
+builder.Services.AddHostedService<VideoStreamReaperService>();
+```
+
+All against interfaces (§3.1). No code is added to `AlSaqr.Services` (§2).
+
+---
+
+## Testing
+
+### Harness
+
+Repositories call `supabase.From<T>()` over **PostgREST HTTP**, so a bare Postgres
+container cannot serve them — the container set needs PostgREST in front of Postgres,
+with the `Supabase.Client` pointed at it. Faking `IVideoStreamRepository` instead
+would test nothing, because the authorization logic *lives in the repository*.
+
+```csharp
+/// <summary>
+/// Throwaway Postgres + PostgREST per run (CLAUDE.md §Validation): no shared dev DB,
+/// no manual setup. PostgREST is required because the repositories speak PostgREST,
+/// not raw SQL — a Postgres-only fixture cannot exercise them.
+/// </summary>
+public sealed class VideoStreamFixture : IAsyncLifetime
+{
+    private readonly INetwork _network = new NetworkBuilder().Build();
+    private readonly PostgreSqlContainer _db;
+    private readonly IContainer _postgrest;
+
+    public Supabase.Client Client { get; private set; } = default!;
+    public FakeLiveKitVideoService LiveKit { get; } = new();
+    public FakeEventVideoBroadcaster Broadcaster { get; } = new();
+
+    public VideoStreamFixture()
+    {
+        _db = new PostgreSqlBuilder()
+            .WithImage("postgres:16-alpine")
+            .WithNetwork(_network)
+            .WithNetworkAliases("db")
+            .Build();
+
+        _postgrest = new ContainerBuilder()
+            .WithImage("postgrest/postgrest:v12.2.0")
+            .WithNetwork(_network)
+            .WithPortBinding(3000, true)
+            .WithEnvironment("PGRST_DB_SCHEMAS", "alsaqr-2026")
+            .WithEnvironment("PGRST_DB_ANON_ROLE", "postgres")
+            .Build();
+    }
+
+    public async Task InitializeAsync()
+    {
+        await _network.CreateAsync();
+        await _db.StartAsync();
+        await ApplySchema(_db, "Entities/Meetup/sql/video_streams.sql");   // + referenced tables
+        await _postgrest.StartAsync();
+
+        Client = new Supabase.Client(
+            $"http://localhost:{_postgrest.GetMappedPublicPort(3000)}",
+            null,
+            new SupabaseOptions { Schema = "alsaqr-2026" });
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _postgrest.DisposeAsync();
+        await _db.DisposeAsync();
+        await _network.DeleteAsync();
+    }
+}
+```
+
+Each test runs inside a transaction rolled back on completion. `ILiveKitVideoService`
+and `IEventVideoBroadcaster` are faked and **record their calls** — several assertions
+below are about a call *not* happening.
+
+### Required test cases
+
+**Authorization (the primary surface)**
+
+| # | Test | Assertion |
+|---|---|---|
+| A1 | `Start_InPersonEvent_Returns400_AndNoSfuCall` | `ValidationException`; `LiveKit.Calls` is **empty** |
+| A2 | `Start_GrouplessEvent_Returns400` | `ValidationException` |
+| A3 | `Start_NonOrganizer_Returns403` | `ForbiddenException` |
+| A4 | `Start_EventOrganizer_CreatesStreamAndRoom` | stream persisted; `CreateRoom` called with `emptyTimeout=120`, `maxParticipants=50` |
+| A5 | `Start_GroupFounder_Succeeds` | founder authority honoured (§6.1) |
+| A6 | `Start_SecondLiveStream_Returns409` | `ConflictException` |
+| A7 | `Start_ConcurrentDoubleStart_OneWins_OtherGets409` | two parallel calls → exactly one stream row; loser gets `ConflictException`, **not** 500 |
+| A8 | `Join_NonAttendee_Returns403_AndNoTokenMinted` | `ForbiddenException`; `LiveKit.MintedTokens` is **empty** |
+| A9 | `Join_Attendee_ReturnsTokenAndRoster` | token non-empty; roster contains the caller |
+| A10 | `Join_AfterStreamEnded_Returns404` | `NotFoundException` |
+| A11 | `Promote_ByNonHost_Returns403` | `ForbiddenException` |
+| A12 | `Promote_BeyondPresenterCap_Returns409` | 9 presenters exist → `ConflictException` (C5) |
+| A13 | `End_ByNonHost_Returns403` | `ForbiddenException` |
+
+**Token grant (the permission model)**
+
+| # | Test | Assertion |
+|---|---|---|
+| T1 | `ViewerToken_CannotPublish` | decoded `video.canPublish == false`; `canPublishSources` empty |
+| T2 | `PresenterToken_CanPublishCameraAndMicOnly` | `canPublish == true`; sources exactly `["camera","microphone"]` |
+| T3 | `Token_IsScopedToOneRoomAndExpiresWithin90s` | `video.room == stream.RoomName`; `exp − nbf ≤ 90` |
+| T4 | `Token_FromEndedStream_DoesNotMatchNewStreamRoom` | new stream's `RoomName` ≠ old — the replay guard of §4 |
+| T5 | `Demote_RevokesPublishOnSfu` | `UpdateParticipant(canPublish:false)` recorded; role flipped |
+
+**Lifecycle**
+
+| # | Test | Assertion |
+|---|---|---|
+| L1 | `Join_MarksParticipantLive_AndBroadcasts` | `left_at IS NULL`; `participant_joined` broadcast |
+| L2 | `Leave_RemovesOnSfu_AndBroadcasts` | `RemoveParticipant` recorded; `left_reason == 'explicit'` |
+| L3 | `Leave_Twice_IsNoOp` | second call → 204, no second SFU call |
+| L4 | `Reaper_EvictsStaleParticipant` | `last_seen_at` 61s old → `left_reason == 'reaped'`, `RemoveParticipant` recorded |
+| L5 | `Reaper_DoesNotEvictHeartbeatingParticipant` | fresh `last_seen_at` → untouched |
+| L6 | `Reaper_EndsEmptyStream` | zero live → `ended_at` set, `DeleteRoom` recorded, `stream_ended` broadcast |
+| L7 | `Reaper_EndsStreamPastFourHours_EvenWhenOccupied` | C11; participants marked `expired` |
+| L8 | `Rejoin_WithinGrace_KeepsPresenterRole` | reaped presenter rejoins at 4 min → still `presenter` |
+| L9 | `Rejoin_AfterGrace_DowngradesToViewer` | rejoin at 6 min → `viewer` |
+| L10 | `Rejoin_AfterDemotion_DoesNotRestorePresenter` | `left_reason == 'demoted'` is never restored |
+| L11 | `SecondDevice_DoesNotCreateSecondRow` | one row per `(stream, user)` |
+| L12 | `Purge_DeletesParticipantsOlderThan90Days` | 91-day-old row gone; 89-day-old row kept |
+
+**Ordering & contract**
+
+| # | Test | Assertion |
+|---|---|---|
+| C1 | `Roster_IsDeterministicallyOrdered` | `joined_at` asc, `id` asc, stable across repeated reads |
+| C2 | `JoinResult_SerializesToContractShape` | camelCase keys exactly as §3; `videoStreamId` not `id` |
+| C3 | `NoEgressOrRecordingCallSiteExists` | source scan for `egress`/`recording`/`transcription` in the video namespace returns **zero** hits (C10) |
 
 ---
 
@@ -1023,43 +1884,41 @@ cosmetic one.
 
 **Authorization (backend-authoritative — the client never decides who may publish)**
 
-- Video streaming exists **only** for events with `is_online = true`. A stream
-  request for an in-person event is **400** (`ValidationException`), rejected before
-  any SFU call (C1).
-- **Only users attending the event may join** — attendance is verified through
-  `attendees` → `event_attendees` on **every** join, including while the stream is
-  live, so a non-attendee can never enter mid-stream. Non-attendees get **403**.
-- Only the event **organizer** may start a stream; only the **host** (the organizer
-  who started it) may end it or promote/demote presenters. Anyone else: **403**.
-- **One live stream per event**; starting a second is **409** (`ConflictException`),
-  enforced by the partial unique index.
-- Publish rights are carried by the **signed token**: a viewer's token has
-  `canPublish: false`, so a client that flips its own role locally still cannot send
-  media. Role changes take effect only after the backend mints a new token.
-- The presenter cap (C5) is enforced in the repository; exceeding it is **409**.
-- Every endpoint requires a valid Supabase JWT (`ValidateAccessToken()`); the
-  logged-in user comes from `UserCacheService`, never an ad-hoc re-fetch (§4.1).
+- Video streaming exists **only** for events with `is_online = true` and a host group.
+  Anything else is **400**, rejected before any SFU call (C1).
+- **Only users attending the event may join** — verified through `attendees` →
+  `event_attendees` on **every** join, including mid-stream. Non-attendees: **403**.
+- Only the **event organizer** (`is_event_organizer`) or the **host group's founder**
+  (`groups.founder_id`) may start, end, promote, or demote. Founder-first resolution.
+  Anyone else: **403**.
+- **One live stream per event**; a second start is **409**, enforced by the partial
+  unique index and by explicit unique-violation translation (§6.2), not by the
+  pre-check alone.
+- Publish rights are enforced **twice**: `canPublish` in the signed token at join
+  time, and `UpdateParticipant` for mid-session revocation. A role flip that is not
+  accompanied by an SFU permission update is a defect.
+- The presenter cap (C5) and occupancy cap (C12) are enforced in the repository and
+  on `CreateRoom` respectively.
+- Every endpoint requires a valid access token **and** a signature-verified caller id
+  (§1.2). Identity **MUST NOT** be read from the shared logged-in-user cache slot.
 
 **SFU control plane**
 
-- The LiveKit **API key and secret MUST NOT touch the browser**. The only values
-  that leave the API are `wsUrl` and a minted, room-scoped, short-lived token.
-- Tokens **MUST** be scoped to exactly one room and one identity, and identity
-  **MUST** be `{videoStreamId}:{userId}` so a token cannot be replayed into a later
-  stream of the same event.
+- The LiveKit **API key and secret MUST NOT touch the browser**. Only `wsUrl` and a
+  minted, room-scoped, ≤90-second token leave the API.
+- Room names are **stream-scoped and globally unique**; identities are
+  `{videoStreamId}:{userId}`. Room names are **read from `video_streams.room_name`**,
+  never recomputed at a call site.
 - Disconnects are **server-issued**. A client closing its own peer connection is a
-  hint, not a teardown; the backend always issues `RemoveParticipantAsync` /
-  `DeleteRoomAsync`.
-- Every exit path converges on the same teardown: explicit leave, host end, demote,
-  and the reaper all remove the participant on the SFU and broadcast the
-  corresponding event. A silently dead participant (network death, tab close)
-  **MUST** be reaped within the timeout.
+  hint, not a teardown.
+- Every exit path converges on the same teardown — explicit leave, host end, C11
+  expiry, and the reaper all remove the participant on the SFU, record a
+  `left_reason`, and broadcast.
 
 **Presence & events (channel `event_video:{eventId}`)**
 
-- Presence is Supabase, media is LiveKit — never conflate them; an SFU participant
-  is not proof of event attendance and vice versa.
-- Backend-emitted (service-role-secret key): `stream_started`, `stream_ended`,
+- Presence is Supabase, media is LiveKit — never conflate them.
+- Backend-emitted (service-role key): `stream_started`, `stream_ended`,
   `participant_joined`, `participant_left`, `role_changed`.
 - Client-emitted (backend neither emits nor validates): camera/mic track events,
   which LiveKit already surfaces to every subscriber.
@@ -1067,83 +1926,52 @@ cosmetic one.
 **Ephemerality**
 
 - Streams are never recorded. **No egress, capture, or transcription call may exist
-  anywhere in the code** — ephemerality is guaranteed by omission, not by a flag.
-  Only `started_at` / `ended_at` metadata is persisted; no video artifact may exist
-  in any store after a stream ends. This is also cost rule C10.
+  anywhere in the code** (C10) — asserted by test C3.
+- Participation metadata is retained **90 days** and then purged (§9). "We don't
+  record" is only true if the metadata is bounded too.
 
 **Constitution compliance (CLAUDE.md)**
 
 - Controllers never touch the Supabase or LiveKit clients directly beyond injected
-  services/repos (§3.2); `Supabase.Client` is passed into repository methods, never
-  stored (§3.1); DI against interfaces only (§3.1).
+  services/repos (§3.2); `Supabase.Client` is passed per method, never stored (§3.1);
+  DI against interfaces only (§3.1).
 - Write failures throw custom exceptions **inside the repository**; HTTP mapping
-  lives in the global exception middleware only (§3.3). The existing mapping table
-  already covers every exception this feature throws — **no middleware change is
-  required**.
-
-  > **Prerequisite (blocking).** `app.UseMiddleware<ExceptionHandlingMiddleware>()`
-  > is currently **commented out** in `Program.cs` (line 189). Until it is
-  > re-enabled, every repository exception surfaces as an unhandled **500** instead
-  > of 400/403/404/409, which fails this spec's authorization matrix outright.
-  > Re-enabling it is a one-line prerequisite of this feature, not part of its
-  > design. Controllers here **MUST NOT** compensate with try/catch (§3.3).
-- **Video-stream endpoints are exempt from §4.1 caching** (this document is the
-  exemption): live-stream lookups, rosters, and every mutation are real-time state
-  and MUST always be read live. Nothing here is cached, so nothing needs
-  invalidation.
-- `System.Text.Json` only (§4); every async DB/HTTP call awaited, no
-  fire-and-forget (§4) — including broadcasts.
-- All list-ish reads (participants of a stream) use deterministic ordering
-  (`joined_at` ascending, tie-broken by `id`) (§3.2).
+  lives in the global middleware only (§3.3) — which requires DEP-1.
+- **Video endpoints are exempt from §4.1 caching** (this document is the exemption):
+  live lookups, rosters, and every mutation are real-time state, always read live.
+  Nothing is cached, so nothing needs invalidation.
+- `System.Text.Json` only (§4); every async DB/HTTP call awaited (§4).
+- All list-ish reads use deterministic ordering (`joined_at` asc, `id` asc) (§3.2).
 - No code is added to `AlSaqr.Services` (§2).
-
-**Feature isolation (the frozen-audio-spaces constraint)**
-
-- No file under the audio-spaces implementation may be modified. Shared *concepts*
-  (per-method Supabase client, reaper, broadcaster, repository-thrown exceptions)
-  are re-implemented for video; shared *code* is limited to the constitution's own
-  utilities and the new `SupabaseBroadcastClient`.
+- Two documented deviations: entity `Schema` attribute (§2) and the broadcast-client
+  duplication (§5). Both are deliberate, justified, and recorded.
 
 ---
 
 ## Acceptance
 
-- **Contract**: every route in the table above exists with the exact method, path,
-  body envelope, and response shape; DTOs serialize camelCase and round-trip against
-  the TypeScript interfaces (`videoStreamId`, `participantId`, `isLive`,
-  `cameraEnabled`). No pagination header.
-- **Online-only (C1)**: start/join against an in-person event → **400**, and the
-  LiveKit fake records **zero** calls.
-- **Attendance matrix** (integration-tested, per §Validation isolation):
-  - non-attendee join → **403**, and no token is minted;
-  - attendee join of a live stream → **200** with `{ wsUrl, token, role, participants }`;
-  - start by a non-organizer → **403**; by the organizer → the stream and its room;
-  - second live stream for the same event → **409**;
-  - end / promote / demote by a non-host → **403**; by the host → **204**;
-  - promote past the presenter cap → **409**.
-- **Token grant**: a viewer's minted token decodes to `video.canPublish == false`
-  with an empty `canPublishSources`; a presenter's decodes to `true` with exactly
-  `["camera","microphone"]`; both are scoped to the one room and expire within
-  10 minutes.
-- **"He's in the live"**: after join, the participant row has `left_at == null`, the
-  roster returned by the live lookup includes them, and `participant_joined` is
-  broadcast on `event_video:{eventId}`.
-- **"Automatically disconnects"**: a participant whose `last_seen_at` exceeds 60s is
-  reaped — `RemoveParticipantAsync` is called, `left_at` is stamped, and
-  `participant_left` is broadcast — without any client action. A stream left empty
-  past the timeout is auto-ended: `ended_at` stamped, room deleted, `stream_ended`
-  broadcast, and the live lookup returns `null` afterward.
-- **Leave teardown**: explicit leave removes the participant on the SFU and
-  broadcasts `participant_left`; calling leave twice is a no-op, not an error.
-- **Cost guards**: `CreateRoom` is called with `emptyTimeout = 120` and the
-  configured `maxParticipants`; the client connects with `dynacast` and `simulcast`
-  enabled.
-- **Ephemerality**: `started_at` and `ended_at` are recorded; the codebase contains
-  no egress/recording/transcription call site.
-- **Secrets**: the LiveKit API key/secret and the Supabase service-role key come
-  from configuration/AWS secrets and never appear in any response, log, or
-  client-visible error.
+- **Contract**: all nine routes exist with the exact method, path, envelope, and
+  response shape; DTOs serialize camelCase per §3; no pagination header; bare-DTO
+  responses applied consistently.
+- **Authorization matrix**: tests A1–A13 pass, including A7 (concurrent start → one
+  409, never a 500) and A8 (**no token minted** for a non-attendee).
+- **Token grant**: T1–T5 pass — a viewer token that could publish is a security
+  defect, not a cosmetic one.
+- **"He's in the live"**: L1 — roster row with `left_at IS NULL` plus a
+  `participant_joined` broadcast.
+- **"Automatically disconnects"**: L4, L6, L7 — reaped at 60s, empty stream ended,
+  4-hour ceiling honoured even when occupied.
+- **Not at the cost of a live user**: L5, L8–L10 — a heartbeating user is never
+  evicted, and a 5-minute reconnect preserves the presenter's floor.
+- **Cost guards**: `CreateRoom` receives `emptyTimeout=120` and configured
+  `maxParticipants`; the client connects with dynacast + simulcast; C11 enforced.
+- **Ephemerality**: C3 (no egress call site) and L12 (90-day purge) pass.
+- **Secrets**: LiveKit key/secret and the Supabase service-role key come from
+  configuration/AWS secrets and never appear in any response, log, or client-visible
+  error.
 - **Isolation**: `git diff` for this feature touches no audio-spaces file.
+- **Observability**: `left_reason` populated on every departure, so involuntary
+  disconnect rate is `count(left_reason='reaped') ÷ count(*)` — one query, no vendor.
 - Deterministic tests, runnable in CI, no shared dev DB (§Validation).
 
 ---
@@ -1151,15 +1979,39 @@ cosmetic one.
 ## Out of Scope
 
 - Recording, transcription, or video persistence of any kind (C10).
-- Video for **in-person** events, and any group-level (non-event) video.
-- Screen sharing, virtual backgrounds, breakout rooms, chat overlay (event chat is
-  the existing messaging feature), and reactions.
-- Raise-hand → auto-promote flows; promotion is an explicit host action.
-- LiveKit webhooks (an optional latency improvement over the reaper, noted in step 7).
-- SFU scaling, cascading, region routing, and TURN provisioning beyond what a
-  single self-hosted LiveKit node provides.
-- Any change to audio spaces, including refactoring `SpaceEventBroadcaster` onto the
-  new shared `SupabaseBroadcastClient` (recorded as a follow-up in step 5).
+- Video for **in-person** events; group-level (non-event) video.
+- Screen sharing, virtual backgrounds, breakout rooms, chat overlay, reactions.
+- Raise-hand → auto-promote; promotion is an explicit host action.
+- LiveKit webhooks (an optional latency improvement over the reaper, §7).
+- SFU scaling, cascading, region routing, TURN provisioning beyond a single node.
+- Any change to audio spaces, including migrating `SpaceEventBroadcaster` onto the
+  shared `SupabaseBroadcastClient` (follow-up, §5).
+- Fixing signature verification **globally** for all endpoints — §1.2 closes it for
+  this feature; `access-token.md` still governs the rest of the API.
 - Native mobile clients.
-```
 
+---
+
+## Changelog — v1 → v2
+
+| Defect (v1) | Resolution (v2) |
+|---|---|
+| Room name event-scoped → tokens replayable across streams; demote defeated by a still-valid token | Stream-scoped, DB-unique room names; `UpdateParticipant` server-side revocation; TTL 10 min → 90 s (§4, T4, T5) |
+| Identity from the shared `UserCacheService` slot; v1 suggested the JWT `sub` — but the signature is **never verified** | `ICallerIdentityAccessor` verifies HS256 before trusting `sub`; cache demoted to profile lookup (§1.2, DEP-2/DEP-3) |
+| `RoomNameFor(eventId)` recomputed at the leave call site | Room name always read from `video_streams.room_name` (§8.2) |
+| `maxParticipants` referenced but never defined | `LiveKitConfig.MaxParticipants` = 50, `MaxPresenters` = 9 (§1.1, C5, C12) |
+| "Organizer" undefined; two competing authorities in code | Founder-first `CanControlEventVideo`; groupless events → 400 (§6.1) |
+| No concrete tests; Testcontainers infeasible against PostgREST | Postgres + PostgREST fixture; 33 named test cases (§Testing) |
+| Start pre-check is TOCTOU → 500 on race | Unique-violation → `ConflictException` (§6.2, A7) |
+| Response envelope conflict with Meetup controllers unacknowledged | Explicit, justified bare-DTO decision (§8) |
+| No ProblemDetails example; 401's differing shape undocumented | Error contract table + example + 401 note (§10) |
+| Multi-device join undefined | Last-device-wins, one row per (stream, user) (§6.3, L11) |
+| No max stream duration | C11 four-hour ceiling (§7, L7) |
+| `?? new()` masked a 404 in the join example | Throws `NotFoundException` (§8.1) |
+| DTOs/broadcaster/repository/reaper described in prose only | Full C# for all four (§3, §5, §6, §7) |
+| Mixed `eventId` / `videoStreamId` addressing | All routes event-scoped (§8) |
+| `event_id` denormalization could drift from the stream | Composite FK `(video_stream_id, event_id)` (§2) |
+| Involuntary disconnects unmeasurable | `left_reason` column + constraint (§2, §10) |
+| Network blip cost a presenter their role | 5-minute reconnect grace (§6.3, L8–L10) |
+| Participation metadata retained forever | 90-day purge + disclosure copy (§9, L12) |
+| `[Table]` schema deviation silent | Documented and justified (§2) |
