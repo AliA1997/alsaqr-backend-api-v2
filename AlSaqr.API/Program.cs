@@ -78,6 +78,9 @@ builder.Services.AddSingleton<TokenService>(sp =>
     return new TokenService(jwtSecret);
 });
 
+// Signature-verified caller identity for actions that must know who is asking
+// (specs/video-streaming-online-events.md §0 DEP-2/DEP-3). Same secret TokenService signs with.
+builder.Services.AddSingleton<IAccessTokenVerifier>(_ => new AccessTokenVerifier(jwtSecret!));
 
 builder.Services.AddScoped<ICityRepository, CityRepository>();
 builder.Services.AddScoped<IAttendeeRepository, AttendeeRepository>();
