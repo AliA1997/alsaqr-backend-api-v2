@@ -58,8 +58,7 @@ namespace AlSaqr.API.Middleware
                 };
 
                 context.Response.StatusCode = status;
-                context.Response.ContentType = "application/problem+json";
-                await context.Response.WriteAsJsonAsync(problem);
+                await context.Response.WriteAsJsonAsync(problem, options: (System.Text.Json.JsonSerializerOptions?)null, contentType: "application/problem+json");
             }
         }
     }
