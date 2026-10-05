@@ -14,6 +14,13 @@
 > Every artifact below is a *new* file. Audio spaces are the **reference pattern**,
 > not a dependency — the two features share no code and no tables.
 
+> **Addendum (2026-10-04): SFU is Galène, not LiveKit.** Galène (MIT, self-hosted,
+> built-in TURN) replaces LiveKit for lower running cost and less infrastructure.
+> *SFU choice*, §1.1, §4, and §11 are superseded by the implementation plan
+> [`docs/superpowers/plans/2026-10-04-event-video-streaming.md`](../docs/superpowers/plans/2026-10-04-event-video-streaming.md)
+> ("Why Galène", Task 3, Task 10). Every other section, including the cost rules,
+> authorization model, and tests, still applies, with that plan's listed corrections.
+
 ---
 
 ## 0. Blocking Prerequisites
