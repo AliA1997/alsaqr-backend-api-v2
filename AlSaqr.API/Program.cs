@@ -186,7 +186,7 @@ var app = builder.Build();
 
 // Single global exception → ProblemDetails mapping (CLAUDE.md §3.3). Registered
 // first so every downstream failure is translated in one place.
-// app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.MapHealthChecks("/healthz");
 
