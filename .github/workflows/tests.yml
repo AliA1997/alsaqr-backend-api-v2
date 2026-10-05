@@ -1,0 +1,19 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: dotnet restore AlSaqr.API.sln
+      - run: dotnet build AlSaqr.API.sln --no-restore -c Release
+      # GitHub-hosted Ubuntu runners ship Docker, which Testcontainers needs.
+      - run: dotnet test AlSaqr.API.sln --no-build -c Release
