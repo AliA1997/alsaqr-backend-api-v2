@@ -168,77 +168,105 @@ namespace AlSaqr.Data.Repositories.Meetup
                 && !await CanControlEventVideo(supabase, hostEvent, userId, ct))
                 throw new ForbiddenException("Only users attending this event may join its video stream.");
 
-            var existing = await supabase
+            var now = DateTime.UtcNow;
+            var sfuIdentity = VideoParticipant.SfuIdentityFor(stream.Id, userId);
+
+            var existing = await FindParticipant(supabase, stream.Id, userId, ct);
+            if (existing != null)
+                return await JoinExistingRow(supabase, stream, existing, sfuIdentity, now, ct);
+
+            await BeforeJoinWrite(stream.Id, userId);
+            try
+            {
+                var created = (await supabase
+                        .From<VideoParticipant>()
+                        .Insert(
+                            new VideoParticipant
+                            {
+                                Id = Guid.NewGuid(),
+                                EventId = eventId,
+                                ParticipantId = userId,
+                                VideoStreamId = stream.Id,
+                                Role = stream.HostId == userId ? VideoParticipant.RoleHost : VideoParticipant.RoleViewer,
+                                SfuIdentity = sfuIdentity,
+                                JoinedAt = now,
+                                LastSeenAt = now,
+                            },
+                            new QueryOptions { Returning = ReturnType.Representation },
+                            ct))
+                    .Models.FirstOrDefault()
+                    ?? throw new NotFoundException("The video participant was not returned.");
+
+                return (stream, created, false);
+            }
+            catch (PostgrestException ex) when (IsUniqueViolation(ex))
+            {
+                // Lost the race against a concurrent first join: take the existing-row path.
+                var winner = await FindParticipant(supabase, stream.Id, userId, ct)
+                    ?? throw new ConflictException("Could not join the video stream. Try again.");
+                return await JoinExistingRow(supabase, stream, winner, sfuIdentity, now, ct);
+            }
+        }
+
+        /// <summary>
+        /// Test seam: runs after the join has read the participant row (or found none)
+        /// and before it writes, so tests can interleave a concurrent change.
+        /// </summary>
+        protected virtual Task BeforeJoinWrite(Guid videoStreamId, Guid userId) => Task.CompletedTask;
+
+        private static Task<VideoParticipant?> FindParticipant(
+            Supabase.Client supabase, Guid videoStreamId, Guid userId, CancellationToken ct) =>
+            supabase
                 .From<VideoParticipant>()
-                .Filter("video_stream_id", Operator.Equals, stream.Id.ToString())
+                .Filter("video_stream_id", Operator.Equals, videoStreamId.ToString())
                 .Filter("participant_id", Operator.Equals, userId.ToString())
                 .Single(ct);
 
-            var now = DateTime.UtcNow;
+        /// <summary>
+        /// Column-scoped, guarded writes: a stale read can never overwrite a concurrent
+        /// demote, camera change or leave. Already live: only sfu_identity and
+        /// last_seen_at change. Rejoin: the row is revived (guarded on left_at not null)
+        /// and role is written only to downgrade to viewer; a kept role is never written.
+        /// An empty result means the row changed under us: Conflict, the client retries.
+        /// </summary>
+        private async Task<(VideoStream Stream, VideoParticipant Participant, bool HadLiveConnection)> JoinExistingRow(
+            Supabase.Client supabase, VideoStream stream, VideoParticipant existing,
+            string sfuIdentity, DateTime now, CancellationToken ct)
+        {
             var hadLiveConnection = existing is { LeftAt: null, SfuIdentity: not null };
+            var keepsRole = existing.LeftAt == null
+                || stream.HostId == existing.ParticipantId
+                || await LeftWithinGrace(supabase, existing.Id, now, ct);
 
-            var inserting = existing == null;
-            if (existing == null)
-            {
-                existing = new VideoParticipant
-                {
-                    Id = Guid.NewGuid(),
-                    EventId = eventId,
-                    ParticipantId = userId,
-                    VideoStreamId = stream.Id,
-                    Role = stream.HostId == userId ? VideoParticipant.RoleHost : VideoParticipant.RoleViewer,
-                    JoinedAt = now,
-                };
-            }
-            else if (existing.LeftAt != null)
-            {
-                var keepsRole = stream.HostId == userId || await LeftWithinGrace(supabase, existing.Id, now, ct);
-                if (!keepsRole)
-                    existing.Role = VideoParticipant.RoleViewer;
+            await BeforeJoinWrite(stream.Id, existing.ParticipantId);
 
-                existing.LeftAt = null;
-                existing.LeftReason = null;
-            }
-
-            existing.SfuIdentity = VideoParticipant.SfuIdentityFor(stream.Id, userId);
-            existing.LastSeenAt = now;
-
-            if (inserting)
-            {
-                await BeforeFirstJoinInsert(stream.Id, userId);
-                try
-                {
-                    return (stream, await SaveParticipant(supabase, existing, ct), hadLiveConnection);
-                }
-                catch (PostgrestException ex) when (IsUniqueViolation(ex))
-                {
-                    // Lost the race against a concurrent first join: continue on the existing row.
-                    existing = await supabase
-                        .From<VideoParticipant>()
-                        .Filter("video_stream_id", Operator.Equals, stream.Id.ToString())
-                        .Filter("participant_id", Operator.Equals, userId.ToString())
-                        .Single(ct)
-                        ?? throw new ConflictException("Could not join the video stream. Try again.");
-
-                    hadLiveConnection = existing is { LeftAt: null, SfuIdentity: not null };
-                    existing.SfuIdentity = VideoParticipant.SfuIdentityFor(stream.Id, userId);
-                    existing.LastSeenAt = now;
-                }
-            }
-
-            return (stream, await SaveParticipant(supabase, existing, ct), hadLiveConnection);
-        }
-
-        /// <summary>Test seam: runs between the join's read and its first insert.</summary>
-        protected virtual Task BeforeFirstJoinInsert(Guid videoStreamId, Guid userId) => Task.CompletedTask;
-
-        private static async Task<VideoParticipant> SaveParticipant(
-            Supabase.Client supabase, VideoParticipant participant, CancellationToken ct) =>
-            (await supabase
+            var query = supabase
                 .From<VideoParticipant>()
-                .Upsert(participant, new QueryOptions { Returning = ReturnType.Representation }, ct))
-            .Models.FirstOrDefault()
-            ?? throw new NotFoundException("The video participant was not returned.");
+                .Filter("id", Operator.Equals, existing.Id.ToString());
+
+            if (existing.LeftAt == null)
+            {
+                query = query.Filter("left_at", Operator.Is, "null");
+            }
+            else
+            {
+                query = query
+                    .Not("left_at", Operator.Is, "null")
+                    .Set(p => p.LeftAt!, null)
+                    .Set(p => p.LeftReason!, null);
+                if (!keepsRole)
+                    query = query.Set(p => p.Role, VideoParticipant.RoleViewer);
+            }
+
+            var updated = (await query
+                    .Set(p => p.SfuIdentity!, sfuIdentity)
+                    .Set(p => p.LastSeenAt, now)
+                    .Update(new QueryOptions { Returning = ReturnType.Representation }, ct))
+                .Models.FirstOrDefault()
+                ?? throw new ConflictException("The video participant changed during join. Try again.");
+
+            return (stream, updated, hadLiveConnection);
+        }
 
         public async Task<(VideoStream Stream, VideoParticipant Snapshot)?> LeaveEventStream(
             Supabase.Client supabase, Guid userId, Guid eventId, string reason, CancellationToken ct)

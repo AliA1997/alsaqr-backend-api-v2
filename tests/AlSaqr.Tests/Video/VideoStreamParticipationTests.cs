@@ -199,7 +199,7 @@ namespace AlSaqr.Tests.Video
             var racing = new RacingRepository(async (streamId, userId) =>
                 await _fx.Seed.Execute(
                     $"insert into {S}.video_participants (id, event_id, participant_id, video_stream_id, role, sfu_identity) " +
-                    "values (gen_random_uuid(), @e, @u, @s, 'presenter', 'other-connection')",
+                    "values (gen_random_uuid(), @e, @u, @s, 'presenter', 'other-connection') on conflict do nothing",
                     ("e", _s.EventId), ("u", userId), ("s", streamId)));
 
             var (_, participant, hadConnection) = await racing.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default);
@@ -210,6 +210,65 @@ namespace AlSaqr.Tests.Video
             Assert.Equal(1L, await _fx.Seed.Scalar<long>(
                 $"select count(*) from {S}.video_participants where video_stream_id = @s and participant_id = @u",
                 ("s", _stream.Id), ("u", _s.AttendeeId)));
+        }
+
+        [Fact]
+        public async Task JoinWhileLive_AfterConcurrentDemote_LeavesRoleAndCameraIntact()
+        {
+            await _repo.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default);
+            await SetRole(_s.AttendeeId, VideoParticipant.RolePresenter);
+            await _repo.SetCameraState(_fx.Client, _s.AttendeeId, _s.EventId, true, false, default);
+
+            // The demote lands after the join read the presenter row, before its write.
+            var racing = new RacingRepository(async (_, userId) =>
+            {
+                await SetRole(userId, VideoParticipant.RoleViewer);
+                await _fx.Seed.Execute(
+                    $"update {S}.video_participants set camera_enabled = false, muted = true where participant_id = @u",
+                    ("u", userId));
+            });
+
+            var (_, joined, hadConnection) = await racing.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default);
+
+            Assert.True(hadConnection);
+            Assert.Equal(VideoParticipant.RoleViewer, joined.Role);
+            Assert.Equal(VideoParticipant.RoleViewer, await RoleInDb(_s.AttendeeId));
+            Assert.False(joined.CameraEnabled);
+            Assert.True(joined.Muted);
+        }
+
+        [Fact]
+        public async Task JoinWhileLive_RacingALeave_DoesNotReviveOrCorruptRow()
+        {
+            await _repo.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default);
+            await SetRole(_s.AttendeeId, VideoParticipant.RolePresenter);
+
+            var racing = new RacingRepository((_, userId) =>
+                SetLeft(userId, VideoParticipant.LeftExplicit, "0 seconds"));
+
+            await Assert.ThrowsAsync<ConflictException>(
+                () => racing.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default));
+
+            Assert.Equal(VideoParticipant.RolePresenter, await RoleInDb(_s.AttendeeId));
+            Assert.True(await _fx.Seed.Scalar<bool>(
+                $"select left_at is not null and sfu_identity is null from {S}.video_participants where participant_id = @u",
+                ("u", _s.AttendeeId)));
+        }
+
+        [Fact]
+        public async Task Rejoin_RacingAnotherRejoin_ThrowsConflict_AndKeepsFirstRoleDecision()
+        {
+            await _repo.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default);
+            await SetRole(_s.AttendeeId, VideoParticipant.RolePresenter);
+            await SetLeft(_s.AttendeeId, VideoParticipant.LeftReaped, "1 minute");
+
+            // A concurrent rejoin revives the row first.
+            var racing = new RacingRepository((_, _) => _repo.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default));
+
+            await Assert.ThrowsAsync<ConflictException>(
+                () => racing.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default));
+
+            Assert.Equal(VideoParticipant.RolePresenter, await RoleInDb(_s.AttendeeId));
         }
 
         private Task<string> RoleInDb(Guid userId) =>
@@ -223,7 +282,7 @@ namespace AlSaqr.Tests.Video
 
             public RacingRepository(Func<Guid, Guid, Task> beforeInsert) => _beforeInsert = beforeInsert;
 
-            protected override Task BeforeFirstJoinInsert(Guid videoStreamId, Guid userId) =>
+            protected override Task BeforeJoinWrite(Guid videoStreamId, Guid userId) =>
                 _beforeInsert(videoStreamId, userId);
         }
 
