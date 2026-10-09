@@ -34,6 +34,7 @@ namespace AlSaqr.Tests.Support
         public static readonly string[] RepoSqlFiles =
         {
             "AlSaqr.Data/Entities/Meetup/sql/event_attendees.sql",
+            "AlSaqr.Data/Entities/Meetup/sql/video_streams.sql",
         };
 
         private readonly INetwork _network;
