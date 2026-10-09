@@ -47,7 +47,7 @@ namespace AlSaqr.Tests.Video
         {
             var room = await NewRoom();
 
-            var (client, permissions) = await Join(room, "s:presenter", canPublish: true);
+            var (client, permissions) = await Join(room, "a0:0a", canPublish: true);
             await using var _ = client;
 
             Assert.Contains("present", permissions);
@@ -58,7 +58,7 @@ namespace AlSaqr.Tests.Video
         {
             var room = await NewRoom();
 
-            var (client, permissions) = await Join(room, "s:viewer", canPublish: false);
+            var (client, permissions) = await Join(room, "a0:0b", canPublish: false);
             await using var _ = client;
 
             Assert.DoesNotContain("present", permissions);
@@ -73,7 +73,7 @@ namespace AlSaqr.Tests.Video
                 PublicUrl = _galene.BaseUrl,
                 TokenSecret = "some-other-secret-0123456789-abc",
             };
-            var forged = GaleneTokens.Write(forger, room, "s:intruder", new[] { "present" }, TimeSpan.FromSeconds(90), out _);
+            var forged = GaleneTokens.Write(forger, room, "a0:0c", new[] { "present" }, TimeSpan.FromSeconds(90), out _);
 
             await using var client = await GaleneTestClient.ConnectAsync(_galene.BaseUrl);
             var joined = await client.JoinAsync(room, forged);
@@ -88,7 +88,7 @@ namespace AlSaqr.Tests.Video
             var roomB = await NewRoom();
 
             await using var client = await GaleneTestClient.ConnectAsync(_galene.BaseUrl);
-            var joined = await client.JoinAsync(roomA, _service.MintJoinToken(roomB, "s:u", true).Token);
+            var joined = await client.JoinAsync(roomA, _service.MintJoinToken(roomB, "a0:01", true).Token);
 
             Assert.Equal("fail", GaleneTestClient.Kind(joined));
         }
@@ -97,10 +97,10 @@ namespace AlSaqr.Tests.Video
         public async Task Unpresent_RevokesPublishOnLiveConnection()
         {
             var room = await NewRoom();
-            var (client, _) = await Join(room, "s:presenter", canPublish: true);
+            var (client, _) = await Join(room, "a0:0a", canPublish: true);
             await using var _c = client;
 
-            await _service.SetPublishAsync(room, "s:presenter", canPublish: false);
+            await _service.SetPublishAsync(room, "a0:0a", canPublish: false);
 
             var change = await client.WaitForAsync(
                 m => GaleneTestClient.Type(m) == "joined" && GaleneTestClient.Kind(m) == "change", Wait);
@@ -111,10 +111,10 @@ namespace AlSaqr.Tests.Video
         public async Task Present_GrantsPublishOnLiveConnection()
         {
             var room = await NewRoom();
-            var (client, _) = await Join(room, "s:viewer", canPublish: false);
+            var (client, _) = await Join(room, "a0:0b", canPublish: false);
             await using var _c = client;
 
-            await _service.SetPublishAsync(room, "s:viewer", canPublish: true);
+            await _service.SetPublishAsync(room, "a0:0b", canPublish: true);
 
             var change = await client.WaitForAsync(
                 m => GaleneTestClient.Type(m) == "joined" && GaleneTestClient.Kind(m) == "change", Wait);
@@ -125,12 +125,12 @@ namespace AlSaqr.Tests.Video
         public async Task Kick_DisconnectsOnlyTheTarget()
         {
             var room = await NewRoom();
-            var (target, _) = await Join(room, "s:target", canPublish: false);
-            var (bystander, _) = await Join(room, "s:bystander", canPublish: false);
+            var (target, _) = await Join(room, "a0:0d", canPublish: false);
+            var (bystander, _) = await Join(room, "a0:0e", canPublish: false);
             await using var _t = target;
             await using var _b = bystander;
 
-            await _service.RemoveParticipantsAsync(room, new[] { "s:target" });
+            await _service.RemoveParticipantsAsync(room, new[] { "a0:0d" });
 
             Assert.True(await target.WaitForLeaveAsync(Wait));
             Assert.False(await bystander.WaitForLeaveAsync(TimeSpan.FromSeconds(1)));
@@ -140,8 +140,8 @@ namespace AlSaqr.Tests.Video
         public async Task DeleteRoom_DisconnectsEveryone_AndRefusesNewJoins()
         {
             var room = await NewRoom();
-            var token = _service.MintJoinToken(room, "s:late", false).Token;
-            var (client, _) = await Join(room, "s:u", canPublish: true);
+            var token = _service.MintJoinToken(room, "a0:0f", false).Token;
+            var (client, _) = await Join(room, "a0:01", canPublish: true);
             await using var _c = client;
 
             await _service.DeleteRoomAsync(room);
@@ -155,13 +155,13 @@ namespace AlSaqr.Tests.Video
         public async Task MaxClients_IsEnforced()
         {
             var room = await NewRoom(maxParticipants: 2);
-            var (first, _) = await Join(room, "s:1", false);
-            var (second, _) = await Join(room, "s:2", false);
+            var (first, _) = await Join(room, "a0:11", false);
+            var (second, _) = await Join(room, "a0:12", false);
             await using var _1 = first;
             await using var _2 = second;
 
             await using var third = await GaleneTestClient.ConnectAsync(_galene.BaseUrl);
-            var joined = await third.JoinAsync(room, _service.MintJoinToken(room, "s:3", false).Token);
+            var joined = await third.JoinAsync(room, _service.MintJoinToken(room, "a0:13", false).Token);
 
             Assert.Equal("fail", GaleneTestClient.Kind(joined));
         }
@@ -172,8 +172,8 @@ namespace AlSaqr.Tests.Video
             // Documents correction 15. If Galène ever starts replacing the older
             // connection itself, this fails: then remove the HadLiveConnection kick.
             var room = await NewRoom();
-            var (older, _) = await Join(room, "s:same", false);
-            var (newer, _) = await Join(room, "s:same", false);
+            var (older, _) = await Join(room, "a0:10", false);
+            var (newer, _) = await Join(room, "a0:10", false);
             await using var _o = older;
             await using var _n = newer;
 
@@ -189,7 +189,7 @@ namespace AlSaqr.Tests.Video
             // through the public URL instead (Task 10, After merge).
             var room = await NewRoom();
             var publicView = new GaleneConfig { PublicUrl = "https://video.test", TokenSecret = GaleneContainer.TokenSecret };
-            var token = GaleneTokens.Write(publicView, room, "s:u", Array.Empty<string>(), TimeSpan.FromSeconds(90), out _);
+            var token = GaleneTokens.Write(publicView, room, "a0:01", Array.Empty<string>(), TimeSpan.FromSeconds(90), out _);
 
             await using var client = await GaleneTestClient.ConnectAsync(_galene.BaseUrl);
 

@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
+using System.Text.RegularExpressions;
 using AlSaqr.Infrastructure.Config;
 using Microsoft.IdentityModel.Tokens;
 
@@ -14,6 +15,25 @@ namespace AlSaqr.Infrastructure.Video
     {
         public const string KeyId = "alsaqr";
 
+        /// <summary>The backend's own moderator identity; no room or participant may use it.</summary>
+        public const string OperatorUsername = "alsaqr-operator";
+
+        // Room: stream-{guid}. Identity: {streamId}:{userId} (VideoParticipant.SfuIdentityFor).
+        private static readonly Regex RoomPattern = new(@"\A[a-z0-9][a-z0-9-]{0,63}\z", RegexOptions.Compiled);
+        private static readonly Regex IdentityPattern = new(@"\A[0-9a-f-]{1,40}:[0-9a-f-]{1,40}\z", RegexOptions.Compiled);
+
+        public static void ValidateRoom(string roomName)
+        {
+            if (roomName == null || !RoomPattern.IsMatch(roomName) || roomName == OperatorUsername)
+                throw new ArgumentException("Invalid room name.", nameof(roomName));
+        }
+
+        public static void ValidateIdentity(string identity)
+        {
+            if (identity == null || !IdentityPattern.IsMatch(identity))
+                throw new ArgumentException("Invalid participant identity.", nameof(identity));
+        }
+
         public static string Write(
             GaleneConfig config,
             string roomName,
@@ -22,6 +42,8 @@ namespace AlSaqr.Infrastructure.Video
             TimeSpan ttl,
             out DateTime expiresAt)
         {
+            ValidateRoom(roomName);
+
             var now = DateTimeOffset.UtcNow;
             var exp = now.Add(ttl);
             expiresAt = exp.UtcDateTime;

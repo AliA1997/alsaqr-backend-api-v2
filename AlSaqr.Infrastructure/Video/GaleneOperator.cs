@@ -20,13 +20,18 @@ namespace AlSaqr.Infrastructure.Video
         /// <param name="kind">"present", "unpresent" or "kick".</param>
         /// <param name="usernames">Targets by Galène username; null means everyone but the operator.</param>
         /// <param name="ct">Cancellation token.</param>
-        /// <returns>false when Galène refused the operator's join (typically: the group no longer exists).</returns>
-        Task<bool> ActAsync(string roomName, string kind, IReadOnlyCollection<string>? usernames, CancellationToken ct = default);
+        /// <returns>Admitted = false when Galène refused the operator's join (typically: the group no longer exists); Matched = connections the action was sent to.</returns>
+        Task<GaleneActResult> ActAsync(string roomName, string kind, IReadOnlyCollection<string>? usernames, CancellationToken ct = default);
+    }
+
+    public sealed record GaleneActResult(bool Admitted, int Matched)
+    {
+        public static GaleneActResult Refused { get; } = new(false, 0);
     }
 
     public sealed class GaleneOperator : IGaleneOperator
     {
-        public const string Username = "alsaqr-operator";
+        public const string Username = GaleneTokens.OperatorUsername;
 
         private static readonly TimeSpan TokenTtl = TimeSpan.FromSeconds(60);
         private static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(3);
@@ -46,7 +51,7 @@ namespace AlSaqr.Infrastructure.Video
             _logger = logger;
         }
 
-        public async Task<bool> ActAsync(
+        public async Task<GaleneActResult> ActAsync(
             string roomName, string kind, IReadOnlyCollection<string>? usernames, CancellationToken ct = default)
         {
             using var session = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -95,7 +100,7 @@ namespace AlSaqr.Infrastructure.Video
                         break;
                     case "joined" when Str(m, "kind") == "fail":
                         _logger.LogWarning("Galène refused the operator for room {Room}.", roomName);
-                        return false;
+                        return GaleneActResult.Refused;
                     case "user":
                         var id = Str(m, "id");
                         if (id != null && id != ownId)
@@ -113,7 +118,7 @@ namespace AlSaqr.Infrastructure.Video
             if (!joined)
             {
                 _logger.LogWarning("Galène did not admit the operator to room {Room} in time.", roomName);
-                return false;
+                return GaleneActResult.Refused;
             }
 
             var targets = users
@@ -139,7 +144,7 @@ namespace AlSaqr.Infrastructure.Video
 
             _logger.LogInformation(
                 "Galène operator applied {Kind} to {Count} connection(s) in room {Room}.", kind, targets.Count, roomName);
-            return true;
+            return new GaleneActResult(true, targets.Count);
         }
 
         private static async Task<JsonElement?> NextAsync(ChannelReader<JsonElement> reader, TimeSpan wait, CancellationToken ct)

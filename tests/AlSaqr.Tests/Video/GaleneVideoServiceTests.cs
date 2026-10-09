@@ -40,17 +40,17 @@ namespace AlSaqr.Tests.Video
         [Fact]
         public void PresenterToken_HasPresentPermission_AndRoomAudience()
         {
-            var token = _service.MintJoinToken("stream-a", "s:u", canPublish: true).Token;
+            var token = _service.MintJoinToken("stream-a", "a0:01", canPublish: true).Token;
 
             Assert.Equal(new[] { "present" }, Permissions(token));
             Assert.Equal("https://video.test/group/stream-a/", JwtJson.Payload(token).GetProperty("aud").GetString());
-            Assert.Equal("s:u", JwtJson.Payload(token).GetProperty("sub").GetString());
+            Assert.Equal("a0:01", JwtJson.Payload(token).GetProperty("sub").GetString());
         }
 
         [Fact]
         public void ViewerToken_CannotPresent()
         {
-            var token = _service.MintJoinToken("stream-a", "s:u", canPublish: false).Token;
+            var token = _service.MintJoinToken("stream-a", "a0:01", canPublish: false).Token;
 
             Assert.DoesNotContain("present", Permissions(token));
             Assert.DoesNotContain("op", Permissions(token));
@@ -60,7 +60,7 @@ namespace AlSaqr.Tests.Video
         [Fact]
         public void Token_IsScopedToOneRoom_AndLivesAtMost90Seconds()
         {
-            var token = _service.MintJoinToken("stream-a", "s:u", canPublish: false).Token;
+            var token = _service.MintJoinToken("stream-a", "a0:01", canPublish: false).Token;
 
             var payload = JwtJson.Payload(token);
             Assert.InRange(payload.GetProperty("exp").GetInt64() - payload.GetProperty("iat").GetInt64(), 1, 90);
@@ -79,7 +79,7 @@ namespace AlSaqr.Tests.Video
         [Fact]
         public void MintJoinToken_ReturnsPublicWebSocketUrl_AndGroup()
         {
-            var token = _service.MintJoinToken("stream-a", "s:u", canPublish: false);
+            var token = _service.MintJoinToken("stream-a", "a0:01", canPublish: false);
 
             Assert.Equal("wss://video.test/ws", token.WsUrl);
             Assert.Equal("stream-a", token.Group);
@@ -132,10 +132,10 @@ namespace AlSaqr.Tests.Video
         [Fact]
         public async Task SetPublish_UsesOperatorPresentAndUnpresent()
         {
-            await _service.SetPublishAsync("stream-a", "s:u", canPublish: true);
-            await _service.SetPublishAsync("stream-a", "s:u", canPublish: false);
+            await _service.SetPublishAsync("stream-a", "a0:01", canPublish: true);
+            await _service.SetPublishAsync("stream-a", "a0:01", canPublish: false);
 
-            Assert.Equal(new[] { "present stream-a s:u", "unpresent stream-a s:u" }, _operator.Calls);
+            Assert.Equal(new[] { "present stream-a a0:01", "unpresent stream-a a0:01" }, _operator.Calls);
         }
 
         [Fact]
@@ -145,16 +145,95 @@ namespace AlSaqr.Tests.Video
             _operator.Accept = false;
 
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => _service.SetPublishAsync("stream-a", "s:u", canPublish: false));
+                () => _service.SetPublishAsync("stream-a", "a0:01", canPublish: false));
+        }
+
+        [Fact]
+        public async Task SetPublish_Demote_WhenNoConnectionMatched_ThrowsNotConnected()
+        {
+            _operator.Matched = 0;
+
+            await Assert.ThrowsAsync<ParticipantNotConnectedException>(
+                () => _service.SetPublishAsync("stream-a", "a0:01", canPublish: false));
+        }
+
+        [Fact]
+        public async Task SetPublish_Demote_WhenMatched_Succeeds()
+        {
+            _operator.Matched = 1;
+
+            await _service.SetPublishAsync("stream-a", "a0:01", canPublish: false);
+        }
+
+        [Theory]
+        [InlineData(".")]
+        [InlineData("..")]
+        [InlineData("Stream-A")]
+        [InlineData("a/b")]
+        [InlineData("-a")]
+        [InlineData("alsaqr-operator")]
+        public async Task InvalidRoomName_IsRejected_BeforeAnyRequest(string room)
+        {
+            await Assert.ThrowsAsync<ArgumentException>(() => _service.CreateRoomAsync(room, 50, DateTime.UtcNow.AddHours(1)));
+            await Assert.ThrowsAsync<ArgumentException>(() => _service.DeleteRoomAsync(room));
+            await Assert.ThrowsAsync<ArgumentException>(() => _service.SetPublishAsync(room, "a0:01", true));
+            Assert.Throws<ArgumentException>(() => _service.MintJoinToken(room, "a0:01", false));
+            Assert.Empty(_handler.Requests);
+            Assert.Empty(_operator.Calls);
+        }
+
+        [Theory]
+        [InlineData("alsaqr-operator")]
+        [InlineData("s:u")]
+        [InlineData("a0:01\n")]
+        [InlineData("")]
+        public void InvalidIdentity_IsRejected(string identity)
+        {
+            Assert.Throws<ArgumentException>(() => _service.MintJoinToken("stream-a", identity, false));
+        }
+
+        [Fact]
+        public async Task RealGeneratedNames_AreAccepted()
+        {
+            var stream = Guid.NewGuid();
+            var room = $"stream-{stream}";
+            var identity = $"{stream}:{Guid.NewGuid()}";
+
+            await _service.CreateRoomAsync(room, 50, DateTime.UtcNow.AddHours(1));
+            _service.MintJoinToken(room, identity, true);
+            await _service.RemoveParticipantsAsync(room, new[] { identity });
+        }
+
+        [Fact]
+        public async Task CreateRoom_WhenCleanupAlsoFails_StillThrowsTheKeyInstallError()
+        {
+            _handler.Respond = r => r.Url.EndsWith("/.keys") ? HttpStatusCode.BadRequest
+                : r.Method == HttpMethod.Delete ? HttpStatusCode.InternalServerError : HttpStatusCode.OK;
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => _service.CreateRoomAsync("stream-a", 50, DateTime.UtcNow.AddHours(1)));
+
+            Assert.Contains("400", ex.Message);
+            Assert.Equal(HttpMethod.Delete, _handler.Requests.Last().Method);
+        }
+
+        [Fact]
+        public async Task DeleteRoom_WhenOperatorUnreachable_StillDeletesTheGroup()
+        {
+            _operator.Throw = new System.Net.WebSockets.WebSocketException("unreachable");
+
+            await _service.DeleteRoomAsync("stream-a");
+
+            Assert.Equal(HttpMethod.Delete, Assert.Single(_handler.Requests).Method);
         }
 
         [Fact]
         public async Task RemoveParticipants_KicksOnlyGivenIdentities_AndSkipsEmpty()
         {
             await _service.RemoveParticipantsAsync("stream-a", Array.Empty<string>());
-            await _service.RemoveParticipantsAsync("stream-a", new[] { "s:1", "s:2" });
+            await _service.RemoveParticipantsAsync("stream-a", new[] { "a0:11", "a0:12" });
 
-            Assert.Equal(new[] { "kick stream-a s:1,s:2" }, _operator.Calls);
+            Assert.Equal(new[] { "kick stream-a a0:11,a0:12" }, _operator.Calls);
         }
 
         [Fact]
@@ -190,11 +269,17 @@ namespace AlSaqr.Tests.Video
 
             public bool Accept { get; set; } = true;
 
-            public Task<bool> ActAsync(
+            public int Matched { get; set; } = 1;
+
+            public Exception? Throw { get; set; }
+
+            public Task<GaleneActResult> ActAsync(
                 string roomName, string kind, IReadOnlyCollection<string>? usernames, CancellationToken ct = default)
             {
                 Calls.Add($"{kind} {roomName} {(usernames == null ? "*" : string.Join(",", usernames))}");
-                return Task.FromResult(Accept);
+                if (Throw != null)
+                    throw Throw;
+                return Task.FromResult(Accept ? new GaleneActResult(true, Matched) : GaleneActResult.Refused);
             }
         }
     }

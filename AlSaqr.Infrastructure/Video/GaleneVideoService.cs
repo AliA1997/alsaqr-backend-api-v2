@@ -75,13 +75,22 @@ namespace AlSaqr.Infrastructure.Video
             catch
             {
                 // A group nobody can authenticate to is useless; don't leave it behind.
-                await SendAsync(HttpMethod.Delete, GroupPath(roomName), null, false, true, CancellationToken.None);
+                try
+                {
+                    await SendAsync(HttpMethod.Delete, GroupPath(roomName), null, false, true, CancellationToken.None);
+                }
+                catch (Exception cleanupFailure) when (cleanupFailure is InvalidOperationException or HttpRequestException)
+                {
+                    // Cleanup is best effort; the key-install failure is the error to report.
+                }
+
                 throw;
             }
         }
 
         public SfuJoinToken MintJoinToken(string roomName, string identity, bool canPublish)
         {
+            GaleneTokens.ValidateIdentity(identity);
             var token = GaleneTokens.Write(
                 _config, roomName, identity, canPublish ? PresenterPermissions : ViewerPermissions, TokenTtl, out var expiresAt);
 
@@ -90,14 +99,26 @@ namespace AlSaqr.Infrastructure.Video
 
         public async Task SetPublishAsync(string roomName, string identity, bool canPublish, CancellationToken ct = default)
         {
+            GaleneTokens.ValidateRoom(roomName);
+            GaleneTokens.ValidateIdentity(identity);
+
             // Unlike kicks, this must not be silent: a failed demote leaves someone publishing.
-            if (!await _operator.ActAsync(roomName, canPublish ? "present" : "unpresent", new[] { identity }, ct))
+            var result = await _operator.ActAsync(roomName, canPublish ? "present" : "unpresent", new[] { identity }, ct);
+            if (!result.Admitted)
                 throw new InvalidOperationException($"Galène refused the publish change for room {roomName}.");
+
+            // No live connection matched: nothing was demoted. Tell the caller rather than report success.
+            if (!canPublish && result.Matched == 0)
+                throw new ParticipantNotConnectedException(roomName);
         }
 
         public async Task RemoveParticipantsAsync(
             string roomName, IReadOnlyCollection<string> identities, CancellationToken ct = default)
         {
+            GaleneTokens.ValidateRoom(roomName);
+            foreach (var identity in identities)
+                GaleneTokens.ValidateIdentity(identity);
+
             if (identities.Count == 0)
                 return;
 
@@ -106,14 +127,28 @@ namespace AlSaqr.Infrastructure.Video
 
         public async Task DeleteRoomAsync(string roomName, CancellationToken ct = default)
         {
-            await _operator.ActAsync(roomName, "kick", null, ct);
+            GaleneTokens.ValidateRoom(roomName);
+
+            try
+            {
+                await _operator.ActAsync(roomName, "kick", null, ct);
+            }
+            catch (Exception ex) when (ex is System.Net.WebSockets.WebSocketException or HttpRequestException
+                                           || (ex is OperationCanceledException && !ct.IsCancellationRequested))
+            {
+                // Operator unreachable: deleting the group below still disconnects everyone.
+            }
+
             await SendAsync(HttpMethod.Delete, GroupPath(roomName), null, false, tolerateNotFound: true, ct);
         }
 
         // ----- internals -----
 
-        private static string GroupPath(string roomName) =>
-            $"/galene-api/v0/.groups/{Uri.EscapeDataString(roomName)}/";
+        private static string GroupPath(string roomName)
+        {
+            GaleneTokens.ValidateRoom(roomName);
+            return $"/galene-api/v0/.groups/{Uri.EscapeDataString(roomName)}/";
+        }
 
         private async Task SendAsync(
             HttpMethod method, string path, HttpContent? content, bool createOnly, bool tolerateNotFound, CancellationToken ct)
