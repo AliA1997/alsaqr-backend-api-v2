@@ -1,0 +1,6 @@
+{
+  "writableGroups": true,
+  "users": {
+    "alsaqr-admin": { "password": "alsaqr-local-galene-admin", "permissions": "admin" }
+  }
+}
