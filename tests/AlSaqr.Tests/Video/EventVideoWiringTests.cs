@@ -87,6 +87,25 @@ namespace AlSaqr.Tests.Video
         }
 
         [Theory]
+        [InlineData(nameof(IVideoSfuService))]
+        [InlineData(nameof(ISupabaseBroadcastClient))]
+        public void CredentialCarryingClients_RequireHttpsOrLoopback_AndNeverFollowRedirects(string clientName)
+        {
+            using var provider = Build(ValidSettings());
+            var handlers = new List<HttpMessageHandler>();
+            for (HttpMessageHandler? h = provider.GetRequiredService<IHttpMessageHandlerFactory>().CreateHandler(clientName);
+                 h != null;
+                 h = (h as DelegatingHandler)?.InnerHandler)
+            {
+                handlers.Add(h);
+            }
+
+            Assert.Contains(handlers, h => h is HttpsOrLoopbackHandler);
+            var primary = Assert.IsType<HttpClientHandler>(handlers[^1]);
+            Assert.False(primary.AllowAutoRedirect);
+        }
+
+        [Theory]
         [InlineData("http://supabase.test", false)]
         [InlineData("https://supabase.test", true)]
         [InlineData("http://127.0.0.1:54321", true)]
@@ -125,7 +144,11 @@ namespace AlSaqr.Tests.Video
 
             Assert.NotNull(ActivatorUtilities.CreateInstance<EventVideoController>(scope.ServiceProvider));
             Assert.NotNull(scope.ServiceProvider.GetRequiredService<IVideoStreamReaper>());
-            Assert.Contains(factory.Services.GetServices<IHostedService>(), s => s is VideoStreamReaperService);
+
+            // Program registers the reaper host (the factory removed it so it never sweeps
+            // during the test); its dependencies still resolve from the real container.
+            Assert.True(factory.ReaperHostWasRegistered);
+            Assert.NotNull(ActivatorUtilities.CreateInstance<VideoStreamReaperService>(factory.Services));
 
             // MVC activates the controller from the same container; with no token the action refuses the call.
             using var http = factory.CreateClient();
@@ -154,7 +177,8 @@ namespace AlSaqr.Tests.Video
             Assert.Contains(sources, f => f.EndsWith($"{Path.DirectorySeparatorChar}GaleneVideoService.cs"));
 
             var offenders = sources
-                .Where(f => Regex.IsMatch(File.ReadAllText(f), "\"(record|unrecord)\"|AllowRecording\\s*=\\s*true"))
+                .Where(f => Regex.IsMatch(
+                    File.ReadAllText(f), "\"(record|unrecord)\"|AllowRecording\\s*=\\s*true", RegexOptions.IgnoreCase))
                 .ToList();
 
             Assert.Empty(offenders);
@@ -162,10 +186,12 @@ namespace AlSaqr.Tests.Video
 
         /// <summary>
         /// Boots Program.cs without its external side effects: no AWS Secrets Manager
-        /// read, no Supabase connection at startup, and no space reaper sweeping.
+        /// read, no Supabase connection at startup, and no space or video reaper sweeping.
         /// </summary>
         private sealed class ProgramFactory : WebApplicationFactory<Program>
         {
+            public bool ReaperHostWasRegistered { get; private set; }
+
             protected override void ConfigureWebHost(IWebHostBuilder builder)
             {
                 builder.UseEnvironment(Environments.Development);
@@ -178,10 +204,14 @@ namespace AlSaqr.Tests.Video
 
                 builder.ConfigureTestServices(services =>
                 {
+                    ReaperHostWasRegistered = services.Any(d => d.ServiceType == typeof(IHostedService)
+                                                             && d.ImplementationType == typeof(VideoStreamReaperService));
+
                     var external = services
                         .Where(d => d.ServiceType == typeof(IHostedService)
                                  && (d.ImplementationType == typeof(SupabaseInitializer)
-                                     || d.ImplementationType == typeof(SpaceReaperService)))
+                                     || d.ImplementationType == typeof(SpaceReaperService)
+                                     || d.ImplementationType == typeof(VideoStreamReaperService)))
                         .ToList();
                     foreach (var descriptor in external)
                         services.Remove(descriptor);

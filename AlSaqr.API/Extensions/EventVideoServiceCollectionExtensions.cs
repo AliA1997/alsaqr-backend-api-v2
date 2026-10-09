@@ -32,10 +32,14 @@ namespace AlSaqr.API.Extensions
 
             services.AddScoped<IVideoStreamRepository, VideoStreamRepository>();
             services.AddSingleton<IGaleneOperator, GaleneOperator>();
-            services.AddHttpClient<IVideoSfuService, GaleneVideoService>(c => c.Timeout = SfuAdminTimeout);
-
-            // Carries the Supabase service-role key: never over cleartext to a remote host.
+            // Both clients carry a server-side credential (Galène admin password, Supabase
+            // service-role key): never over cleartext to a remote host, and never re-sent
+            // to wherever a redirect points.
+            services.AddHttpClient<IVideoSfuService, GaleneVideoService>(c => c.Timeout = SfuAdminTimeout)
+                .ConfigurePrimaryHttpMessageHandler(NoRedirects)
+                .AddHttpMessageHandler(() => new HttpsOrLoopbackHandler());
             services.AddHttpClient<ISupabaseBroadcastClient, SupabaseBroadcastClient>(c => c.Timeout = BroadcastTimeout)
+                .ConfigurePrimaryHttpMessageHandler(NoRedirects)
                 .AddHttpMessageHandler(() => new HttpsOrLoopbackHandler());
             services.AddScoped<IEventVideoBroadcaster, EventVideoBroadcaster>();
 
@@ -44,5 +48,7 @@ namespace AlSaqr.API.Extensions
             services.AddHostedService<VideoStreamReaperService>();
             return services;
         }
+
+        private static HttpMessageHandler NoRedirects() => new HttpClientHandler { AllowAutoRedirect = false };
     }
 }
