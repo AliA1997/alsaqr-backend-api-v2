@@ -1,4 +1,5 @@
 using AlSaqr.Data.Entities.Meetup;
+using AlSaqr.Domain.Common;
 using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Infrastructure.Video;
 
@@ -74,25 +75,53 @@ namespace AlSaqr.API.HostedServices
             }
         }
 
+        /// <summary>
+        /// SFU first, database second: DB state only advances after the SFU action
+        /// succeeded, so a failure leaves the row/stream live and the next sweep retries
+        /// it. Consequence: a prolonged SFU outage keeps dead participants and expired
+        /// streams live in the database until the SFU recovers.
+        /// </summary>
         private async Task ReapStream(
             Supabase.Client supabase, VideoStream stream, bool isExpired, DateTime utcNow, CancellationToken ct)
         {
             var reason = isExpired ? VideoParticipant.LeftExpired : VideoParticipant.LeftReaped;
+            var live = await _streams.GetLiveParticipants(supabase, stream.Id, ct);
 
             // C11 removes everyone; otherwise only participants silent past the timeout (C9).
+            var staleCutoff = utcNow - ParticipantTimeout;
             var doomed = isExpired
-                ? await _streams.GetLiveParticipants(supabase, stream.Id, ct)
-                : await _streams.GetStaleLiveParticipants(supabase, stream.Id, utcNow - ParticipantTimeout, ct);
+                ? live
+                : await _streams.GetStaleLiveParticipants(supabase, stream.Id, staleCutoff, ct);
+            var doomedIds = doomed.Select(p => p.Id).ToHashSet();
+            var remaining = live.Where(p => !doomedIds.Contains(p.Id)).ToList();
 
-            var identities = new List<string>();
+            var shouldEnd = isExpired || remaining.Count == 0 || !remaining.Any(p => p.ParticipantId == stream.HostId);
+
+            // Fresh streams get the same grace as a heartbeat: the host row is inserted
+            // just after the stream row, so "no host yet" is not "host gone".
+            if (shouldEnd && !isExpired && stream.StartedAt.ToUniversalTime() > staleCutoff.ToUniversalTime())
+                return;
+
+            if (shouldEnd)
+            {
+                await EndStream(supabase, stream, doomed, reason, isExpired, utcNow, ct);
+                return;
+            }
+
+            if (doomed.Count == 0)
+                return;
+
+            var identities = doomed.Where(p => !string.IsNullOrEmpty(p.SfuIdentity)).Select(p => p.SfuIdentity!).ToList();
+
+            // One operator session per room per sweep, not one per participant.
+            if (identities.Count > 0 && !await TryRemoveFromRoom(stream.RoomName, identities, ct))
+                return;
+
             foreach (var participant in doomed)
             {
-                var identity = participant.SfuIdentity;
                 try
                 {
                     await _streams.MarkParticipantLeft(supabase, participant, reason, ct);
-                    if (!string.IsNullOrEmpty(identity))
-                        identities.Add(identity);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -100,32 +129,24 @@ namespace AlSaqr.API.HostedServices
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Could not remove participant {UserId} from video stream {StreamId}; retrying next sweep.",
+                    _logger.LogError(ex, "Could not mark participant {UserId} left on video stream {StreamId}; retrying next sweep.",
                         participant.ParticipantId, stream.Id);
                     continue;
                 }
 
                 await TryBroadcastLeft(stream, participant.ParticipantId, reason, ct);
             }
+        }
 
-            var live = await _streams.GetLiveParticipants(supabase, stream.Id, ct);
-            var hostLive = live.Any(p => p.ParticipantId == stream.HostId);
-
-            // A stream with nobody left, or whose host is gone, cannot be steered; end it.
-            if (live.Count > 0 && hostLive)
-            {
-                // One operator session per room per sweep, not one per participant.
-                if (identities.Count > 0)
-                    await TryRemoveFromRoom(stream.RoomName, identities, ct);
-                return;
-            }
-
-            var ended = await _streams.EndStreamSystem(supabase, stream, ct);
-
+        private async Task EndStream(
+            Supabase.Client supabase, VideoStream stream, List<VideoParticipant> doomed, string reason,
+            bool isExpired, DateTime utcNow, CancellationToken ct)
+        {
             // Deleting the room disconnects everyone, so no separate kicks are needed.
+            // If it fails the stream stays live and the next sweep retries.
             try
             {
-                await _sfu.DeleteRoomAsync(ended.RoomName, ct);
+                await _sfu.DeleteRoomAsync(stream.RoomName, ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -133,7 +154,37 @@ namespace AlSaqr.API.HostedServices
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Deleting SFU room {Room} failed; the room's access cutoff is the backstop.", ended.RoomName);
+                _logger.LogError(ex, "Deleting SFU room for video stream {StreamId} failed; stream stays live, retrying next sweep.", stream.Id);
+                return;
+            }
+
+            foreach (var participant in doomed)
+            {
+                try
+                {
+                    await _streams.MarkParticipantLeft(supabase, participant, reason, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    // EndStreamSystem marks any row still live as ended, so the stream ends regardless.
+                    _logger.LogWarning(ex, "Could not mark participant {UserId} left on video stream {StreamId}.",
+                        participant.ParticipantId, stream.Id);
+                }
+            }
+
+            VideoStream ended;
+            try
+            {
+                ended = await _streams.EndStreamSystem(supabase, stream, ct);
+            }
+            catch (ConflictException)
+            {
+                _logger.LogInformation("Video stream {StreamId} was already ended by someone else.", stream.Id);
+                return;
             }
 
             try
@@ -150,18 +201,20 @@ namespace AlSaqr.API.HostedServices
             }
 
             _logger.LogInformation("Reaper ended video stream {StreamId} ({Why}).", ended.Id,
-                isExpired ? "4-hour limit" : live.Count == 0 ? "empty" : "host gone");
+                isExpired ? "4-hour limit" : "empty or host gone");
         }
 
-        private async Task TryRemoveFromRoom(string room, IReadOnlyCollection<string> identities, CancellationToken ct)
+        /// <summary>True when the identities are gone from the SFU (already gone counts).</summary>
+        private async Task<bool> TryRemoveFromRoom(string room, IReadOnlyCollection<string> identities, CancellationToken ct)
         {
             try
             {
                 await _sfu.RemoveParticipantsAsync(room, identities, ct);
+                return true;
             }
             catch (ParticipantNotConnectedException)
             {
-                // Already gone from the SFU: exactly the state we want.
+                return true;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -169,7 +222,8 @@ namespace AlSaqr.API.HostedServices
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Removing participants from SFU room {Room} failed.", room);
+                _logger.LogError(ex, "Removing participants from SFU room failed; they stay live, retrying next sweep.");
+                return false;
             }
         }
 

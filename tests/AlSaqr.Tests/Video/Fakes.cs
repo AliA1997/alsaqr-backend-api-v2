@@ -41,10 +41,15 @@ namespace AlSaqr.Tests.Video
             return Fail(roomName);
         }
 
-        public Task DeleteRoomAsync(string roomName, CancellationToken ct = default)
+        /// <summary>Runs inside DeleteRoomAsync, to simulate something happening concurrently.</summary>
+        public Func<Task>? BeforeDeleteRoom { get; set; }
+
+        public async Task DeleteRoomAsync(string roomName, CancellationToken ct = default)
         {
             Calls.Add($"DeleteRoom {roomName}");
-            return Fail(roomName);
+            if (BeforeDeleteRoom is not null)
+                await BeforeDeleteRoom();
+            await Fail(roomName);
         }
 
         private Task Fail(string roomName)
