@@ -105,6 +105,24 @@ namespace AlSaqr.Tests.Video
         }
 
         [Fact]
+        public async Task Start_WhenHostRowInsertFails_EndsStreamAndRethrows()
+        {
+            await _fx.Seed.Execute($"alter table {S}.video_participants add constraint zz_block check (false) not valid");
+            try
+            {
+                await Assert.ThrowsAnyAsync<Exception>(
+                    () => _repo.StartEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default));
+            }
+            finally
+            {
+                await _fx.Seed.Execute($"alter table {S}.video_participants drop constraint zz_block");
+            }
+
+            Assert.Equal(0L, await LiveStreamCount(_s.EventId));
+            Assert.Null(await _repo.GetLiveEventStream(_fx.Client, _s.EventId, default));
+        }
+
+        [Fact]
         public async Task NewStreamAfterEnd_HasDifferentRoomName()
         {
             var first = await _repo.StartEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default);

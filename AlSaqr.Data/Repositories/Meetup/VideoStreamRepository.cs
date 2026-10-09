@@ -48,9 +48,10 @@ namespace AlSaqr.Data.Repositories.Meetup
             var streamId = Guid.NewGuid();
             var now = DateTime.UtcNow;
 
+            VideoStream created;
             try
             {
-                var created = (await supabase
+                created = (await supabase
                     .From<VideoStream>()
                     .Insert(
                         new VideoStream
@@ -64,8 +65,16 @@ namespace AlSaqr.Data.Repositories.Meetup
                         new QueryOptions { Returning = ReturnType.Representation },
                         ct))
                     .Models.FirstOrDefault()
-                    ?? throw new ConflictException("The video stream could not be created.");
+                    ?? throw new NotFoundException("The created video stream was not returned.");
+            }
+            catch (PostgrestException ex) when (IsUniqueViolation(ex))
+            {
+                // Lost the race against a concurrent start.
+                throw new ConflictException("This event already has a live video stream.");
+            }
 
+            try
+            {
                 await supabase
                     .From<VideoParticipant>()
                     .Insert(
@@ -83,14 +92,15 @@ namespace AlSaqr.Data.Repositories.Meetup
                         },
                         new QueryOptions { Returning = ReturnType.Minimal },
                         ct);
-
-                return created;
             }
-            catch (PostgrestException ex) when (IsUniqueViolation(ex))
+            catch
             {
-                // Lost the race against a concurrent start.
-                throw new ConflictException("This event already has a live video stream.");
+                // Never leave a host-less live stream behind.
+                await EndStreamSystem(supabase, created, ct);
+                throw;
             }
+
+            return created;
         }
 
         public Task<VideoStream> EndStreamSystem(Supabase.Client supabase, VideoStream stream, CancellationToken ct) =>
@@ -132,7 +142,8 @@ namespace AlSaqr.Data.Repositories.Meetup
             return (await supabase
                     .From<VideoStream>()
                     .Upsert(stream, new QueryOptions { Returning = ReturnType.Representation }, ct))
-                .Models.First();
+                .Models.FirstOrDefault()
+                ?? throw new NotFoundException($"Video stream {stream.Id} does not exist.");
         }
 
         private static Task<VideoStream?> FindLiveStream(Supabase.Client supabase, Guid eventId, CancellationToken ct) =>
@@ -258,7 +269,7 @@ namespace AlSaqr.Data.Repositories.Meetup
 
         /// <summary>PostgreSQL 23505 — unique_violation. Content is PostgREST's JSON error body.</summary>
         private static bool IsUniqueViolation(PostgrestException ex) =>
-            ex.Content?.Contains("23505", StringComparison.Ordinal) == true;
+            ex.Content?.Contains("\"code\":\"23505\"", StringComparison.Ordinal) == true;
 
         /// <summary>UTC ISO-8601 with microseconds, for PostgREST timestamp filters.</summary>
         private static string ToUtcIso(DateTime value) =>
