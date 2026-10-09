@@ -46,6 +46,37 @@ namespace AlSaqr.Tests.Video
             Assert.Equal($"event_video:{eventId}", message.GetProperty("topic").GetString());
             Assert.Equal("stream_started", message.GetProperty("event").GetString());
             Assert.Equal(streamId, message.GetProperty("payload").GetProperty("videoStreamId").GetGuid());
+            Assert.Equal(eventId, message.GetProperty("payload").GetProperty("eventId").GetGuid());
+            Assert.True(message.GetProperty("payload").TryGetProperty("startedAt", out _));
+            Assert.True(message.GetProperty("private").GetBoolean());
+            Assert.Contains("\"private\":true", request.Body);
+        }
+
+        [Fact]
+        public async Task StreamEnded_PostsEndedPayload()
+        {
+            var eventId = Guid.NewGuid();
+            var streamId = Guid.NewGuid();
+
+            await _broadcaster.StreamEndedAsync(eventId, streamId, DateTime.UtcNow);
+
+            var message = OnlyMessage();
+            Assert.Equal($"event_video:{eventId}", message.GetProperty("topic").GetString());
+            Assert.Equal("stream_ended", message.GetProperty("event").GetString());
+            Assert.Equal(streamId, message.GetProperty("payload").GetProperty("videoStreamId").GetGuid());
+            Assert.True(message.GetProperty("payload").TryGetProperty("endedAt", out _));
+        }
+
+        [Fact]
+        public async Task MissingConfig_ThrowsClearError()
+        {
+            var client = new SupabaseBroadcastClient(
+                new HttpClient(_handler),
+                Options.Create(new SupabaseRealtimeConfig { Url = "", ServiceRoleSecret = "" }));
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => client.BroadcastAsync("t", "e", new { }));
+            Assert.Empty(_handler.Requests);
         }
 
         [Fact]
@@ -68,6 +99,8 @@ namespace AlSaqr.Tests.Video
             Assert.Equal(participant.ParticipantId, payload.GetProperty("participantId").GetGuid());
             Assert.Equal("amina", payload.GetProperty("username").GetString());
             Assert.Equal("viewer", payload.GetProperty("role").GetString());
+            var names = payload.EnumerateObject().Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal).ToArray();
+            Assert.Equal(new[] { "avatar", "cameraEnabled", "muted", "participantId", "role", "username" }, names);
         }
 
         [Fact]

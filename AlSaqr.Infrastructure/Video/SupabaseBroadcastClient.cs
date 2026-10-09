@@ -29,6 +29,11 @@ namespace AlSaqr.Infrastructure.Video
 
         public async Task BroadcastAsync(string topic, string eventName, object payload, CancellationToken ct = default)
         {
+            if (string.IsNullOrWhiteSpace(_config.Url) || string.IsNullOrWhiteSpace(_config.ServiceRoleSecret))
+            {
+                throw new InvalidOperationException("Supabase realtime Url and ServiceRoleSecret must be configured.");
+            }
+
             var url = $"{_config.Url.TrimEnd('/')}/realtime/v1/api/broadcast";
 
             using var request = new HttpRequestMessage(HttpMethod.Post, url);
@@ -38,11 +43,11 @@ namespace AlSaqr.Infrastructure.Video
             {
                 Messages = new List<BroadcastMessage>
                 {
-                    new BroadcastMessage { Topic = topic, Event = eventName, Payload = payload },
+                    new BroadcastMessage { Topic = topic, Event = eventName, Payload = payload, Private = true },
                 },
             });
 
-            var response = await _httpClient.SendAsync(request, ct);
+            using var response = await _httpClient.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode)
             {
                 // Never surface the service-role key or the response body.
@@ -69,6 +74,9 @@ namespace AlSaqr.Infrastructure.Video
 
             [JsonPropertyName("payload")]
             public object Payload { get; set; } = new();
+
+            [JsonPropertyName("private")]
+            public bool Private { get; set; } = true;
         }
     }
 }
