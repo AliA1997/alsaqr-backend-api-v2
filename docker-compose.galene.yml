@@ -1,0 +1,17 @@
+# Local dev only: self-hosted Galène SFU for event video.
+# Run: docker compose -f docker-compose.galene.yml up --build
+# Admin credentials match appsettings.Development.json and docker/galene/dev/config.json.
+services:
+  galene:
+    build: ./docker/galene
+    command: ["-insecure", "-http", ":8443", "-udp-range", "40000-40100"]
+    ports:
+      - "8443:8443"                     # HTTP + WebSocket + admin API
+      - "1194:1194/tcp"                 # built-in TURN
+      - "1194:1194/udp"
+      - "40000-40100:40000-40100/udp"   # WebRTC media
+    volumes:
+      - ./docker/galene/dev/config.json:/srv/galene/data/config.json:ro
+      - galene-groups:/srv/galene/groups
+volumes:
+  galene-groups: {}

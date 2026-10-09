@@ -37,7 +37,7 @@ namespace AlSaqr.Infrastructure.Config
                 return;
             }
 
-            if (uri.Scheme != Uri.UriSchemeHttps && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback))
+            if (!HttpsOrLoopbackHandler.IsAllowed(uri))
                 failures.Add($"Galene:{setting} must use https (http is allowed only for localhost).");
         }
     }

@@ -85,7 +85,6 @@ builder.Services.AddSingleton<IAccessTokenVerifier>(_ => new AccessTokenVerifier
 builder.Services.AddScoped<ICityRepository, CityRepository>();
 builder.Services.AddScoped<IAttendeeRepository, AttendeeRepository>();
 builder.Services.AddScoped<IEventRepository, EventRepository>();
-builder.Services.AddScoped<IVideoStreamRepository, VideoStreamRepository>();
 builder.Services.AddScoped<IEventAttendeeRepository, EventAttendeeRepository>();
 builder.Services.AddScoped<IGroupRepository, GroupRepository>();
 builder.Services.AddScoped<IGroupAttendeeRepository, GroupAttendeeRepository>();
@@ -126,6 +125,11 @@ builder.Services.Configure<SupabaseRealtimeConfig>(builder.Configuration.GetSect
 builder.Services.AddHttpClient<ICloudflareCallsService, CloudflareCallsService>();
 builder.Services.AddHttpClient<ISpaceEventBroadcaster, SpaceEventBroadcaster>();
 builder.Services.AddHostedService<SpaceReaperService>();
+
+// Event video (specs/video-streaming-online-events.md): repository, Galène SFU,
+// realtime broadcaster and reaper. Registers IVideoStreamRepository, which
+// EventAttendeeRepository also depends on.
+builder.Services.AddEventVideo(builder.Configuration);
 
 builder.Services.Configure<GoogleGeminiConfig>(builder.Configuration.GetSection("GoogleGemini"));
 builder.Services.AddHttpClient<IYumnaService, YumnaService>();
@@ -214,3 +218,6 @@ app.Lifetime.ApplicationStopping.Register(() =>
 });
 
 app.Run();
+
+// Lets tests boot this exact registration with WebApplicationFactory<Program>.
+public partial class Program { }
