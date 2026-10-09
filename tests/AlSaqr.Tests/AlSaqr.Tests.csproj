@@ -29,6 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Using Include="Xunit" />
     <None Include="Sql\**\*.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
