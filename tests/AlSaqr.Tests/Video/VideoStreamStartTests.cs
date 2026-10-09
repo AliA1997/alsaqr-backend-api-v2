@@ -123,6 +123,46 @@ namespace AlSaqr.Tests.Video
         }
 
         [Fact]
+        public async Task Start_WhenCompensationFails_OriginalExceptionSurfaces()
+        {
+            await _fx.Seed.Execute($"alter table {S}.video_participants add constraint zz_block_p check (false) not valid");
+            await _fx.Seed.Execute($"alter table {S}.video_streams add constraint zz_block_s check (ended_at is null) not valid");
+            try
+            {
+                var ex = await Assert.ThrowsAnyAsync<Exception>(
+                    () => _repo.StartEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default));
+
+                Assert.Contains("zz_block_p", ex.ToString());
+            }
+            finally
+            {
+                await _fx.Seed.Execute($"alter table {S}.video_streams drop constraint zz_block_s");
+                await _fx.Seed.Execute($"alter table {S}.video_participants drop constraint zz_block_p");
+            }
+        }
+
+        [Fact]
+        public async Task Start_WhenCancelledDuringHostInsert_StillEndsStream()
+        {
+            await _fx.Seed.Execute($@"
+create function {S}.zz_slow() returns trigger language plpgsql as $$ begin perform pg_sleep(3); raise exception 'zz_slow'; end $$;
+create trigger zz_slow before insert on {S}.video_participants for each row execute function {S}.zz_slow();");
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1.5));
+
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                    () => _repo.StartEventStream(_fx.Client, _s.OrganizerId, _s.EventId, cts.Token));
+            }
+            finally
+            {
+                await _fx.Seed.Execute($"drop trigger zz_slow on {S}.video_participants; drop function {S}.zz_slow();");
+            }
+
+            Assert.Equal(0L, await LiveStreamCount(_s.EventId));
+        }
+
+        [Fact]
         public async Task NewStreamAfterEnd_HasDifferentRoomName()
         {
             var first = await _repo.StartEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default);

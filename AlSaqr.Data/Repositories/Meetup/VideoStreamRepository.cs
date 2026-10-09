@@ -96,7 +96,17 @@ namespace AlSaqr.Data.Repositories.Meetup
             catch
             {
                 // Never leave a host-less live stream behind.
-                await EndStreamSystem(supabase, created, ct);
+                // Compensation must outlive a cancelled request and must never mask the
+                // original failure, so it ignores ct and swallows its own errors.
+                try
+                {
+                    await EndStreamSystem(supabase, created, CancellationToken.None);
+                }
+                catch
+                {
+                    // The reaper ends any stream left live; surface the original exception.
+                }
+
                 throw;
             }
 
