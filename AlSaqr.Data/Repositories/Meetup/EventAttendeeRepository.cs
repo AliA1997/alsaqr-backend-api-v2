@@ -164,6 +164,11 @@ namespace AlSaqr.Data.Repositories.Meetup
                 if (group == null)
                     throw new Exception("Only the group founder can remove event attendees.");
 
+                // Kick first, whatever the attendance state: a failed kick throws before any
+                // removal (the call stays retryable), and a live participant is cut off even
+                // when the user has no Attendee record.
+                await _videoStreamRepository.KickParticipant(supabase, attendeeUserId, eventId, ct);
+
                 var attendee = await supabase
                     .From<Attendee>()
                     .Filter("user_id", Operator.Equals, attendeeUserId.ToString())
@@ -178,9 +183,6 @@ namespace AlSaqr.Data.Repositories.Meetup
                     .From<EventAttendees>()
                     .Where(ea => ea.AttendeeId == attendee.Id && ea.EventId == eventId)
                     .Delete(null, ct);
-
-                // A removed attendee must not stay live on the event's video stream.
-                await _videoStreamRepository.KickParticipant(supabase, attendeeUserId, eventId, ct);
             }
             catch (UnjoinEventException ex)
             {

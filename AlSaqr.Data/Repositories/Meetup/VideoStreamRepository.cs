@@ -410,7 +410,7 @@ namespace AlSaqr.Data.Repositories.Meetup
             return await EndStream(supabase, stream, VideoParticipant.LeftEnded, ct);
         }
 
-        public async Task<(VideoStream Stream, VideoParticipant Participant)?> KickParticipant(
+        public virtual async Task<(VideoStream Stream, VideoParticipant Participant)?> KickParticipant(
             Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
         {
             var stream = await FindLiveStream(supabase, eventId, ct);

@@ -98,7 +98,9 @@ create index IF not exists video_participants_left_at
   TABLESPACE pg_default where (left_at is not null);
 
 -- Existing deployments: widen the left_reason check to include 'kicked'
--- (removal from the event). Idempotent.
+-- (removal from the event). Idempotent, and atomic so there is never a window
+-- without the check.
+begin;
 alter table "alsaqr-2026".video_participants
   drop constraint if exists video_participants_left_reason_check;
 alter table "alsaqr-2026".video_participants
@@ -113,3 +115,4 @@ alter table "alsaqr-2026".video_participants
       ])::text[]
     )
   );
+commit;

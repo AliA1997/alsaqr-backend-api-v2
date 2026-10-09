@@ -1,5 +1,7 @@
 using AlSaqr.Data.Entities.Meetup;
 using AlSaqr.Data.Repositories.Meetup;
+using AlSaqr.Data.Repositories.Meetup.Impl;
+using AlSaqr.Domain.Meetup.Exceptions;
 using AlSaqr.Domain.Common;
 using AlSaqr.Tests.Support;
 using Npgsql;
@@ -228,6 +230,52 @@ namespace AlSaqr.Tests.Video
                 $"select role from {S}.video_participants where participant_id = @u", ("u", _s.AttendeeId)));
             await Assert.ThrowsAsync<ForbiddenException>(
                 () => _repo.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default));
+        }
+
+        private sealed class FailingKickRepository : VideoStreamRepository
+        {
+            public override Task<(VideoStream Stream, VideoParticipant Participant)?> KickParticipant(
+                Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct) =>
+                throw new InvalidOperationException("kick failed");
+        }
+
+        private static EventAttendeeRepository Events(IVideoStreamRepository video)
+        {
+            var attendees = new AttendeeRepository();
+            return new EventAttendeeRepository(new GroupAttendeeRepository(attendees), attendees, video);
+        }
+
+        [Fact]
+        public async Task RemoveEventAttendee_KickFails_AttendanceKept_LiveRowUnchanged_AndRetryable()
+        {
+            await Assert.ThrowsAsync<UnjoinEventException>(() =>
+                Events(new FailingKickRepository()).RemoveEventAttendee(
+                    _fx.Client, _s.FounderId, _s.EventId, _s.AttendeeId, default));
+
+            Assert.Equal(1L, await _fx.Seed.Scalar<long>(
+                $"select count(*) from {S}.event_attendees ea join {S}.attendees a on a.id = ea.attendee_id " +
+                "where a.user_id = @u and ea.event_id = @e", ("u", _s.AttendeeId), ("e", _s.EventId)));
+            Assert.Equal(1L, await _fx.Seed.Scalar<long>(
+                $"select count(*) from {S}.video_participants where participant_id = @u and left_at is null",
+                ("u", _s.AttendeeId)));
+
+            await Events(_repo).RemoveEventAttendee(_fx.Client, _s.FounderId, _s.EventId, _s.AttendeeId, default);
+
+            Assert.Equal(VideoParticipant.LeftKicked, await _fx.Seed.Scalar<string>(
+                $"select left_reason from {S}.video_participants where participant_id = @u", ("u", _s.AttendeeId)));
+        }
+
+        [Fact]
+        public async Task RemoveEventAttendee_NoAttendeeRecord_StillKicksLiveRow()
+        {
+            // A founder can be live without being an event attendee or having an attendees row.
+            await _repo.JoinEventStream(_fx.Client, _s.FounderId, _s.EventId, default);
+            await _fx.Seed.Execute($"delete from {S}.attendees where user_id = @u", ("u", _s.FounderId));
+
+            await Events(_repo).RemoveEventAttendee(_fx.Client, _s.FounderId, _s.EventId, _s.FounderId, default);
+
+            Assert.Equal(VideoParticipant.LeftKicked, await _fx.Seed.Scalar<string>(
+                $"select left_reason from {S}.video_participants where participant_id = @u", ("u", _s.FounderId)));
         }
 
         [Fact]
