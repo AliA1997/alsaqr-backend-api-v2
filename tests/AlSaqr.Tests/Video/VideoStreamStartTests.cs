@@ -2,6 +2,7 @@ using AlSaqr.Data.Entities.Meetup;
 using AlSaqr.Data.Repositories.Meetup;
 using AlSaqr.Domain.Common;
 using AlSaqr.Tests.Support;
+using Npgsql;
 
 namespace AlSaqr.Tests.Video
 {
@@ -144,21 +145,50 @@ namespace AlSaqr.Tests.Video
         [Fact]
         public async Task Start_WhenCancelledDuringHostInsert_StillEndsStream()
         {
+            const long lockKey = 7351;
+            await using var holder = new NpgsqlConnection(_fx.ConnectionString);
+            await holder.OpenAsync();
+            await using (var take = new NpgsqlCommand($"select pg_advisory_lock({lockKey})", holder))
+                await take.ExecuteNonQueryAsync();
+
+            // The trigger blocks the host insert on the advisory lock the test holds.
             await _fx.Seed.Execute($@"
-create function {S}.zz_slow() returns trigger language plpgsql as $$ begin perform pg_sleep(3); raise exception 'zz_slow'; end $$;
+create function {S}.zz_slow() returns trigger language plpgsql as $$ begin perform pg_advisory_xact_lock({lockKey}); raise exception 'zz_slow'; end $$;
 create trigger zz_slow before insert on {S}.video_participants for each row execute function {S}.zz_slow();");
+            var lockHeld = true;
             try
             {
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1.5));
+                using var cts = new CancellationTokenSource();
+                var start = _repo.StartEventStream(_fx.Client, _s.OrganizerId, _s.EventId, cts.Token);
 
-                await Assert.ThrowsAnyAsync<OperationCanceledException>(
-                    () => _repo.StartEventStream(_fx.Client, _s.OrganizerId, _s.EventId, cts.Token));
+                // Cancel only once the host insert is provably waiting on the lock.
+                var deadline = DateTime.UtcNow.AddSeconds(30);
+                while (await _fx.Seed.Scalar<long>(
+                           "select count(*) from pg_locks where locktype = 'advisory' and not granted and objid = @k",
+                           ("k", (long)lockKey)) == 0)
+                {
+                    Assert.True(DateTime.UtcNow < deadline, "host insert never reached the lock");
+                    await Task.Delay(50);
+                }
+
+                cts.Cancel();
+
+                await using (var release = new NpgsqlCommand($"select pg_advisory_unlock({lockKey})", holder))
+                    await release.ExecuteNonQueryAsync();
+                lockHeld = false;
+
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => start);
             }
             finally
             {
+                if (lockHeld)
+                    await using (var release = new NpgsqlCommand($"select pg_advisory_unlock({lockKey})", holder))
+                        await release.ExecuteNonQueryAsync();
                 await _fx.Seed.Execute($"drop trigger zz_slow on {S}.video_participants; drop function {S}.zz_slow();");
             }
 
+            Assert.Equal(1L, await _fx.Seed.Scalar<long>(
+                $"select count(*) from {S}.video_streams where event_id = @e and ended_at is not null", ("e", _s.EventId)));
             Assert.Equal(0L, await LiveStreamCount(_s.EventId));
         }
 
