@@ -31,5 +31,35 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
 
         /// <summary>Stamps left_at + left_reason and clears the SFU identity.</summary>
         Task MarkParticipantLeft(Supabase.Client supabase, VideoParticipant participant, string reason, CancellationToken ct);
+
+        /// <summary>
+        /// Registers the caller on the live stream. NotFound when no stream is live;
+        /// Forbidden unless the caller attends the event or may control its video.
+        /// Re-checked on every join. Honours the 5-minute rejoin grace.
+        /// </summary>
+        Task<(VideoStream Stream, VideoParticipant Participant, bool HadLiveConnection)> JoinEventStream(
+            Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct);
+
+        /// <summary>
+        /// Marks the caller left with the reason. Returns the stream and the pre-leave
+        /// snapshot (for the SFU disconnect), or null when the caller was not live.
+        /// </summary>
+        Task<(VideoStream Stream, VideoParticipant Snapshot)?> LeaveEventStream(
+            Supabase.Client supabase, Guid userId, Guid eventId, string reason, CancellationToken ct);
+
+        /// <summary>
+        /// Refreshes last_seen_at and returns the caller's live row with its stream.
+        /// NotFound for no live stream, Forbidden when not live on it.
+        /// </summary>
+        Task<(VideoStream Stream, VideoParticipant Participant)> TouchLiveParticipant(
+            Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct);
+
+        /// <summary>Persists camera/mute state (a cost signal, not a permission).</summary>
+        Task SetCameraState(
+            Supabase.Client supabase, Guid userId, Guid eventId, bool cameraEnabled, bool muted, CancellationToken ct);
+
+        /// <summary>Live roster, ordered joined_at asc, id asc.</summary>
+        Task<List<VideoParticipantDto>> GetParticipants(
+            Supabase.Client supabase, Guid videoStreamId, CancellationToken ct);
     }
 }

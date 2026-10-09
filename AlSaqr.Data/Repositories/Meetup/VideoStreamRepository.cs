@@ -139,7 +139,185 @@ namespace AlSaqr.Data.Repositories.Meetup
                 .Upsert(participant, new QueryOptions { Returning = ReturnType.Minimal }, ct);
         }
 
+        private static readonly TimeSpan RejoinGrace = TimeSpan.FromMinutes(5);
+
+        /// <summary>
+        /// Role on (re)join: the host always resumes 'host'; a participant who left
+        /// within the grace window resumes their persisted role; anyone else is
+        /// 'viewer'. A join while already live (second tab, reload) leaves the role
+        /// untouched and reports HadLiveConnection, so the controller kicks the older
+        /// SFU connection: one seat per user.
+        /// </summary>
+        public async Task<(VideoStream Stream, VideoParticipant Participant, bool HadLiveConnection)> JoinEventStream(
+            Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
+        {
+            var hostEvent = await GetOnlineEventOrThrow(supabase, eventId, ct);
+            var stream = await GetLiveStreamOrThrow(supabase, eventId, ct);
+
+            // Re-checked on EVERY join. A founder can start a stream without being an attendee.
+            if (!await IsEventAttendee(supabase, eventId, userId, ct)
+                && !await CanControlEventVideo(supabase, hostEvent, userId, ct))
+                throw new ForbiddenException("Only users attending this event may join its video stream.");
+
+            var existing = await supabase
+                .From<VideoParticipant>()
+                .Filter("video_stream_id", Operator.Equals, stream.Id.ToString())
+                .Filter("participant_id", Operator.Equals, userId.ToString())
+                .Single(ct);
+
+            var now = DateTime.UtcNow;
+            var hadLiveConnection = existing is { LeftAt: null, SfuIdentity: not null };
+
+            if (existing == null)
+            {
+                existing = new VideoParticipant
+                {
+                    Id = Guid.NewGuid(),
+                    EventId = eventId,
+                    ParticipantId = userId,
+                    VideoStreamId = stream.Id,
+                    Role = stream.HostId == userId ? VideoParticipant.RoleHost : VideoParticipant.RoleViewer,
+                    JoinedAt = now,
+                };
+            }
+            else if (existing.LeftAt != null)
+            {
+                var keepsRole = stream.HostId == userId || await LeftWithinGrace(supabase, existing.Id, now, ct);
+                if (!keepsRole)
+                    existing.Role = VideoParticipant.RoleViewer;
+
+                existing.LeftAt = null;
+                existing.LeftReason = null;
+            }
+
+            existing.SfuIdentity = VideoParticipant.SfuIdentityFor(stream.Id, userId);
+            existing.LastSeenAt = now;
+
+            await supabase
+                .From<VideoParticipant>()
+                .Upsert(existing, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+
+            return (stream, existing, hadLiveConnection);
+        }
+
+        public async Task<(VideoStream Stream, VideoParticipant Snapshot)?> LeaveEventStream(
+            Supabase.Client supabase, Guid userId, Guid eventId, string reason, CancellationToken ct)
+        {
+            var stream = await FindLiveStream(supabase, eventId, ct);
+            if (stream == null)
+                return null;
+
+            var live = await FindLiveRow(supabase, stream.Id, userId, ct);
+            if (live == null)
+                return null;
+
+            var snapshot = Copy(live);
+            await MarkParticipantLeft(supabase, live, reason, ct);
+            return (stream, snapshot);
+        }
+
+        public async Task<(VideoStream Stream, VideoParticipant Participant)> TouchLiveParticipant(
+            Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
+        {
+            var (stream, live) = await GetLiveRowOrThrow(supabase, userId, eventId, ct);
+            live.LastSeenAt = DateTime.UtcNow;
+
+            await supabase
+                .From<VideoParticipant>()
+                .Upsert(live, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+
+            return (stream, live);
+        }
+
+        public async Task SetCameraState(
+            Supabase.Client supabase, Guid userId, Guid eventId, bool cameraEnabled, bool muted, CancellationToken ct)
+        {
+            var (_, live) = await GetLiveRowOrThrow(supabase, userId, eventId, ct);
+            live.CameraEnabled = cameraEnabled;
+            live.Muted = muted;
+            live.LastSeenAt = DateTime.UtcNow;
+
+            await supabase
+                .From<VideoParticipant>()
+                .Upsert(live, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+        }
+
+        public async Task<List<VideoParticipantDto>> GetParticipants(
+            Supabase.Client supabase, Guid videoStreamId, CancellationToken ct)
+        {
+            var rows = await GetLiveParticipants(supabase, videoStreamId, ct);
+            if (rows.Count == 0)
+                return new List<VideoParticipantDto>();
+
+            var users = (await supabase
+                    .From<AlSaqrUser>()
+                    .Filter("id", Operator.In, rows.Select(r => r.ParticipantId.ToString()).ToList())
+                    .Get(ct))
+                .Models
+                .ToDictionary(u => u.Id);
+
+            return rows
+                .Select(r =>
+                {
+                    users.TryGetValue(r.ParticipantId, out var user);
+                    return new VideoParticipantDto
+                    {
+                        ParticipantId = r.ParticipantId,
+                        Username = user?.Username ?? string.Empty,
+                        Avatar = user?.Avatar,
+                        Role = r.Role,
+                        CameraEnabled = r.CameraEnabled,
+                        Muted = r.Muted,
+                    };
+                })
+                .ToList();
+        }
+
         // ----- stream lifecycle -----
+
+        private static Task<VideoParticipant?> FindLiveRow(
+            Supabase.Client supabase, Guid videoStreamId, Guid userId, CancellationToken ct) =>
+            supabase
+                .From<VideoParticipant>()
+                .Filter("video_stream_id", Operator.Equals, videoStreamId.ToString())
+                .Filter("participant_id", Operator.Equals, userId.ToString())
+                .Filter("left_at", Operator.Is, "null")
+                .Single(ct);
+
+        // The 403 detail is part of the client contract: "not live -> call join again".
+        private static async Task<(VideoStream Stream, VideoParticipant Participant)> GetLiveRowOrThrow(
+            Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
+        {
+            var stream = await GetLiveStreamOrThrow(supabase, eventId, ct);
+            var live = await FindLiveRow(supabase, stream.Id, userId, ct)
+                ?? throw new ForbiddenException("You are not live on this video stream. Join again.");
+            return (stream, live);
+        }
+
+        // Evaluated in SQL, never by comparing a deserialized DateTime in C#.
+        private static async Task<bool> LeftWithinGrace(
+            Supabase.Client supabase, Guid participantRowId, DateTime utcNow, CancellationToken ct) =>
+            await supabase
+                .From<VideoParticipant>()
+                .Filter("id", Operator.Equals, participantRowId.ToString())
+                .Filter("left_at", Operator.GreaterThanOrEqual, ToUtcIso(utcNow - RejoinGrace))
+                .Single(ct) != null;
+
+        private static VideoParticipant Copy(VideoParticipant p) => new()
+        {
+            Id = p.Id,
+            EventId = p.EventId,
+            ParticipantId = p.ParticipantId,
+            VideoStreamId = p.VideoStreamId,
+            Role = p.Role,
+            CameraEnabled = p.CameraEnabled,
+            Muted = p.Muted,
+            SfuIdentity = p.SfuIdentity,
+            JoinedAt = p.JoinedAt,
+            LeftAt = p.LeftAt,
+            LeftReason = p.LeftReason,
+            LastSeenAt = p.LastSeenAt,
+        };
 
         private async Task<VideoStream> EndStream(
             Supabase.Client supabase, VideoStream stream, string reason, CancellationToken ct)
