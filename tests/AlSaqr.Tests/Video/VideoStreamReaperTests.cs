@@ -286,7 +286,7 @@ namespace AlSaqr.Tests.Video
         [Fact]
         public async Task Purge_Uses90DayRetention()
         {
-            await _repo.EndEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default);
+            await _repo.EndStreamSystem(_fx.Client, _stream, default);
             await _fx.Seed.Execute(
                 $"update {S}.video_participants set left_at = @t where participant_id = @u",
                 ("u", _s.AttendeeId), ("t", _now - TimeSpan.FromDays(91)));

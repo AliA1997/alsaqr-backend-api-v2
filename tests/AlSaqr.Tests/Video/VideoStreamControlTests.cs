@@ -120,16 +120,38 @@ namespace AlSaqr.Tests.Video
         }
 
         [Fact]
-        public async Task End_ByPlainAttendee_ThrowsForbidden()
+        public async Task StreamControl_ByPlainAttendee_ThrowsForbidden()
         {
             await Assert.ThrowsAsync<ForbiddenException>(
-                () => _repo.EndEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default));
+                () => _repo.RequireStreamControl(_fx.Client, _s.AttendeeId, _s.EventId, default));
+        }
+
+        [Fact]
+        public async Task StreamControl_WhenNoneLive_ThrowsNotFound()
+        {
+            await _repo.EndStreamSystem(_fx.Client, _stream, default);
+
+            await Assert.ThrowsAsync<NotFoundException>(
+                () => _repo.RequireStreamControl(_fx.Client, _s.OrganizerId, _s.EventId, default));
+        }
+
+        [Fact]
+        public async Task StreamControl_WritesNothing()
+        {
+            var stream = await _repo.RequireStreamControl(_fx.Client, _s.OrganizerId, _s.EventId, default);
+
+            Assert.Equal(_stream.Id, stream.Id);
+            Assert.Null(stream.EndedAt);
+            Assert.Equal(2L, await _fx.Seed.Scalar<long>(
+                $"select count(*) from {S}.video_participants where video_stream_id = @s and left_at is null",
+                ("s", _stream.Id)));
         }
 
         [Fact]
         public async Task End_ByHost_EndsStream_AndMarksEveryoneEnded()
         {
-            var ended = await _repo.EndEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default);
+            var stream = await _repo.RequireStreamControl(_fx.Client, _s.OrganizerId, _s.EventId, default);
+            var ended = await _repo.EndStreamSystem(_fx.Client, stream, default);
 
             Assert.NotNull(ended.EndedAt);
             Assert.Equal(_stream.RoomName, ended.RoomName);
@@ -142,17 +164,17 @@ namespace AlSaqr.Tests.Video
         }
 
         [Fact]
-        public async Task End_ByFounder_EndsAStreamSomeoneElseStarted()
+        public async Task StreamControl_ByFounder_IsAllowedOnAStreamSomeoneElseStarted()
         {
-            var ended = await _repo.EndEventStream(_fx.Client, _s.FounderId, _s.EventId, default);
+            var stream = await _repo.RequireStreamControl(_fx.Client, _s.FounderId, _s.EventId, default);
 
-            Assert.NotNull(ended.EndedAt);
+            Assert.Equal(_stream.Id, stream.Id);
         }
 
         [Fact]
         public async Task EndStreamSystem_OnAlreadyEndedStream_ThrowsConflict_AndKeepsFirstEndTime()
         {
-            await _repo.EndEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default);
+            await _repo.EndStreamSystem(_fx.Client, _stream, default);
             var firstEnd = await _fx.Seed.Scalar<DateTime>(
                 $"select ended_at from {S}.video_streams where id = @s", ("s", _stream.Id));
 
@@ -356,8 +378,8 @@ namespace AlSaqr.Tests.Video
             var endedEvent = await _fx.Seed.Event(_s.GroupId, isOnline: true);
             var second = await _repo.StartEventStream(_fx.Client, _s.FounderId, secondEvent, default);
             var third = await _repo.StartEventStream(_fx.Client, _s.FounderId, thirdEvent, default);
-            await _repo.StartEventStream(_fx.Client, _s.FounderId, endedEvent, default);
-            await _repo.EndEventStream(_fx.Client, _s.FounderId, endedEvent, default);
+            var ended = await _repo.StartEventStream(_fx.Client, _s.FounderId, endedEvent, default);
+            await _repo.EndStreamSystem(_fx.Client, ended, default);
             await _fx.Seed.Execute(
                 $"update {S}.video_streams set started_at = timestamptz '2026-01-01 00:00:00+00' where ended_at is null");
             await _fx.Seed.Execute(
@@ -373,7 +395,7 @@ namespace AlSaqr.Tests.Video
         [Fact]
         public async Task Purge_DeletesParticipantsOlderThanCutoff_KeepsNewer()
         {
-            await _repo.EndEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default);
+            await _repo.EndStreamSystem(_fx.Client, _stream, default);
             await _fx.Seed.Execute(
                 $"update {S}.video_participants set left_at = now() - interval '91 days' where participant_id = @old",
                 ("old", _s.AttendeeId));
@@ -391,7 +413,7 @@ namespace AlSaqr.Tests.Video
         [Fact]
         public async Task Purge_CutoffBoundary_KeepsRowLeftExactlyAtCutoff()
         {
-            await _repo.EndEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default);
+            await _repo.EndStreamSystem(_fx.Client, _stream, default);
             await _fx.Seed.Execute(
                 $"update {S}.video_participants set left_at = timestamptz '2026-01-01 00:00:00+00' where participant_id = @u",
                 ("u", _s.AttendeeId));
@@ -418,7 +440,7 @@ namespace AlSaqr.Tests.Video
         [Fact]
         public async Task Purge_DeletesStreamsEndedBeforeCutoff()
         {
-            await _repo.EndEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default);
+            await _repo.EndStreamSystem(_fx.Client, _stream, default);
             await _fx.Seed.Execute(
                 $"update {S}.video_participants set left_at = now() - interval '91 days'");
             await _fx.Seed.Execute(

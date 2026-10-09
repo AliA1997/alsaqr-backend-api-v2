@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using AlSaqr.API.Middleware;
 using AlSaqr.Domain.Common;
+using AlSaqr.Infrastructure.Video;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -53,6 +54,19 @@ namespace AlSaqr.Tests.Middleware
             Assert.Equal((int)expected, problem!.Status);
             Assert.Equal(exception.Message, problem.Detail);
             Assert.Equal("/api/anything", problem.Instance);
+        }
+
+        [Fact]
+        public async Task ParticipantNotConnected_Returns409ProblemDetails_WithoutRoomName()
+        {
+            var response = await SendThrowing(new ParticipantNotConnectedException("stream-secret-room"));
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+            Assert.Equal(409, problem!.Status);
+            Assert.Equal("The participant has no live video connection.", problem.Detail);
+            Assert.DoesNotContain("stream-secret-room", await response.Content.ReadAsStringAsync());
         }
 
         [Fact]

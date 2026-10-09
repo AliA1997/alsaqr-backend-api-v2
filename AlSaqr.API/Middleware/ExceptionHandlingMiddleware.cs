@@ -1,4 +1,5 @@
 using AlSaqr.Domain.Common;
+using AlSaqr.Infrastructure.Video;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AlSaqr.API.Middleware
@@ -38,6 +39,8 @@ namespace AlSaqr.API.Middleware
                     ValidationException => (StatusCodes.Status400BadRequest, "Validation failed"),
                     ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden"),
                     ConflictException => (StatusCodes.Status409Conflict, "Conflict"),
+                    // The participant's row exists but the SFU has no live connection for it.
+                    ParticipantNotConnectedException => (StatusCodes.Status409Conflict, "Conflict"),
                     _ => (StatusCodes.Status500InternalServerError, "Unexpected error"),
                 };
 
@@ -50,10 +53,14 @@ namespace AlSaqr.API.Middleware
                     Title = title,
                     // Unexpected errors keep their detail out of the response — the
                     // message may carry internals (connection strings, upstream
-                    // bodies) that must not reach a client.
-                    Detail = status == StatusCodes.Status500InternalServerError
-                        ? "An unexpected error occurred."
-                        : ex.Message,
+                    // bodies) that must not reach a client. The SFU message names the
+                    // room, which is never sent to clients outside their own join token.
+                    Detail = ex switch
+                    {
+                        ParticipantNotConnectedException => "The participant has no live video connection.",
+                        _ when status == StatusCodes.Status500InternalServerError => "An unexpected error occurred.",
+                        _ => ex.Message,
+                    },
                     Instance = context.Request.Path,
                 };
 

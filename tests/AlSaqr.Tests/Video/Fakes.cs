@@ -29,16 +29,25 @@ namespace AlSaqr.Tests.Video
             return new SfuJoinToken($"token-for-{identity}", "ws://galene.test/ws", roomName, DateTime.UtcNow.AddSeconds(90));
         }
 
+        /// <summary>Thrown by SetPublishAsync after the call is recorded.</summary>
+        public Func<string, Exception?>? FailSetPublish { get; set; }
+
         public Task SetPublishAsync(string roomName, string identity, bool canPublish, CancellationToken ct = default)
         {
             Calls.Add($"SetPublish {roomName} {identity} {canPublish}");
-            return Task.CompletedTask;
+            var failure = FailSetPublish?.Invoke(roomName);
+            return failure is null ? Task.CompletedTask : Task.FromException(failure);
         }
 
-        public Task RemoveParticipantsAsync(string roomName, IReadOnlyCollection<string> identities, CancellationToken ct = default)
+        /// <summary>Runs inside RemoveParticipantsAsync, to simulate something happening concurrently.</summary>
+        public Func<Task>? BeforeRemove { get; set; }
+
+        public async Task RemoveParticipantsAsync(string roomName, IReadOnlyCollection<string> identities, CancellationToken ct = default)
         {
             Calls.Add($"Remove {roomName} {string.Join(",", identities)}");
-            return Fail(roomName);
+            if (BeforeRemove is not null)
+                await BeforeRemove();
+            await Fail(roomName);
         }
 
         /// <summary>Runs inside DeleteRoomAsync, to simulate something happening concurrently.</summary>

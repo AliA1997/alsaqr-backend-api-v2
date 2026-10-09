@@ -25,6 +25,14 @@ namespace AlSaqr.Data.Repositories.Meetup
             return stream == null ? null : await ToDisplay(supabase, stream, ct);
         }
 
+        public async Task<VideoStreamToDisplay?> GetLiveEventStreamForUser(
+            Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
+        {
+            var hostEvent = await GetOnlineEventOrThrow(supabase, eventId, ct);
+            await EnsureMayWatch(supabase, hostEvent, userId, ct);
+            return await GetLiveEventStream(supabase, eventId, ct);
+        }
+
         public async Task<VideoStreamToDisplay> RequireLiveEventStream(
             Supabase.Client supabase, Guid eventId, CancellationToken ct) =>
             await ToDisplay(supabase, await GetLiveStreamOrThrow(supabase, eventId, ct), ct);
@@ -163,10 +171,8 @@ namespace AlSaqr.Data.Repositories.Meetup
             var hostEvent = await GetOnlineEventOrThrow(supabase, eventId, ct);
             var stream = await GetLiveStreamOrThrow(supabase, eventId, ct);
 
-            // Re-checked on EVERY join. A founder can start a stream without being an attendee.
-            if (!await IsEventAttendee(supabase, eventId, userId, ct)
-                && !await CanControlEventVideo(supabase, hostEvent, userId, ct))
-                throw new ForbiddenException("Only users attending this event may join its video stream.");
+            // Re-checked on EVERY join.
+            await EnsureMayWatch(supabase, hostEvent, userId, ct);
 
             var now = DateTime.UtcNow;
             var sfuIdentity = VideoParticipant.SfuIdentityFor(stream.Id, userId);
@@ -268,17 +274,25 @@ namespace AlSaqr.Data.Repositories.Meetup
             return (stream, updated, hadLiveConnection);
         }
 
-        public async Task<(VideoStream Stream, VideoParticipant Snapshot)?> LeaveEventStream(
-            Supabase.Client supabase, Guid userId, Guid eventId, string reason, CancellationToken ct)
+        public async Task<(VideoStream Stream, VideoParticipant Participant)?> FindLiveParticipant(
+            Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
         {
             var stream = await FindLiveStream(supabase, eventId, ct);
             if (stream == null)
                 return null;
 
             var live = await FindLiveRow(supabase, stream.Id, userId, ct);
-            if (live == null)
+            return live == null ? null : (stream, live);
+        }
+
+        public async Task<(VideoStream Stream, VideoParticipant Snapshot)?> LeaveEventStream(
+            Supabase.Client supabase, Guid userId, Guid eventId, string reason, CancellationToken ct)
+        {
+            var found = await FindLiveParticipant(supabase, userId, eventId, ct);
+            if (found == null)
                 return null;
 
+            var (stream, live) = found.Value;
             var snapshot = Copy(live);
             return await TryMarkLeft(supabase, live.Id, reason, ct) == null ? null : (stream, snapshot);
         }
@@ -397,17 +411,17 @@ namespace AlSaqr.Data.Repositories.Meetup
             .Models.FirstOrDefault()
             ?? throw new ConflictException("The video participant changed. Try again.");
 
-        public async Task<VideoStream> EndEventStream(
-            Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
+        public async Task<VideoStream> RequireStreamControl(
+            Supabase.Client supabase, Guid callerId, Guid eventId, CancellationToken ct)
         {
             var hostEvent = await GetOnlineEventOrThrow(supabase, eventId, ct);
             var stream = await GetLiveStreamOrThrow(supabase, eventId, ct);
 
-            if (stream.HostId != userId && !await CanControlEventVideo(supabase, hostEvent, userId, ct))
+            if (stream.HostId != callerId && !await CanControlEventVideo(supabase, hostEvent, callerId, ct))
                 throw new ForbiddenException(
-                    "Only the stream host, event organizer, or group founder may end the video stream.");
+                    "Only the stream host, event organizer, or group founder may control the video stream.");
 
-            return await EndStream(supabase, stream, VideoParticipant.LeftEnded, ct);
+            return stream;
         }
 
         public virtual async Task<(VideoStream Stream, VideoParticipant Participant)?> KickParticipant(
@@ -488,15 +502,10 @@ namespace AlSaqr.Data.Repositories.Meetup
             return doomed;
         }
 
-        private static async Task<(VideoStream Stream, VideoParticipant Target)> GetControlledTarget(
+        private async Task<(VideoStream Stream, VideoParticipant Target)> GetControlledTarget(
             Supabase.Client supabase, Guid callerId, Guid eventId, Guid targetUserId, CancellationToken ct)
         {
-            var hostEvent = await GetOnlineEventOrThrow(supabase, eventId, ct);
-            var stream = await GetLiveStreamOrThrow(supabase, eventId, ct);
-
-            if (stream.HostId != callerId && !await CanControlEventVideo(supabase, hostEvent, callerId, ct))
-                throw new ForbiddenException(
-                    "Only the stream host, event organizer, or group founder may change presenters.");
+            var stream = await RequireStreamControl(supabase, callerId, eventId, ct);
 
             var target = await FindLiveRow(supabase, stream.Id, targetUserId, ct)
                 ?? throw new NotFoundException("That user is not live on this video stream.");
@@ -642,6 +651,16 @@ namespace AlSaqr.Data.Repositories.Meetup
                 throw new ValidationException("This event has no host group and cannot host video.");
 
             return existing;
+        }
+
+        // Who may see or join an event's stream: its attendees, plus whoever may control
+        // its video (a founder can start a stream without being an attendee).
+        private static async Task EnsureMayWatch(
+            Supabase.Client supabase, Event hostEvent, Guid userId, CancellationToken ct)
+        {
+            if (!await IsEventAttendee(supabase, hostEvent.Id, userId, ct)
+                && !await CanControlEventVideo(supabase, hostEvent, userId, ct))
+                throw new ForbiddenException("Only users attending this event may join its video stream.");
         }
 
         // Attendance lives on event_attendees, keyed on attendees.id.
