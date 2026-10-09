@@ -124,6 +124,109 @@ namespace AlSaqr.Tests.Video
             Assert.Equal(VideoParticipant.RoleViewer, rejoined.Role);
         }
 
+        [Theory]
+        [InlineData(VideoParticipant.LeftExplicit)]
+        [InlineData(VideoParticipant.LeftEnded)]
+        [InlineData(VideoParticipant.LeftExpired)]
+        public async Task Rejoin_WithinGrace_AfterNonReapedLeave_DowngradesToViewer(string reason)
+        {
+            await _repo.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default);
+            await SetRole(_s.AttendeeId, VideoParticipant.RolePresenter);
+            await SetLeft(_s.AttendeeId, reason, "1 minute");
+
+            var (_, rejoined, _) = await _repo.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default);
+
+            Assert.Equal(VideoParticipant.RoleViewer, rejoined.Role);
+        }
+
+        [Fact]
+        public async Task Heartbeat_AfterConcurrentDemote_LeavesRoleIntact()
+        {
+            await _repo.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default);
+            await SetRole(_s.AttendeeId, VideoParticipant.RolePresenter);
+            await SetRole(_s.AttendeeId, VideoParticipant.RoleViewer);
+
+            var (_, touched) = await _repo.TouchLiveParticipant(_fx.Client, _s.AttendeeId, _s.EventId, default);
+
+            Assert.Equal(VideoParticipant.RoleViewer, touched.Role);
+            Assert.Equal(VideoParticipant.RoleViewer, await RoleInDb(_s.AttendeeId));
+        }
+
+        [Fact]
+        public async Task SetCameraState_AfterConcurrentDemote_LeavesRoleIntact()
+        {
+            await _repo.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default);
+            await SetRole(_s.AttendeeId, VideoParticipant.RolePresenter);
+            await SetRole(_s.AttendeeId, VideoParticipant.RoleViewer);
+
+            await _repo.SetCameraState(_fx.Client, _s.AttendeeId, _s.EventId, true, false, default);
+
+            Assert.Equal(VideoParticipant.RoleViewer, await RoleInDb(_s.AttendeeId));
+        }
+
+        [Fact]
+        public async Task Heartbeat_AfterLeave_DoesNotReviveRow()
+        {
+            await _repo.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default);
+            await _repo.LeaveEventStream(_fx.Client, _s.AttendeeId, _s.EventId, VideoParticipant.LeftReaped, default);
+
+            await Assert.ThrowsAsync<ForbiddenException>(
+                () => _repo.TouchLiveParticipant(_fx.Client, _s.AttendeeId, _s.EventId, default));
+            await Assert.ThrowsAsync<ForbiddenException>(
+                () => _repo.SetCameraState(_fx.Client, _s.AttendeeId, _s.EventId, true, false, default));
+
+            Assert.True(await _fx.Seed.Scalar<bool>(
+                $"select left_at is not null and sfu_identity is null from {S}.video_participants where participant_id = @u",
+                ("u", _s.AttendeeId)));
+        }
+
+        [Fact]
+        public async Task MarkParticipantLeft_WithStaleRow_DoesNotOverwriteRole()
+        {
+            await _repo.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default);
+            var stale = (await _repo.GetLiveParticipants(_fx.Client, _stream.Id, default))
+                .Single(p => p.ParticipantId == _s.AttendeeId);
+            await SetRole(_s.AttendeeId, VideoParticipant.RolePresenter);
+
+            await _repo.MarkParticipantLeft(_fx.Client, stale, VideoParticipant.LeftReaped, default);
+
+            Assert.Equal(VideoParticipant.RolePresenter, await RoleInDb(_s.AttendeeId));
+        }
+
+        [Fact]
+        public async Task FirstJoin_LosingUniqueRace_ContinuesOnExistingRow()
+        {
+            var racing = new RacingRepository(async (streamId, userId) =>
+                await _fx.Seed.Execute(
+                    $"insert into {S}.video_participants (id, event_id, participant_id, video_stream_id, role, sfu_identity) " +
+                    "values (gen_random_uuid(), @e, @u, @s, 'presenter', 'other-connection')",
+                    ("e", _s.EventId), ("u", userId), ("s", streamId)));
+
+            var (_, participant, hadConnection) = await racing.JoinEventStream(_fx.Client, _s.AttendeeId, _s.EventId, default);
+
+            Assert.True(hadConnection);
+            Assert.Equal(VideoParticipant.RolePresenter, participant.Role);
+            Assert.Equal($"{_stream.Id}:{_s.AttendeeId}", participant.SfuIdentity);
+            Assert.Equal(1L, await _fx.Seed.Scalar<long>(
+                $"select count(*) from {S}.video_participants where video_stream_id = @s and participant_id = @u",
+                ("s", _stream.Id), ("u", _s.AttendeeId)));
+        }
+
+        private Task<string> RoleInDb(Guid userId) =>
+            _fx.Seed.Scalar<string>(
+                $"select role from {S}.video_participants where video_stream_id = @s and participant_id = @u",
+                ("s", _stream.Id), ("u", userId));
+
+        private sealed class RacingRepository : VideoStreamRepository
+        {
+            private readonly Func<Guid, Guid, Task> _beforeInsert;
+
+            public RacingRepository(Func<Guid, Guid, Task> beforeInsert) => _beforeInsert = beforeInsert;
+
+            protected override Task BeforeFirstJoinInsert(Guid videoStreamId, Guid userId) =>
+                _beforeInsert(videoStreamId, userId);
+        }
+
         [Fact]
         public async Task Rejoin_AfterDemotionAndDrop_StaysViewer()
         {

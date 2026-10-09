@@ -128,16 +128,25 @@ namespace AlSaqr.Data.Repositories.Meetup
             .Models;
 
         public async Task MarkParticipantLeft(
-            Supabase.Client supabase, VideoParticipant participant, string reason, CancellationToken ct)
-        {
-            participant.LeftAt = DateTime.UtcNow;
-            participant.LeftReason = reason;
-            participant.SfuIdentity = null;
+            Supabase.Client supabase, VideoParticipant participant, string reason, CancellationToken ct) =>
+            _ = await TryMarkLeft(supabase, participant.Id, reason, ct);
 
-            await supabase
+        /// <summary>
+        /// Column-scoped and guarded on left_at is null: never writes back a stale role,
+        /// and a row that already left (or was concurrently reaped) is left alone.
+        /// Returns the updated row, or null when it was not live.
+        /// </summary>
+        private static async Task<VideoParticipant?> TryMarkLeft(
+            Supabase.Client supabase, Guid participantRowId, string reason, CancellationToken ct) =>
+            (await supabase
                 .From<VideoParticipant>()
-                .Upsert(participant, new QueryOptions { Returning = ReturnType.Minimal }, ct);
-        }
+                .Filter("id", Operator.Equals, participantRowId.ToString())
+                .Filter("left_at", Operator.Is, "null")
+                .Set(p => p.LeftAt!, DateTime.UtcNow)
+                .Set(p => p.LeftReason!, reason)
+                .Set(p => p.SfuIdentity!, null)
+                .Update(new QueryOptions { Returning = ReturnType.Representation }, ct))
+            .Models.FirstOrDefault();
 
         private static readonly TimeSpan RejoinGrace = TimeSpan.FromMinutes(5);
 
@@ -168,6 +177,7 @@ namespace AlSaqr.Data.Repositories.Meetup
             var now = DateTime.UtcNow;
             var hadLiveConnection = existing is { LeftAt: null, SfuIdentity: not null };
 
+            var inserting = existing == null;
             if (existing == null)
             {
                 existing = new VideoParticipant
@@ -193,12 +203,42 @@ namespace AlSaqr.Data.Repositories.Meetup
             existing.SfuIdentity = VideoParticipant.SfuIdentityFor(stream.Id, userId);
             existing.LastSeenAt = now;
 
-            await supabase
-                .From<VideoParticipant>()
-                .Upsert(existing, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+            if (inserting)
+            {
+                await BeforeFirstJoinInsert(stream.Id, userId);
+                try
+                {
+                    return (stream, await SaveParticipant(supabase, existing, ct), hadLiveConnection);
+                }
+                catch (PostgrestException ex) when (IsUniqueViolation(ex))
+                {
+                    // Lost the race against a concurrent first join: continue on the existing row.
+                    existing = await supabase
+                        .From<VideoParticipant>()
+                        .Filter("video_stream_id", Operator.Equals, stream.Id.ToString())
+                        .Filter("participant_id", Operator.Equals, userId.ToString())
+                        .Single(ct)
+                        ?? throw new ConflictException("Could not join the video stream. Try again.");
 
-            return (stream, existing, hadLiveConnection);
+                    hadLiveConnection = existing is { LeftAt: null, SfuIdentity: not null };
+                    existing.SfuIdentity = VideoParticipant.SfuIdentityFor(stream.Id, userId);
+                    existing.LastSeenAt = now;
+                }
+            }
+
+            return (stream, await SaveParticipant(supabase, existing, ct), hadLiveConnection);
         }
+
+        /// <summary>Test seam: runs between the join's read and its first insert.</summary>
+        protected virtual Task BeforeFirstJoinInsert(Guid videoStreamId, Guid userId) => Task.CompletedTask;
+
+        private static async Task<VideoParticipant> SaveParticipant(
+            Supabase.Client supabase, VideoParticipant participant, CancellationToken ct) =>
+            (await supabase
+                .From<VideoParticipant>()
+                .Upsert(participant, new QueryOptions { Returning = ReturnType.Representation }, ct))
+            .Models.FirstOrDefault()
+            ?? throw new NotFoundException("The video participant was not returned.");
 
         public async Task<(VideoStream Stream, VideoParticipant Snapshot)?> LeaveEventStream(
             Supabase.Client supabase, Guid userId, Guid eventId, string reason, CancellationToken ct)
@@ -212,34 +252,31 @@ namespace AlSaqr.Data.Repositories.Meetup
                 return null;
 
             var snapshot = Copy(live);
-            await MarkParticipantLeft(supabase, live, reason, ct);
-            return (stream, snapshot);
+            return await TryMarkLeft(supabase, live.Id, reason, ct) == null ? null : (stream, snapshot);
         }
 
         public async Task<(VideoStream Stream, VideoParticipant Participant)> TouchLiveParticipant(
             Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
         {
-            var (stream, live) = await GetLiveRowOrThrow(supabase, userId, eventId, ct);
-            live.LastSeenAt = DateTime.UtcNow;
+            var stream = await GetLiveStreamOrThrow(supabase, eventId, ct);
+            var updated = await LiveRowQuery(supabase, stream.Id, userId)
+                .Set(p => p.LastSeenAt, DateTime.UtcNow)
+                .Update(new QueryOptions { Returning = ReturnType.Representation }, ct);
 
-            await supabase
-                .From<VideoParticipant>()
-                .Upsert(live, new QueryOptions { Returning = ReturnType.Minimal }, ct);
-
-            return (stream, live);
+            return (stream, updated.Models.FirstOrDefault() ?? throw NotLive());
         }
 
         public async Task SetCameraState(
             Supabase.Client supabase, Guid userId, Guid eventId, bool cameraEnabled, bool muted, CancellationToken ct)
         {
-            var (_, live) = await GetLiveRowOrThrow(supabase, userId, eventId, ct);
-            live.CameraEnabled = cameraEnabled;
-            live.Muted = muted;
-            live.LastSeenAt = DateTime.UtcNow;
+            var stream = await GetLiveStreamOrThrow(supabase, eventId, ct);
+            var updated = await LiveRowQuery(supabase, stream.Id, userId)
+                .Set(p => p.CameraEnabled, cameraEnabled)
+                .Set(p => p.Muted, muted)
+                .Set(p => p.LastSeenAt, DateTime.UtcNow)
+                .Update(new QueryOptions { Returning = ReturnType.Representation }, ct);
 
-            await supabase
-                .From<VideoParticipant>()
-                .Upsert(live, new QueryOptions { Returning = ReturnType.Minimal }, ct);
+            _ = updated.Models.FirstOrDefault() ?? throw NotLive();
         }
 
         public async Task<List<VideoParticipantDto>> GetParticipants(
@@ -284,15 +321,19 @@ namespace AlSaqr.Data.Repositories.Meetup
                 .Filter("left_at", Operator.Is, "null")
                 .Single(ct);
 
+        // Column-scoped updates are guarded on left_at is null and never write role,
+        // sfu_identity or left_at, so a stale read cannot revive or re-promote a row.
+        private static Supabase.Postgrest.Interfaces.IPostgrestTable<VideoParticipant> LiveRowQuery(
+            Supabase.Client supabase, Guid videoStreamId, Guid userId) =>
+            supabase
+                .From<VideoParticipant>()
+                .Filter("video_stream_id", Operator.Equals, videoStreamId.ToString())
+                .Filter("participant_id", Operator.Equals, userId.ToString())
+                .Filter("left_at", Operator.Is, "null");
+
         // The 403 detail is part of the client contract: "not live -> call join again".
-        private static async Task<(VideoStream Stream, VideoParticipant Participant)> GetLiveRowOrThrow(
-            Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
-        {
-            var stream = await GetLiveStreamOrThrow(supabase, eventId, ct);
-            var live = await FindLiveRow(supabase, stream.Id, userId, ct)
-                ?? throw new ForbiddenException("You are not live on this video stream. Join again.");
-            return (stream, live);
-        }
+        private static ForbiddenException NotLive() =>
+            new("You are not live on this video stream. Join again.");
 
         // Evaluated in SQL, never by comparing a deserialized DateTime in C#.
         private static async Task<bool> LeftWithinGrace(
@@ -300,6 +341,8 @@ namespace AlSaqr.Data.Repositories.Meetup
             await supabase
                 .From<VideoParticipant>()
                 .Filter("id", Operator.Equals, participantRowId.ToString())
+                // Only a network-drop reap restores a role; explicit/ended/expired never do.
+                .Filter("left_reason", Operator.Equals, VideoParticipant.LeftReaped)
                 .Filter("left_at", Operator.GreaterThanOrEqual, ToUtcIso(utcNow - RejoinGrace))
                 .Single(ct) != null;
 
