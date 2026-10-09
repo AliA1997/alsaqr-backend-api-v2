@@ -3,7 +3,10 @@ using static AlSaqr.Domain.Meetup.EventVideo;
 
 namespace AlSaqr.Tests.Video
 {
-    /// <summary>Records SFU calls; several tests assert a call did NOT happen.</summary>
+    /// <summary>
+    /// Records SFU calls; several tests assert a call did NOT happen. Like the real
+    /// HTTP-backed service, a call made with a cancelled token throws before it is recorded.
+    /// </summary>
     public sealed class FakeVideoSfuService : IVideoSfuService
     {
         public List<string> Calls { get; } = new();
@@ -17,6 +20,7 @@ namespace AlSaqr.Tests.Video
 
         public Task CreateRoomAsync(string roomName, int maxParticipants, DateTime notAfterUtc, CancellationToken ct = default)
         {
+            ct.ThrowIfCancellationRequested();
             Calls.Add($"CreateRoom {roomName} max={maxParticipants}");
             if (FailCreateRoom)
                 throw new InvalidOperationException("Galène admin PUT failed with status 503.");
@@ -34,6 +38,7 @@ namespace AlSaqr.Tests.Video
 
         public Task SetPublishAsync(string roomName, string identity, bool canPublish, CancellationToken ct = default)
         {
+            ct.ThrowIfCancellationRequested();
             Calls.Add($"SetPublish {roomName} {identity} {canPublish}");
             var failure = FailSetPublish?.Invoke(roomName);
             return failure is null ? Task.CompletedTask : Task.FromException(failure);
@@ -44,6 +49,7 @@ namespace AlSaqr.Tests.Video
 
         public async Task RemoveParticipantsAsync(string roomName, IReadOnlyCollection<string> identities, CancellationToken ct = default)
         {
+            ct.ThrowIfCancellationRequested();
             Calls.Add($"Remove {roomName} {string.Join(",", identities)}");
             if (BeforeRemove is not null)
                 await BeforeRemove();
@@ -55,6 +61,7 @@ namespace AlSaqr.Tests.Video
 
         public async Task DeleteRoomAsync(string roomName, CancellationToken ct = default)
         {
+            ct.ThrowIfCancellationRequested();
             Calls.Add($"DeleteRoom {roomName}");
             if (BeforeDeleteRoom is not null)
                 await BeforeDeleteRoom();

@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using AlSaqr.API.Controllers.Meetup;
 using AlSaqr.API.Extensions;
 using AlSaqr.API.Middleware;
@@ -25,10 +26,13 @@ namespace AlSaqr.Tests.Video
         public const string TokenSecret = "test-access-token-secret-0123456789-abcdefghij";
 
         private readonly IHost _host;
+        private readonly StrongBox<bool> _abortRequests;
 
-        private EventVideoApi(IHost host, FakeVideoSfuService sfu, FakeEventVideoBroadcaster broadcaster)
+        private EventVideoApi(
+            IHost host, FakeVideoSfuService sfu, FakeEventVideoBroadcaster broadcaster, StrongBox<bool> abortRequests)
         {
             _host = host;
+            _abortRequests = abortRequests;
             Sfu = sfu;
             Broadcaster = broadcaster;
             Http = host.GetTestClient();
@@ -40,10 +44,21 @@ namespace AlSaqr.Tests.Video
 
         public FakeEventVideoBroadcaster Broadcaster { get; }
 
+        /// <summary>
+        /// When true, every request reaches the controller with RequestAborted already
+        /// cancelled, as when the client disconnected (or a keepalive fetch was cut off).
+        /// </summary>
+        public bool AbortRequests
+        {
+            get => _abortRequests.Value;
+            set => _abortRequests.Value = value;
+        }
+
         public static async Task<EventVideoApi> StartAsync(Supabase.Client supabase)
         {
             var sfu = new FakeVideoSfuService();
             var broadcaster = new FakeEventVideoBroadcaster();
+            var abortRequests = new StrongBox<bool>();
 
             var host = await new HostBuilder()
                 .ConfigureWebHost(web => web
@@ -67,12 +82,18 @@ namespace AlSaqr.Tests.Video
                     .Configure(app =>
                     {
                         app.UseMiddleware<ExceptionHandlingMiddleware>();
+                        app.Use(async (context, next) =>
+                        {
+                            if (abortRequests.Value)
+                                context.RequestAborted = new CancellationToken(canceled: true);
+                            await next(context);
+                        });
                         app.UseRouting();
                         app.UseEndpoints(endpoints => endpoints.MapControllers());
                     }))
                 .StartAsync();
 
-            return new EventVideoApi(host, sfu, broadcaster);
+            return new EventVideoApi(host, sfu, broadcaster, abortRequests);
         }
 
         public static string Token(Guid userId) =>

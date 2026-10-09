@@ -26,13 +26,19 @@ namespace AlSaqr.API.Controllers.Meetup
     /// <item>Leave and end act on the SFU first, as the reaper does. Their database
     /// step cannot be repeated (a second leave or end finds nothing live), so it runs
     /// only after the SFU step succeeded.</item>
-    /// <item>Start, join, promote and demote write the database first. The
-    /// authorization and the room name come from that write, a retry repeats it
-    /// idempotently and re-applies the SFU step, and a role change must be in the
-    /// database before any token is minted from it.</item>
+    /// <item>Demote also acts on the SFU first: the restrictive step goes first. A
+    /// failed revoke leaves the stored role untouched, so the retry still finds a
+    /// presenter to demote; a demote never stores viewer while the live connection
+    /// keeps publishing unnoticed.</item>
+    /// <item>Start, join and promote write the database first. The authorization and
+    /// the room name come from that write, a retry repeats it idempotently and
+    /// re-applies the SFU step, and a granted role must be in the database before any
+    /// token is minted from it.</item>
     /// </list>
-    /// Once a database write has committed, the remaining steps ignore the request's
-    /// abort signal, so a client that disconnects cannot stop an action half-way.
+    /// Once the first state change (database or SFU) has been made, the remaining steps
+    /// ignore the request's abort signal, so a client that disconnects cannot stop an
+    /// action half-way. Leave ignores it throughout: it is sent on page exit with fetch
+    /// keepalive, so the client is often gone before it runs.
     /// Broadcasts are notifications sent after everything else succeeded: a failed
     /// broadcast is logged and never turns a completed action into an error.
     /// </remarks>
@@ -77,8 +83,9 @@ namespace AlSaqr.API.Controllers.Meetup
             if (authError != null)
                 return authError;
 
-            return Ok(await _videoStreams.GetLiveEventStreamForUser(
-                _supabase, callerId, eventId, HttpContext.RequestAborted));
+            var stream = await _videoStreams.GetLiveEventStreamForUser(
+                _supabase, callerId, eventId, HttpContext.RequestAborted);
+            return stream == null ? NoContent() : Ok(stream);
         }
 
         [HttpPost("event/{eventId}/start")]
@@ -168,8 +175,10 @@ namespace AlSaqr.API.Controllers.Meetup
 
         /// <summary>
         /// A fresh room token for someone already live (slow first connect, or a
-        /// reconnect that outlasted the 90 s token). No broadcast, no roster.
-        /// 403 means the reaper removed the caller: join again.
+        /// reconnect that outlasted the 90 s token). No broadcast, no roster. The
+        /// attendee-or-controller gate is re-checked first, so a removed attendee or a
+        /// revoked organizer gets 403 and no token; otherwise 403 means the reaper
+        /// removed the caller: join again.
         /// </summary>
         [HttpPost("event/{eventId}/token")]
         public async Task<IActionResult> RefreshToken(Guid eventId)
@@ -206,7 +215,9 @@ namespace AlSaqr.API.Controllers.Meetup
             if (authError != null)
                 return authError;
 
-            var live = await _videoStreams.FindLiveParticipant(_supabase, callerId, eventId, HttpContext.RequestAborted);
+            // Never the abort signal: a keepalive leave whose client is already gone must
+            // still disconnect it and mark it left.
+            var live = await _videoStreams.FindLiveParticipant(_supabase, callerId, eventId, CancellationToken.None);
             if (live == null)
                 return NoContent();
 
@@ -214,7 +225,7 @@ namespace AlSaqr.API.Controllers.Meetup
 
             // Server-side removal is what stops the media (C9).
             if (!string.IsNullOrEmpty(participant.SfuIdentity))
-                await RemoveFromRoom(stream.RoomName, participant.SfuIdentity, HttpContext.RequestAborted);
+                await RemoveFromRoom(stream.RoomName, participant.SfuIdentity, CancellationToken.None);
 
             var left = await _videoStreams.LeaveEventStream(
                 _supabase, callerId, eventId, VideoParticipant.LeftExplicit, CancellationToken.None);
@@ -313,8 +324,11 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <summary>
         /// Presenter → viewer. Flipping the stored role is not enough: the live
         /// connection still has publish rights. SetPublishAsync revokes them on the SFU,
-        /// effective immediately. If that fails the stored role is already viewer, so no
-        /// new token can publish, and a retry revokes again.
+        /// effective immediately, and runs before the database write (restrictive
+        /// first). If it fails the stored role is still presenter and the action
+        /// returns 500, so the caller sees the demote did not happen and a retry
+        /// revokes again. A target with no live connection has nothing to revoke: the
+        /// database demote still runs, and every token minted afterwards is read from it.
         /// </summary>
         [HttpPost("event/{eventId}/presenters/{userId}/demote")]
         public async Task<IActionResult> DemotePresenter(Guid eventId, Guid userId)
@@ -323,11 +337,15 @@ namespace AlSaqr.API.Controllers.Meetup
             if (authError != null)
                 return authError;
 
-            var (stream, demoted) = await _videoStreams.DemotePresenter(
+            // Authorizes and finds the target; writes nothing.
+            var (stream, target) = await _videoStreams.RequireDemoteTarget(
                 _supabase, callerId, eventId, userId, HttpContext.RequestAborted);
 
-            if (!string.IsNullOrEmpty(demoted.SfuIdentity))
-                await SetPublish(stream.RoomName, demoted.SfuIdentity, canPublish: false);
+            if (!string.IsNullOrEmpty(target.SfuIdentity))
+                await SetPublish(stream.RoomName, target.SfuIdentity, canPublish: false);
+
+            var (_, demoted) = await _videoStreams.DemotePresenter(
+                _supabase, callerId, eventId, userId, CancellationToken.None);
 
             await BroadcastSafely(
                 () => _broadcaster.RoleChangedAsync(eventId, userId, demoted.Role, CancellationToken.None),
@@ -383,8 +401,8 @@ namespace AlSaqr.API.Controllers.Meetup
             }
             catch (ParticipantNotConnectedException)
             {
-                // No live connection to change. The stored role already holds, and the
-                // next token minted for this user is read from it.
+                // No live connection to change. The next token minted for this user is
+                // read from the stored role, which the action writes either way.
             }
         }
 

@@ -73,7 +73,10 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
 
         /// <summary>
         /// Refreshes last_seen_at and returns the caller's live row with its stream.
-        /// NotFound for no live stream, Forbidden when not live on it.
+        /// NotFound for no live stream; Forbidden unless the caller still attends the
+        /// event or may control its video (same gate as join), and Forbidden when not
+        /// live on it. Backs heartbeat and token refresh, so a removed attendee or
+        /// revoked organizer can neither stay alive nor get a new token.
         /// </summary>
         Task<(VideoStream Stream, VideoParticipant Participant)> TouchLiveParticipant(
             Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct);
@@ -95,7 +98,18 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
         Task<(VideoStream Stream, VideoParticipant Participant)> PromotePresenter(
             Supabase.Client supabase, Guid callerId, Guid eventId, Guid targetUserId, int maxPresenters, CancellationToken ct);
 
-        /// <summary>Presenter to viewer. Same authority as promote; Validation for the host.</summary>
+        /// <summary>
+        /// The live stream and the demote target's live row, once the demote is
+        /// authorized: same authority and errors as DemotePresenter, Validation for the
+        /// host. Writes nothing, so the controller can revoke on the SFU first.
+        /// </summary>
+        Task<(VideoStream Stream, VideoParticipant Target)> RequireDemoteTarget(
+            Supabase.Client supabase, Guid callerId, Guid eventId, Guid targetUserId, CancellationToken ct);
+
+        /// <summary>
+        /// Presenter to viewer. Same authority as promote; Validation for the host.
+        /// Idempotent for a viewer.
+        /// </summary>
         Task<(VideoStream Stream, VideoParticipant Participant)> DemotePresenter(
             Supabase.Client supabase, Guid callerId, Guid eventId, Guid targetUserId, CancellationToken ct);
 

@@ -300,7 +300,13 @@ namespace AlSaqr.Data.Repositories.Meetup
         public async Task<(VideoStream Stream, VideoParticipant Participant)> TouchLiveParticipant(
             Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
         {
+            var hostEvent = await GetOnlineEventOrThrow(supabase, eventId, ct);
             var stream = await GetLiveStreamOrThrow(supabase, eventId, ct);
+
+            // Same gate as join, before the row is kept alive or a token is minted from
+            // it: a removed attendee or revoked organizer can no longer stay connected.
+            await EnsureMayWatch(supabase, hostEvent, userId, ct);
+
             var updated = await LiveRowQuery(supabase, stream.Id, userId)
                 .Set(p => p.LastSeenAt, DateTime.UtcNow)
                 .Update(new QueryOptions { Returning = ReturnType.Representation }, ct);
@@ -377,13 +383,21 @@ namespace AlSaqr.Data.Repositories.Meetup
             return (stream, promoted);
         }
 
-        public async Task<(VideoStream Stream, VideoParticipant Participant)> DemotePresenter(
+        public async Task<(VideoStream Stream, VideoParticipant Target)> RequireDemoteTarget(
             Supabase.Client supabase, Guid callerId, Guid eventId, Guid targetUserId, CancellationToken ct)
         {
             var (stream, target) = await GetControlledTarget(supabase, callerId, eventId, targetUserId, ct);
 
             if (target.Role == VideoParticipant.RoleHost)
                 throw new ValidationException("The host cannot be demoted.");
+
+            return (stream, target);
+        }
+
+        public async Task<(VideoStream Stream, VideoParticipant Participant)> DemotePresenter(
+            Supabase.Client supabase, Guid callerId, Guid eventId, Guid targetUserId, CancellationToken ct)
+        {
+            var (stream, target) = await RequireDemoteTarget(supabase, callerId, eventId, targetUserId, ct);
 
             if (target.Role == VideoParticipant.RoleViewer)
                 return (stream, target);

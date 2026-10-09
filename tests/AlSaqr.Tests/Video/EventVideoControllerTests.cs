@@ -46,6 +46,24 @@ namespace AlSaqr.Tests.Video
                 $"select role from {S}.video_participants where participant_id = @u and left_at is null",
                 ("u", userId));
 
+        // Removes the user from the event entirely: neither attendee nor organizer any more.
+        private Task RemoveFromEvent(Guid userId) =>
+            _fx.Seed.Execute(
+                $"delete from {S}.event_attendees where event_id = @e " +
+                $"and attendee_id in (select id from {S}.attendees where user_id = @u)",
+                ("e", _s.EventId), ("u", userId));
+
+        private Task AgeLastSeen(Guid userId) =>
+            _fx.Seed.Execute(
+                $"update {S}.video_participants set last_seen_at = now() - interval '50 seconds' where participant_id = @u",
+                ("u", userId));
+
+        private Task<bool> LastSeenIsAged(Guid userId) =>
+            _fx.Seed.Scalar<bool>(
+                $"select last_seen_at < now() - interval '40 seconds' from {S}.video_participants " +
+                "where participant_id = @u and left_at is null",
+                ("u", userId));
+
         [Fact]
         public async Task Start_ByOrganizer_CreatesRoomWithCostGuards_AndBroadcasts()
         {
@@ -78,7 +96,7 @@ namespace AlSaqr.Tests.Video
             var response = await _api.Post(Route("start"), _s.OrganizerId);
 
             Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-            // No live stream: Ok(null) is written as 204 by ASP.NET's no-content formatter.
+            // No live stream: 204.
             var live = await _api.Get(Route("live"), _s.OrganizerId);
             Assert.Equal(HttpStatusCode.NoContent, live.StatusCode);
 
@@ -228,6 +246,56 @@ namespace AlSaqr.Tests.Video
             Assert.Empty(_api.Sfu.MintedTokens);
         }
 
+        [Theory]
+        [InlineData("token")]
+        [InlineData("heartbeat")]
+        public async Task TokenAndHeartbeat_AfterAttendeeRemovedFromEvent_Return403_AndRefreshNothing(string action)
+        {
+            await Start();
+            await _api.Post(Route("join"), _s.AttendeeId);
+            await AgeLastSeen(_s.AttendeeId);
+            await RemoveFromEvent(_s.AttendeeId);
+
+            var response = await _api.Post(Route(action), _s.AttendeeId);
+
+            // Still has a live row, but no longer attends: no new token, no keep-alive.
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+            Assert.Single(_api.Sfu.MintedTokens);
+            Assert.True(await LastSeenIsAged(_s.AttendeeId));
+        }
+
+        [Theory]
+        [InlineData("token")]
+        [InlineData("heartbeat")]
+        public async Task TokenAndHeartbeat_AfterOrganizerRevoked_Return403_AndRefreshNothing(string action)
+        {
+            await Start();
+            await _api.Post(Route("join"), _s.OrganizerId);
+            await AgeLastSeen(_s.OrganizerId);
+            await RemoveFromEvent(_s.OrganizerId);
+
+            var response = await _api.Post(Route(action), _s.OrganizerId);
+
+            // Hosting the stream grants nothing once the event authority is gone.
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Single(_api.Sfu.MintedTokens);
+            Assert.True(await LastSeenIsAged(_s.OrganizerId));
+        }
+
+        [Theory]
+        [InlineData("token")]
+        [InlineData("heartbeat")]
+        public async Task TokenAndHeartbeat_ForFounderWhoIsNotAnAttendee_Succeed(string action)
+        {
+            await Start();
+            await _api.Post(Route("join"), _s.FounderId);
+
+            var response = await _api.Post(Route(action), _s.FounderId);
+
+            Assert.True(response.IsSuccessStatusCode, $"{action} returned {(int)response.StatusCode}");
+        }
+
         [Fact]
         public async Task Live_ForAttendee_ReturnsDisplayWithoutSfuValues()
         {
@@ -242,6 +310,15 @@ namespace AlSaqr.Tests.Video
             var stream = await response.Content.ReadFromJsonAsync<VideoStreamToDisplay>();
             Assert.True(stream!.IsLive);
             Assert.Equal(_s.EventId, stream.EventId);
+        }
+
+        [Fact]
+        public async Task Live_WhenNoStreamIsLive_Returns204WithNoBody()
+        {
+            var response = await _api.Get(Route("live"), _s.AttendeeId);
+
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            Assert.Equal(string.Empty, await response.Content.ReadAsStringAsync());
         }
 
         [Fact]
@@ -289,6 +366,23 @@ namespace AlSaqr.Tests.Video
             var retry = await _api.Post(Route("leave"), _s.AttendeeId);
 
             Assert.Equal(HttpStatusCode.NoContent, retry.StatusCode);
+            Assert.Equal(0L, await LiveRows(_s.AttendeeId));
+            Assert.Single(_api.Broadcaster.Events, e => e.Name == "participant_left");
+        }
+
+        [Fact]
+        public async Task Leave_WhenClientAlreadyAborted_StillRemovesOnSfu_AndMarksLeft()
+        {
+            await Start();
+            await _api.Post(Route("join"), _s.AttendeeId);
+            _api.Sfu.Calls.Clear();
+            _api.AbortRequests = true;
+
+            var response = await _api.Post(Route("leave"), _s.AttendeeId);
+
+            // A page-exit leave (fetch keepalive) is often cut off: cleanup must still run.
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            Assert.Single(_api.Sfu.Calls, c => c.StartsWith("Remove") && c.EndsWith($":{_s.AttendeeId}"));
             Assert.Equal(0L, await LiveRows(_s.AttendeeId));
             Assert.Single(_api.Broadcaster.Events, e => e.Name == "participant_left");
         }
@@ -355,7 +449,7 @@ namespace AlSaqr.Tests.Video
         }
 
         [Fact]
-        public async Task Demote_WhenSfuFails_Returns500_RoleAlreadyViewer_AndRetryRevokesAgain()
+        public async Task Demote_WhenSfuFails_Returns500_LeavesRolePresenter_AndRetryDemotes()
         {
             await Start();
             await _api.Post(Route("join"), _s.AttendeeId);
@@ -365,17 +459,51 @@ namespace AlSaqr.Tests.Video
 
             var failed = await _api.Post(Route($"presenters/{_s.AttendeeId}/demote"), _s.OrganizerId);
 
-            // Database first: any token minted from now on is receive-only.
+            // SFU first: a failed revoke leaves the database untouched, so the retry
+            // still finds a presenter to demote.
             Assert.Equal(HttpStatusCode.InternalServerError, failed.StatusCode);
-            Assert.Equal("viewer", await RoleOf(_s.AttendeeId));
+            Assert.Equal("presenter", await RoleOf(_s.AttendeeId));
             Assert.DoesNotContain(_api.Broadcaster.Events, e => e.Name == "role_changed" && e.Detail == "viewer");
 
             _api.Sfu.FailSetPublish = null;
             var retry = await _api.Post(Route($"presenters/{_s.AttendeeId}/demote"), _s.OrganizerId);
 
             Assert.Equal(HttpStatusCode.NoContent, retry.StatusCode);
+            Assert.Equal("viewer", await RoleOf(_s.AttendeeId));
             Assert.Equal(2, _api.Sfu.Calls.Count(c => c.EndsWith($":{_s.AttendeeId} False")));
-            Assert.Contains(_api.Broadcaster.Events, e => e.Name == "role_changed" && e.Detail == "viewer");
+            Assert.Single(_api.Broadcaster.Events, e => e.Name == "role_changed" && e.Detail == "viewer");
+        }
+
+        [Fact]
+        public async Task Demote_ByPlainAttendee_Returns403_AndMakesNoSfuCall()
+        {
+            await Start();
+            await _api.Post(Route("join"), _s.AttendeeId);
+            var second = await _s.AddAttendee(_fx.Seed, "second");
+            await _api.Post(Route("join"), second);
+            await _api.Post(Route($"presenters/{_s.AttendeeId}/promote"), _s.OrganizerId);
+            _api.Sfu.Calls.Clear();
+
+            var response = await _api.Post(Route($"presenters/{_s.AttendeeId}/demote"), second);
+
+            // Authorization still precedes the SFU revoke.
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Empty(_api.Sfu.Calls);
+            Assert.Equal("presenter", await RoleOf(_s.AttendeeId));
+        }
+
+        [Fact]
+        public async Task Demote_Host_Returns400_AndMakesNoSfuCall()
+        {
+            await Start();
+            await _api.Post(Route("join"), _s.OrganizerId);
+            _api.Sfu.Calls.Clear();
+
+            var response = await _api.Post(Route($"presenters/{_s.OrganizerId}/demote"), _s.FounderId);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Empty(_api.Sfu.Calls);
+            Assert.Equal("host", await RoleOf(_s.OrganizerId));
         }
 
         [Fact]
