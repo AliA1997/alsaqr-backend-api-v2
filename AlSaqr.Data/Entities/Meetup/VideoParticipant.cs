@@ -21,6 +21,8 @@ namespace AlSaqr.Data.Entities.Meetup
         public const string LeftReaped = "reaped";
         public const string LeftEnded = "ended";
         public const string LeftExpired = "expired";
+        /// <summary>Removed from the event. Never restores a role on rejoin.</summary>
+        public const string LeftKicked = "kicked";
 
         /// <summary>
         /// The SFU username for a user on a stream. Stream-scoped like the room name,

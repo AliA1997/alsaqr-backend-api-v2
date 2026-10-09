@@ -85,6 +85,7 @@ builder.Services.AddSingleton<IAccessTokenVerifier>(_ => new AccessTokenVerifier
 builder.Services.AddScoped<ICityRepository, CityRepository>();
 builder.Services.AddScoped<IAttendeeRepository, AttendeeRepository>();
 builder.Services.AddScoped<IEventRepository, EventRepository>();
+builder.Services.AddScoped<IVideoStreamRepository, VideoStreamRepository>();
 builder.Services.AddScoped<IEventAttendeeRepository, EventAttendeeRepository>();
 builder.Services.AddScoped<IGroupRepository, GroupRepository>();
 builder.Services.AddScoped<IGroupAttendeeRepository, GroupAttendeeRepository>();

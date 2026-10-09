@@ -61,5 +61,52 @@ namespace AlSaqr.Data.Repositories.Meetup.Impl
         /// <summary>Live roster, ordered joined_at asc, id asc.</summary>
         Task<List<VideoParticipantDto>> GetParticipants(
             Supabase.Client supabase, Guid videoStreamId, CancellationToken ct);
+
+        /// <summary>
+        /// Presenter control. Viewer to presenter: Forbidden unless the caller is the host,
+        /// event organizer, or group founder; NotFound when the target is not live;
+        /// Conflict when host + presenters already equals maxPresenters (C5). Idempotent
+        /// for an existing presenter or host.
+        /// </summary>
+        Task<(VideoStream Stream, VideoParticipant Participant)> PromotePresenter(
+            Supabase.Client supabase, Guid callerId, Guid eventId, Guid targetUserId, int maxPresenters, CancellationToken ct);
+
+        /// <summary>Presenter to viewer. Same authority as promote; Validation for the host.</summary>
+        Task<(VideoStream Stream, VideoParticipant Participant)> DemotePresenter(
+            Supabase.Client supabase, Guid callerId, Guid eventId, Guid targetUserId, CancellationToken ct);
+
+        /// <summary>
+        /// Ends the live stream (host, event organizer, or group founder; Forbidden
+        /// otherwise). Marks every participant left with reason 'ended'.
+        /// </summary>
+        Task<VideoStream> EndEventStream(Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct);
+
+        /// <summary>
+        /// Removal from the event: marks the user's live row left with reason 'kicked',
+        /// resets the role to viewer and clears the SFU identity, in one guarded update.
+        /// Returns the stream and the updated row, or null when the user was not live.
+        /// </summary>
+        Task<(VideoStream Stream, VideoParticipant Participant)?> KickParticipant(
+            Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct);
+
+        // ----- Reaper support (spec 7) -----
+
+        Task<List<VideoStream>> GetLiveStreams(Supabase.Client supabase, CancellationToken ct);
+
+        /// <summary>Live streams whose started_at is before the cutoff (C11 expiry).</summary>
+        Task<List<VideoStream>> GetLiveStreamsStartedBefore(
+            Supabase.Client supabase, DateTime cutoffUtc, CancellationToken ct);
+
+        /// <summary>Live participants whose last_seen_at is before the cutoff (C9).</summary>
+        Task<List<VideoParticipant>> GetStaleLiveParticipants(
+            Supabase.Client supabase, Guid videoStreamId, DateTime cutoffUtc, CancellationToken ct);
+
+        // ----- Retention (spec 9) -----
+
+        /// <summary>
+        /// Deletes participant rows with left_at before the cutoff, then streams that
+        /// ended before it. Returns the number of participant rows deleted.
+        /// </summary>
+        Task<int> PurgeParticipantsLeftBefore(Supabase.Client supabase, DateTime cutoffUtc, CancellationToken ct);
     }
 }

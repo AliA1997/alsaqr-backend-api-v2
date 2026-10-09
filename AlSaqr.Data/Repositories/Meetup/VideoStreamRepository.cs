@@ -338,6 +338,172 @@ namespace AlSaqr.Data.Repositories.Meetup
                 .ToList();
         }
 
+        public async Task<(VideoStream Stream, VideoParticipant Participant)> PromotePresenter(
+            Supabase.Client supabase, Guid callerId, Guid eventId, Guid targetUserId, int maxPresenters, CancellationToken ct)
+        {
+            var (stream, target) = await GetControlledTarget(supabase, callerId, eventId, targetUserId, ct);
+
+            // Host and presenters already publish.
+            if (target.Role != VideoParticipant.RoleViewer)
+                return (stream, target);
+
+            var publishers = await supabase
+                .From<VideoParticipant>()
+                .Filter("video_stream_id", Operator.Equals, stream.Id.ToString())
+                .Filter("left_at", Operator.Is, "null")
+                .Filter("role", Operator.In, new List<string> { VideoParticipant.RoleHost, VideoParticipant.RolePresenter })
+                .Count(Constants.CountType.Exact, ct);
+
+            if (publishers >= maxPresenters)
+                throw new ConflictException($"This stream already has the maximum of {maxPresenters} presenters.");
+
+            var promoted = await ChangeRole(
+                supabase, target.Id, VideoParticipant.RoleViewer, VideoParticipant.RolePresenter, ct);
+
+            return (stream, promoted);
+        }
+
+        public async Task<(VideoStream Stream, VideoParticipant Participant)> DemotePresenter(
+            Supabase.Client supabase, Guid callerId, Guid eventId, Guid targetUserId, CancellationToken ct)
+        {
+            var (stream, target) = await GetControlledTarget(supabase, callerId, eventId, targetUserId, ct);
+
+            if (target.Role == VideoParticipant.RoleHost)
+                throw new ValidationException("The host cannot be demoted.");
+
+            if (target.Role == VideoParticipant.RoleViewer)
+                return (stream, target);
+
+            var demoted = await ChangeRole(
+                supabase, target.Id, VideoParticipant.RolePresenter, VideoParticipant.RoleViewer, ct);
+
+            return (stream, demoted);
+        }
+
+        /// <summary>
+        /// Column-scoped role change guarded on the row id, the expected current role and
+        /// left_at is null: only role is written, and a concurrent leave, kick or role
+        /// change makes it a Conflict instead of resurrecting a stale value.
+        /// </summary>
+        private static async Task<VideoParticipant> ChangeRole(
+            Supabase.Client supabase, Guid participantRowId, string fromRole, string toRole, CancellationToken ct) =>
+            (await supabase
+                .From<VideoParticipant>()
+                .Filter("id", Operator.Equals, participantRowId.ToString())
+                .Filter("left_at", Operator.Is, "null")
+                .Filter("role", Operator.Equals, fromRole)
+                .Set(p => p.Role, toRole)
+                .Update(new QueryOptions { Returning = ReturnType.Representation }, ct))
+            .Models.FirstOrDefault()
+            ?? throw new ConflictException("The video participant changed. Try again.");
+
+        public async Task<VideoStream> EndEventStream(
+            Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
+        {
+            var hostEvent = await GetOnlineEventOrThrow(supabase, eventId, ct);
+            var stream = await GetLiveStreamOrThrow(supabase, eventId, ct);
+
+            if (stream.HostId != userId && !await CanControlEventVideo(supabase, hostEvent, userId, ct))
+                throw new ForbiddenException(
+                    "Only the stream host, event organizer, or group founder may end the video stream.");
+
+            return await EndStream(supabase, stream, VideoParticipant.LeftEnded, ct);
+        }
+
+        public async Task<(VideoStream Stream, VideoParticipant Participant)?> KickParticipant(
+            Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
+        {
+            var stream = await FindLiveStream(supabase, eventId, ct);
+            if (stream == null)
+                return null;
+
+            var kicked = (await LiveRowQuery(supabase, stream.Id, userId)
+                    .Set(p => p.LeftAt!, DateTime.UtcNow)
+                    .Set(p => p.LeftReason!, VideoParticipant.LeftKicked)
+                    .Set(p => p.Role, VideoParticipant.RoleViewer)
+                    .Set(p => p.SfuIdentity!, null)
+                    .Update(new QueryOptions { Returning = ReturnType.Representation }, ct))
+                .Models.FirstOrDefault();
+
+            return kicked == null ? null : (stream, kicked);
+        }
+
+        public async Task<List<VideoStream>> GetLiveStreams(Supabase.Client supabase, CancellationToken ct) =>
+            (await supabase
+                .From<VideoStream>()
+                .Filter("ended_at", Operator.Is, "null")
+                .Order("started_at", Ordering.Ascending)
+                .Order("id", Ordering.Ascending)
+                .Get(ct))
+            .Models;
+
+        public async Task<List<VideoStream>> GetLiveStreamsStartedBefore(
+            Supabase.Client supabase, DateTime cutoffUtc, CancellationToken ct) =>
+            (await supabase
+                .From<VideoStream>()
+                .Filter("ended_at", Operator.Is, "null")
+                .Filter("started_at", Operator.LessThan, ToUtcIso(cutoffUtc))
+                .Order("started_at", Ordering.Ascending)
+                .Order("id", Ordering.Ascending)
+                .Get(ct))
+            .Models;
+
+        public async Task<List<VideoParticipant>> GetStaleLiveParticipants(
+            Supabase.Client supabase, Guid videoStreamId, DateTime cutoffUtc, CancellationToken ct) =>
+            (await supabase
+                .From<VideoParticipant>()
+                .Filter("video_stream_id", Operator.Equals, videoStreamId.ToString())
+                .Filter("left_at", Operator.Is, "null")
+                .Filter("last_seen_at", Operator.LessThan, ToUtcIso(cutoffUtc))
+                .Order("joined_at", Ordering.Ascending)
+                .Order("id", Ordering.Ascending)
+                .Get(ct))
+            .Models;
+
+        public async Task<int> PurgeParticipantsLeftBefore(
+            Supabase.Client supabase, DateTime cutoffUtc, CancellationToken ct)
+        {
+            var cutoff = ToUtcIso(cutoffUtc);
+
+            var doomed = await supabase
+                .From<VideoParticipant>()
+                .Filter("left_at", Operator.LessThan, cutoff)
+                .Count(Constants.CountType.Exact, ct);
+
+            if (doomed > 0)
+            {
+                await supabase
+                    .From<VideoParticipant>()
+                    .Filter("left_at", Operator.LessThan, cutoff)
+                    .Delete(new QueryOptions { Returning = ReturnType.Minimal }, ct);
+            }
+
+            // Streams that ended before the cutoff are now unreferenced; any straggling
+            // participant row cascades with its stream.
+            await supabase
+                .From<VideoStream>()
+                .Filter("ended_at", Operator.LessThan, cutoff)
+                .Delete(new QueryOptions { Returning = ReturnType.Minimal }, ct);
+
+            return doomed;
+        }
+
+        private static async Task<(VideoStream Stream, VideoParticipant Target)> GetControlledTarget(
+            Supabase.Client supabase, Guid callerId, Guid eventId, Guid targetUserId, CancellationToken ct)
+        {
+            var hostEvent = await GetOnlineEventOrThrow(supabase, eventId, ct);
+            var stream = await GetLiveStreamOrThrow(supabase, eventId, ct);
+
+            if (stream.HostId != callerId && !await CanControlEventVideo(supabase, hostEvent, callerId, ct))
+                throw new ForbiddenException(
+                    "Only the stream host, event organizer, or group founder may change presenters.");
+
+            var target = await FindLiveRow(supabase, stream.Id, targetUserId, ct)
+                ?? throw new NotFoundException("That user is not live on this video stream.");
+
+            return (stream, target);
+        }
+
         // ----- stream lifecycle -----
 
         private static Task<VideoParticipant?> FindLiveRow(
@@ -390,19 +556,24 @@ namespace AlSaqr.Data.Repositories.Meetup
             LastSeenAt = p.LastSeenAt,
         };
 
+        /// <summary>
+        /// Column-scoped and guarded on ended_at is null: a stream ended concurrently
+        /// is a Conflict, never silently re-ended or overwritten from a stale read.
+        /// </summary>
         private async Task<VideoStream> EndStream(
             Supabase.Client supabase, VideoStream stream, string reason, CancellationToken ct)
         {
             foreach (var participant in await GetLiveParticipants(supabase, stream.Id, ct))
                 await MarkParticipantLeft(supabase, participant, reason, ct);
 
-            stream.EndedAt = DateTime.UtcNow;
-
             return (await supabase
                     .From<VideoStream>()
-                    .Upsert(stream, new QueryOptions { Returning = ReturnType.Representation }, ct))
+                    .Filter("id", Operator.Equals, stream.Id.ToString())
+                    .Filter("ended_at", Operator.Is, "null")
+                    .Set(s => s.EndedAt!, DateTime.UtcNow)
+                    .Update(new QueryOptions { Returning = ReturnType.Representation }, ct))
                 .Models.FirstOrDefault()
-                ?? throw new NotFoundException($"Video stream {stream.Id} does not exist.");
+                ?? throw new ConflictException($"Video stream {stream.Id} has already ended.");
         }
 
         private static Task<VideoStream?> FindLiveStream(Supabase.Client supabase, Guid eventId, CancellationToken ct) =>

@@ -11,13 +11,16 @@ namespace AlSaqr.Data.Repositories.Meetup
     {
         private readonly IGroupAttendeeRepository _groupAttendeeRepository;
         private readonly IAttendeeRepository _attendeeRepository;
+        private readonly IVideoStreamRepository _videoStreamRepository;
 
         public EventAttendeeRepository(
             IGroupAttendeeRepository groupAttendeeRepository,
-            IAttendeeRepository attendeeRepository)
+            IAttendeeRepository attendeeRepository,
+            IVideoStreamRepository videoStreamRepository)
         {
             _groupAttendeeRepository = groupAttendeeRepository;
             _attendeeRepository = attendeeRepository;
+            _videoStreamRepository = videoStreamRepository;
         }
 
         public async Task JoinEvent(
@@ -74,7 +77,7 @@ namespace AlSaqr.Data.Repositories.Meetup
             }
             catch (JoinEventException ex)
             {
-                throw ex;
+                throw;
             }
             catch (Exception ex)
             {
@@ -125,7 +128,7 @@ namespace AlSaqr.Data.Repositories.Meetup
             }
             catch (UnjoinEventException ex)
             {
-                throw ex;
+                throw;
             }
             catch (Exception ex)
             {
@@ -175,10 +178,13 @@ namespace AlSaqr.Data.Repositories.Meetup
                     .From<EventAttendees>()
                     .Where(ea => ea.AttendeeId == attendee.Id && ea.EventId == eventId)
                     .Delete(null, ct);
+
+                // A removed attendee must not stay live on the event's video stream.
+                await _videoStreamRepository.KickParticipant(supabase, attendeeUserId, eventId, ct);
             }
             catch (UnjoinEventException ex)
             {
-                throw ex;
+                throw;
             }
             catch (Exception ex)
             {

@@ -66,7 +66,8 @@ create table if not exists "alsaqr-2026".video_participants (
         'explicit'::character varying,
         'reaped'::character varying,
         'ended'::character varying,
-        'expired'::character varying
+        'expired'::character varying,
+        'kicked'::character varying
       ])::text[]
     )
   ),
@@ -95,3 +96,20 @@ create index IF not exists video_participants_last_seen
 create index IF not exists video_participants_left_at
   on "alsaqr-2026".video_participants using btree (left_at)
   TABLESPACE pg_default where (left_at is not null);
+
+-- Existing deployments: widen the left_reason check to include 'kicked'
+-- (removal from the event). Idempotent.
+alter table "alsaqr-2026".video_participants
+  drop constraint if exists video_participants_left_reason_check;
+alter table "alsaqr-2026".video_participants
+  add constraint video_participants_left_reason_check check (
+    left_reason is null or (left_reason)::text = any (
+      (array[
+        'explicit'::character varying,
+        'reaped'::character varying,
+        'ended'::character varying,
+        'expired'::character varying,
+        'kicked'::character varying
+      ])::text[]
+    )
+  );
