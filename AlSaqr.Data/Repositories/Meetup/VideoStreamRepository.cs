@@ -1,6 +1,7 @@
 using System.Globalization;
 using AlSaqr.Data.Entities.Meetup;
 using AlSaqr.Data.Entities.SocialMedia;
+using AlSaqr.Data.Helpers;
 using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Common;
 using Supabase.Postgrest;
@@ -75,7 +76,7 @@ namespace AlSaqr.Data.Repositories.Meetup
                     .Models.FirstOrDefault()
                     ?? throw new NotFoundException("The created video stream was not returned.");
             }
-            catch (PostgrestException ex) when (IsUniqueViolation(ex))
+            catch (PostgrestException ex) when (PostgrestErrors.IsUniqueViolation(ex))
             {
                 // Lost the race against a concurrent start.
                 throw new ConflictException("This event already has a live video stream.");
@@ -83,23 +84,25 @@ namespace AlSaqr.Data.Repositories.Meetup
 
             try
             {
-                await supabase
-                    .From<VideoParticipant>()
-                    .Insert(
-                        new VideoParticipant
-                        {
-                            Id = Guid.NewGuid(),
-                            EventId = eventId,
-                            ParticipantId = userId,
-                            VideoStreamId = created.Id,
-                            Role = VideoParticipant.RoleHost,
-                            // No SFU identity until the host actually joins: it marks "has a
-                            // token and may be connected", which drives second-device kicks.
-                            JoinedAt = now,
-                            LastSeenAt = now,
-                        },
-                        new QueryOptions { Returning = ReturnType.Minimal },
-                        ct);
+                _ = (await supabase
+                        .From<VideoParticipant>()
+                        .Insert(
+                            new VideoParticipant
+                            {
+                                Id = Guid.NewGuid(),
+                                EventId = eventId,
+                                ParticipantId = userId,
+                                VideoStreamId = created.Id,
+                                Role = VideoParticipant.RoleHost,
+                                // No SFU identity until the host actually joins: it marks "has a
+                                // token and may be connected", which drives second-device kicks.
+                                JoinedAt = now,
+                                LastSeenAt = now,
+                            },
+                            new QueryOptions { Returning = ReturnType.Representation },
+                            ct))
+                    .Models.FirstOrDefault()
+                    ?? throw new NotFoundException("The created host participant was not returned.");
             }
             catch
             {
@@ -159,11 +162,12 @@ namespace AlSaqr.Data.Repositories.Meetup
         private static readonly TimeSpan RejoinGrace = TimeSpan.FromMinutes(5);
 
         /// <summary>
-        /// Role on (re)join: the host always resumes 'host'; a participant who left
-        /// within the grace window resumes their persisted role; anyone else is
-        /// 'viewer'. A join while already live (second tab, reload) leaves the role
-        /// untouched and reports HadLiveConnection, so the controller kicks the older
-        /// SFU connection: one seat per user.
+        /// Role on (re)join: the host resumes 'host' (after a kick, only while they
+        /// still control the event's video); a participant who left within the grace
+        /// window resumes their persisted role; anyone else is 'viewer'. A join while
+        /// already live (second tab, reload) leaves the role untouched and reports
+        /// HadLiveConnection, so the controller kicks the older SFU connection: one
+        /// seat per user.
         /// </summary>
         public async Task<(VideoStream Stream, VideoParticipant Participant, bool HadLiveConnection)> JoinEventStream(
             Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct)
@@ -179,7 +183,7 @@ namespace AlSaqr.Data.Repositories.Meetup
 
             var existing = await FindParticipant(supabase, stream.Id, userId, ct);
             if (existing != null)
-                return await JoinExistingRow(supabase, stream, existing, sfuIdentity, now, ct);
+                return await JoinExistingRow(supabase, hostEvent, stream, existing, sfuIdentity, now, ct);
 
             await BeforeJoinWrite(stream.Id, userId);
             try
@@ -205,12 +209,12 @@ namespace AlSaqr.Data.Repositories.Meetup
 
                 return (stream, created, false);
             }
-            catch (PostgrestException ex) when (IsUniqueViolation(ex))
+            catch (PostgrestException ex) when (PostgrestErrors.IsUniqueViolation(ex))
             {
                 // Lost the race against a concurrent first join: take the existing-row path.
                 var winner = await FindParticipant(supabase, stream.Id, userId, ct)
                     ?? throw new ConflictException("Could not join the video stream. Try again.");
-                return await JoinExistingRow(supabase, stream, winner, sfuIdentity, now, ct);
+                return await JoinExistingRow(supabase, hostEvent, stream, winner, sfuIdentity, now, ct);
             }
         }
 
@@ -232,17 +236,26 @@ namespace AlSaqr.Data.Repositories.Meetup
         /// Column-scoped, guarded writes: a stale read can never overwrite a concurrent
         /// demote, camera change or leave. Already live: only sfu_identity and
         /// last_seen_at change. Rejoin: the row is revived (guarded on left_at not null)
-        /// and role is written only to downgrade to viewer; a kept role is never written.
+        /// and role is written only to downgrade to viewer, or to give a kicked host the
+        /// host role back; a kept role is never written.
         /// An empty result means the row changed under us: Conflict, the client retries.
         /// </summary>
         private async Task<(VideoStream Stream, VideoParticipant Participant, bool HadLiveConnection)> JoinExistingRow(
-            Supabase.Client supabase, VideoStream stream, VideoParticipant existing,
+            Supabase.Client supabase, Event hostEvent, VideoStream stream, VideoParticipant existing,
             string sfuIdentity, DateTime now, CancellationToken ct)
         {
             var hadLiveConnection = existing is { LeftAt: null, SfuIdentity: not null };
+            var isStreamHost = stream.HostId == existing.ParticipantId;
             var keepsRole = existing.LeftAt == null
-                || stream.HostId == existing.ParticipantId
+                || isStreamHost
                 || await LeftWithinGrace(supabase, existing.Id, now, ct);
+
+            // A kick resets the role to viewer. The stream's host takes the host role back
+            // on rejoin only while they still control the event's video.
+            var restoresHost = existing.LeftAt != null
+                && isStreamHost
+                && existing.Role != VideoParticipant.RoleHost
+                && await CanControlEventVideo(supabase, hostEvent, existing.ParticipantId, ct);
 
             await BeforeJoinWrite(stream.Id, existing.ParticipantId);
 
@@ -260,7 +273,9 @@ namespace AlSaqr.Data.Repositories.Meetup
                     .Not("left_at", Operator.Is, "null")
                     .Set(p => p.LeftAt!, null)
                     .Set(p => p.LeftReason!, null);
-                if (!keepsRole)
+                if (restoresHost)
+                    query = query.Set(p => p.Role, VideoParticipant.RoleHost);
+                else if (!keepsRole)
                     query = query.Set(p => p.Role, VideoParticipant.RoleViewer);
             }
 
@@ -729,10 +744,6 @@ namespace AlSaqr.Data.Repositories.Meetup
 
             return organizer != null;
         }
-
-        /// <summary>PostgreSQL 23505 — unique_violation. Content is PostgREST's JSON error body.</summary>
-        private static bool IsUniqueViolation(PostgrestException ex) =>
-            ex.Content?.Contains("\"code\":\"23505\"", StringComparison.Ordinal) == true;
 
         /// <summary>UTC ISO-8601 with microseconds, for PostgREST timestamp filters.</summary>
         private static string ToUtcIso(DateTime value) =>

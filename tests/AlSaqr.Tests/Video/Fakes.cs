@@ -1,5 +1,10 @@
+using AlSaqr.Domain.SocialMedia;
+using AlSaqr.Domain.Zook;
+using AlSaqr.Infrastructure;
 using AlSaqr.Infrastructure.Video;
 using static AlSaqr.Domain.Meetup.EventVideo;
+using static AlSaqr.Domain.SocialMedia.Session;
+using static AlSaqr.Domain.Utils.Common;
 
 namespace AlSaqr.Tests.Video
 {
@@ -73,6 +78,31 @@ namespace AlSaqr.Tests.Video
             var failure = FailRoomTeardown?.Invoke(roomName);
             return failure is null ? Task.CompletedTask : Task.FromException(failure);
         }
+    }
+
+    /// <summary>
+    /// The shared "logged-in user" slot holds whoever logged in last, not the caller.
+    /// Every member throws, so an action that reads it fails its test: identity must
+    /// come from the verified token.
+    /// </summary>
+    public sealed class ThrowingUserCacheService : IUserCacheService
+    {
+        private static NotSupportedException Read() =>
+            new("The shared logged-in-user cache must not be used for this action.");
+
+        public void SetLoggedInUser(SessionUser user) => throw Read();
+
+        public SessionUser? GetLoggedInUser() => throw Read();
+
+        public void RemoveLoggedInUser(string userId) => throw Read();
+
+        public void SetProductCategory(Guid productCategoryId, ProductCategoryDto productCategory) => throw Read();
+
+        public ProductCategoryDto? GetProductCategory(Guid productCategoryId) => throw Read();
+
+        public void SetUserBookmarks(Guid userId, PaginatedResult<PostDto> bookmarks) => throw Read();
+
+        public PaginatedResult<PostDto>? GetUserBookmarks(Guid userId) => throw Read();
     }
 
     public sealed class FakeEventVideoBroadcaster : IEventVideoBroadcaster

@@ -4,6 +4,7 @@ using AlSaqr.Data.Repositories.Meetup.Impl;
 using AlSaqr.Domain.Meetup;
 using AlSaqr.Domain.Utils;
 using AlSaqr.Infrastructure;
+using AlSaqr.Infrastructure.Video;
 using Microsoft.AspNetCore.Mvc;
 using static AlSaqr.Domain.Utils.Common;
 
@@ -20,6 +21,9 @@ namespace AlSaqr.API.Controllers.Meetup
         private readonly IAttendeeRepository _attendeeRepository;
         private readonly IEventRepository _eventRepository;
         private readonly IEventAttendeeRepository _eventAttendeeRepository;
+        private readonly IVideoSfuService _sfu;
+        private readonly IEventVideoBroadcaster _broadcaster;
+        private readonly IAccessTokenVerifier _tokens;
 
         public EventsController(
             ILogger<EventsController> logger,
@@ -28,7 +32,10 @@ namespace AlSaqr.API.Controllers.Meetup
             ICityRepository cityRepository,
             IAttendeeRepository attendeeRepository,
             IEventRepository eventRepository,
-            IEventAttendeeRepository eventAttendeeRepository
+            IEventAttendeeRepository eventAttendeeRepository,
+            IVideoSfuService sfu,
+            IEventVideoBroadcaster broadcaster,
+            IAccessTokenVerifier tokens
         )
         {
             _logger = logger;
@@ -38,6 +45,9 @@ namespace AlSaqr.API.Controllers.Meetup
             _attendeeRepository = attendeeRepository;
             _eventRepository = eventRepository;
             _eventAttendeeRepository = eventAttendeeRepository;
+            _sfu = sfu;
+            _broadcaster = broadcaster;
+            _tokens = tokens;
         }
 
         /// <summary>
@@ -336,7 +346,10 @@ namespace AlSaqr.API.Controllers.Meetup
 
         /// <summary>
         /// Remove an attendee from an event. Only the parent group's founder may do this;
-        /// the attendee stays in the group.
+        /// the attendee stays in the group. A live video connection is cut too: SFU
+        /// first, then the database, as EventVideoController orders its removals. A
+        /// failed SFU removal changes nothing, so the call can be retried; once it
+        /// succeeded, the remaining steps ignore the request's abort signal.
         /// </summary>
         /// <param name="eventId"></param>
         /// <param name="attendeeUserId"></param>
@@ -344,43 +357,39 @@ namespace AlSaqr.API.Controllers.Meetup
         [HttpDelete("{eventId:guid}/members/{attendeeUserId:guid}")]
         public async Task<IActionResult> RemoveEventAttendee(Guid eventId, Guid attendeeUserId)
         {
-            var authError = ValidateAccessToken();
+            var authError = ValidateVerifiedCaller(_tokens, out var callerId);
             if (authError != null)
                 return authError;
 
-            using var cts = new CancellationTokenSource();
-            CancellationToken ct = cts.Token;
+            // Authorizes and reads the live connection; writes nothing. The SFU identity
+            // is read here because the database kick clears it.
+            var live = await _eventAttendeeRepository.AuthorizeRemoveEventAttendee(
+                _supabase, callerId, eventId, attendeeUserId, HttpContext.RequestAborted);
 
-            var loggedInUser = _userCacheService.GetLoggedInUser();
-            Guid.TryParse(loggedInUser?.Id?.ToString(), out var userId);
-            if (userId == Guid.Empty)
-                return Unauthorized("User must be logged in to remove an event attendee.");
-
-            try
+            if (live is { } found && !string.IsNullOrEmpty(found.Participant.SfuIdentity))
             {
-                await _eventAttendeeRepository.RemoveEventAttendee(
-                    _supabase,
-                    userId,
-                    eventId,
-                    attendeeUserId,
-                    ct
-                );
+                await EventVideoSteps.RemoveFromRoom(
+                    _sfu, found.Stream.RoomName, found.Participant.SfuIdentity, HttpContext.RequestAborted);
+            }
 
-                _logger.LogInformation(
-                    "User {attendeeUserId} removed from event {eventId}",
-                    attendeeUserId,
-                    eventId
-                );
-                return Ok(new { success = true });
-            }
-            catch (Exception err)
+            var kicked = await _eventAttendeeRepository.RemoveEventAttendee(
+                _supabase, callerId, eventId, attendeeUserId, CancellationToken.None);
+
+            if (kicked)
             {
-                Console.WriteLine($"Error removing event attendee: {err.Message}");
-                return StatusCode(
-                    500,
-                    new { message = "Remove event attendee error!", success = false }
-                );
+                await EventVideoSteps.BroadcastSafely(
+                    _logger,
+                    () => _broadcaster.ParticipantLeftAsync(
+                        eventId, attendeeUserId, VideoParticipant.LeftKicked, CancellationToken.None),
+                    "participant_left", eventId);
             }
+
+            _logger.LogInformation(
+                "User {attendeeUserId} removed from event {eventId}",
+                attendeeUserId,
+                eventId
+            );
+            return Ok(new { success = true });
         }
 
         /// <summary>

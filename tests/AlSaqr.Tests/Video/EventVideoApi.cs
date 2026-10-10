@@ -70,6 +70,13 @@ namespace AlSaqr.Tests.Video
                             .AddApplicationPart(typeof(EventVideoController).Assembly);
                         services.AddSingleton(supabase);
                         services.AddScoped<IVideoStreamRepository, VideoStreamRepository>();
+                        // EventsController (attendee removal kicks from the stream).
+                        services.AddScoped<IAttendeeRepository, AttendeeRepository>();
+                        services.AddScoped<IGroupAttendeeRepository, GroupAttendeeRepository>();
+                        services.AddScoped<IEventAttendeeRepository, EventAttendeeRepository>();
+                        services.AddScoped<ICityRepository, CityRepository>();
+                        services.AddScoped<IEventRepository, EventRepository>();
+                        services.AddSingleton<IUserCacheService>(new ThrowingUserCacheService());
                         services.AddSingleton<IVideoSfuService>(sfu);
                         services.AddSingleton<IEventVideoBroadcaster>(broadcaster);
                         services.AddSingleton<IAccessTokenVerifier>(new AccessTokenVerifier(TokenSecret));
@@ -105,8 +112,14 @@ namespace AlSaqr.Tests.Video
         public Task<HttpResponseMessage> Get(string path, Guid asUser) =>
             Send(HttpMethod.Get, path, Token(asUser), null);
 
+        public Task<HttpResponseMessage> Delete(string path, Guid asUser) =>
+            Send(HttpMethod.Delete, path, Token(asUser), null);
+
         public Task<HttpResponseMessage> PostWithRawToken(string path, string token) =>
             Send(HttpMethod.Post, path, token, new { });
+
+        public Task<HttpResponseMessage> DeleteWithRawToken(string path, string token) =>
+            Send(HttpMethod.Delete, path, token, null);
 
         private Task<HttpResponseMessage> Send(HttpMethod method, string path, string token, object? body)
         {

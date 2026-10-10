@@ -5,6 +5,7 @@ using AlSaqr.Domain.Meetup.Exceptions;
 using AlSaqr.Domain.Common;
 using AlSaqr.Tests.Support;
 using Npgsql;
+using Supabase.Postgrest.Exceptions;
 
 namespace AlSaqr.Tests.Video
 {
@@ -244,7 +245,7 @@ namespace AlSaqr.Tests.Video
             var events = new EventAttendeeRepository(new GroupAttendeeRepository(attendees), attendees, _repo);
             await _repo.PromotePresenter(_fx.Client, _s.OrganizerId, _s.EventId, _s.AttendeeId, maxPresenters: 9, default);
 
-            await events.RemoveEventAttendee(_fx.Client, _s.FounderId, _s.EventId, _s.AttendeeId, default);
+            Assert.True(await events.RemoveEventAttendee(_fx.Client, _s.FounderId, _s.EventId, _s.AttendeeId, default));
 
             Assert.Equal(VideoParticipant.LeftKicked, await _fx.Seed.Scalar<string>(
                 $"select left_reason from {S}.video_participants where participant_id = @u", ("u", _s.AttendeeId)));
@@ -256,15 +257,91 @@ namespace AlSaqr.Tests.Video
 
         private sealed class FailingKickRepository : VideoStreamRepository
         {
+            private readonly Exception _error;
+
+            public FailingKickRepository(Exception? error = null) =>
+                _error = error ?? new InvalidOperationException("kick failed");
+
             public override Task<(VideoStream Stream, VideoParticipant Participant)?> KickParticipant(
                 Supabase.Client supabase, Guid userId, Guid eventId, CancellationToken ct) =>
-                throw new InvalidOperationException("kick failed");
+                throw _error;
         }
 
         private static EventAttendeeRepository Events(IVideoStreamRepository video)
         {
             var attendees = new AttendeeRepository();
             return new EventAttendeeRepository(new GroupAttendeeRepository(attendees), attendees, video);
+        }
+
+        private Task<long> AttendeeAttending() =>
+            _fx.Seed.Scalar<long>(
+                $"select count(*) from {S}.event_attendees ea join {S}.attendees a on a.id = ea.attendee_id " +
+                "where a.user_id = @u and ea.event_id = @e", ("u", _s.AttendeeId), ("e", _s.EventId));
+
+        /// <summary>
+        /// A PostgREST error as the client raises it: Content is PostgREST's JSON error
+        /// body. Its setter is internal to Supabase.Postgrest, hence reflection.
+        /// </summary>
+        private static PostgrestException PostgrestError(string content)
+        {
+            var error = new PostgrestException(content);
+            typeof(PostgrestException).GetProperty(nameof(PostgrestException.Content))!.SetValue(error, content);
+            return error;
+        }
+
+        [Fact]
+        public async Task RemoveEventAttendee_UnrelatedPostgrestError_IsNotSwallowed()
+        {
+            var denied = PostgrestError(
+                "{\"code\":\"42501\",\"message\":\"permission denied for table video_participants\"}");
+
+            await Assert.ThrowsAsync<UnjoinEventException>(() =>
+                Events(new FailingKickRepository(denied)).RemoveEventAttendee(
+                    _fx.Client, _s.FounderId, _s.EventId, _s.AttendeeId, default));
+
+            Assert.Equal(1L, await AttendeeAttending());
+        }
+
+        [Fact]
+        public async Task RemoveEventAttendee_VideoTableNotInSchemaCache_IsTolerated()
+        {
+            // What Supabase's PostgREST answers once its schema cache knows the table is gone.
+            var missing = PostgrestError(
+                "{\"code\":\"PGRST205\",\"message\":\"Could not find the table 'alsaqr-2026.video_streams' in the schema cache\"}");
+
+            var kicked = await Events(new FailingKickRepository(missing)).RemoveEventAttendee(
+                _fx.Client, _s.FounderId, _s.EventId, _s.AttendeeId, default);
+
+            Assert.False(kicked);
+            Assert.Equal(0L, await AttendeeAttending());
+        }
+
+        [Fact]
+        public async Task KickedHost_StillControllingTheEvent_RejoinsAsHost()
+        {
+            await _repo.JoinEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default);
+            await _repo.KickParticipant(_fx.Client, _s.OrganizerId, _s.EventId, default);
+
+            var (_, rejoined, _) = await _repo.JoinEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default);
+
+            Assert.Equal(VideoParticipant.RoleHost, rejoined.Role);
+            Assert.Null(rejoined.LeftAt);
+        }
+
+        [Fact]
+        public async Task KickedHost_NoLongerControllingTheEvent_RejoinsAsViewer()
+        {
+            await _repo.JoinEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default);
+            await _repo.KickParticipant(_fx.Client, _s.OrganizerId, _s.EventId, default);
+            // Still attends, but is no longer the organizer.
+            await _fx.Seed.Execute(
+                $"update {S}.event_attendees set is_event_organizer = false " +
+                $"where attendee_id = (select id from {S}.attendees where user_id = @u)",
+                ("u", _s.OrganizerId));
+
+            var (_, rejoined, _) = await _repo.JoinEventStream(_fx.Client, _s.OrganizerId, _s.EventId, default);
+
+            Assert.Equal(VideoParticipant.RoleViewer, rejoined.Role);
         }
 
         [Fact]
@@ -274,9 +351,7 @@ namespace AlSaqr.Tests.Video
                 Events(new FailingKickRepository()).RemoveEventAttendee(
                     _fx.Client, _s.FounderId, _s.EventId, _s.AttendeeId, default));
 
-            Assert.Equal(1L, await _fx.Seed.Scalar<long>(
-                $"select count(*) from {S}.event_attendees ea join {S}.attendees a on a.id = ea.attendee_id " +
-                "where a.user_id = @u and ea.event_id = @e", ("u", _s.AttendeeId), ("e", _s.EventId)));
+            Assert.Equal(1L, await AttendeeAttending());
             Assert.Equal(1L, await _fx.Seed.Scalar<long>(
                 $"select count(*) from {S}.video_participants where participant_id = @u and left_at is null",
                 ("u", _s.AttendeeId)));
