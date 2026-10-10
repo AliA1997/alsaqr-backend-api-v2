@@ -143,6 +143,8 @@ namespace AlSaqr.Tests.Video
             using var scope = factory.Services.CreateScope();
 
             Assert.NotNull(ActivatorUtilities.CreateInstance<EventVideoController>(scope.ServiceProvider));
+            // Attendee removal kicks from the stream, so EventsController needs the video services too.
+            Assert.NotNull(ActivatorUtilities.CreateInstance<EventsController>(scope.ServiceProvider));
             Assert.NotNull(scope.ServiceProvider.GetRequiredService<IVideoStreamReaper>());
 
             // Program registers the reaper host (the factory removed it so it never sweeps

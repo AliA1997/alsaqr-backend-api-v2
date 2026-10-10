@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using AlSaqr.API.Middleware;
@@ -10,26 +11,84 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace AlSaqr.Tests.Middleware
 {
     public class ExceptionHandlingMiddlewareTests
     {
-        private static async Task<HttpResponseMessage> SendThrowing(Exception toThrow)
+        private static Task<HttpResponseMessage> SendThrowing(Exception toThrow) =>
+            Send(_ => throw toThrow, new CapturingLoggerProvider());
+
+        private static async Task<HttpResponseMessage> Send(RequestDelegate endpoint, CapturingLoggerProvider logs)
         {
             using var host = await new HostBuilder()
                 .ConfigureWebHost(web => web
                     .UseTestServer()
-                    .ConfigureServices(services => services.AddLogging())
+                    .ConfigureServices(services => services.AddLogging(b => b.AddProvider(logs)))
                     .Configure(app =>
                     {
                         app.UseMiddleware<ExceptionHandlingMiddleware>();
-                        app.Run(_ => throw toThrow);
+                        app.Run(endpoint);
                     }))
                 .StartAsync();
 
             return await host.GetTestClient().GetAsync("/api/anything");
+        }
+
+        [Fact]
+        public async Task CancellationFromClientAbort_Returns499WithoutBody_AndLogsNoError()
+        {
+            var logs = new CapturingLoggerProvider();
+
+            var response = await Send(context =>
+            {
+                // The client disconnected, and the action observed its abort signal.
+                context.RequestAborted = new CancellationToken(canceled: true);
+                throw new OperationCanceledException(context.RequestAborted);
+            }, logs);
+
+            Assert.Equal(StatusCodes.Status499ClientClosedRequest, (int)response.StatusCode);
+            Assert.Empty(await response.Content.ReadAsByteArrayAsync());
+            Assert.DoesNotContain(logs.Levels, level => level >= LogLevel.Error);
+        }
+
+        [Fact]
+        public async Task CancellationWithoutClientAbort_IsStillA500()
+        {
+            var logs = new CapturingLoggerProvider();
+
+            // e.g. an upstream HttpClient timeout: a server-side failure, not the client leaving.
+            var response = await Send(_ => throw new TaskCanceledException("upstream timed out"), logs);
+
+            Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+            Assert.Contains(LogLevel.Error, logs.Levels);
+        }
+
+        private sealed class CapturingLoggerProvider : ILoggerProvider
+        {
+            private readonly ConcurrentQueue<LogLevel> _levels = new();
+
+            public IReadOnlyCollection<LogLevel> Levels => _levels.ToArray();
+
+            public ILogger CreateLogger(string categoryName) => new Logger(_levels);
+
+            public void Dispose() { }
+
+            private sealed class Logger : ILogger
+            {
+                private readonly ConcurrentQueue<LogLevel> _levels;
+
+                public Logger(ConcurrentQueue<LogLevel> levels) => _levels = levels;
+
+                public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+                public bool IsEnabled(LogLevel logLevel) => true;
+
+                public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+                    Func<TState, Exception?, string> formatter) => _levels.Enqueue(logLevel);
+            }
         }
 
         public static TheoryData<Exception, HttpStatusCode> MappedExceptions => new()

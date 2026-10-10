@@ -138,7 +138,21 @@ namespace AlSaqr.API.Controllers.Meetup
             // One seat per user: Galène lets two connections share a username, so a
             // second tab or a reload replaces the older connection here.
             if (hadLiveConnection)
-                await RemoveFromRoom(stream.RoomName, participant.SfuIdentity!, CancellationToken.None);
+            {
+                try
+                {
+                    await RemoveFromRoom(stream.RoomName, participant.SfuIdentity!, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    // The join is already written: failing here would 500 every retry
+                    // while the SFU operator is unreachable. The older connection stays
+                    // until its client leaves.
+                    _logger.LogWarning(ex,
+                        "Could not remove the older video connection of user {UserId} on stream {StreamId}; joining anyway.",
+                        callerId, stream.Id);
+                }
+            }
 
             // The role is read again right before minting: a demote that landed after
             // the join write must not be minted as publish rights.
@@ -205,8 +219,10 @@ namespace AlSaqr.API.Controllers.Meetup
         /// <summary>
         /// Leaves the stream: disconnects the caller on the SFU, then marks the row left
         /// and announces it. Idempotent, so every client exit path can call it (with
-        /// fetch keepalive). A host who leaves does not end the stream, so a reload
-        /// survives; the reaper ends a stream whose host is gone, and /end ends it now.
+        /// fetch keepalive). A host who leaves does not end the stream here, but the
+        /// reaper ends a stream whose host is not live at its next sweep (every 30 s),
+        /// so a host reload survives only if the host rejoins before that sweep. /end
+        /// ends it now.
         /// </summary>
         [HttpPost("event/{eventId}/leave")]
         public async Task<IActionResult> LeaveStream(Guid eventId)
@@ -357,17 +373,7 @@ namespace AlSaqr.API.Controllers.Meetup
         /// Presence/expiry gate, then the signature-verified caller id. Identity never
         /// comes from the shared logged-in-user cache slot (spec §0 DEP-2/DEP-3).
         /// </summary>
-        private IActionResult? AuthorizeCaller(out Guid callerId)
-        {
-            callerId = Guid.Empty;
-
-            var authError = ValidateAccessToken();
-            if (authError != null)
-                return authError;
-
-            callerId = _tokens.GetVerifiedUserId(Request.Headers.Authorization.ToString());
-            return callerId == Guid.Empty ? Unauthorized("A verified access token is required.") : null;
-        }
+        private IActionResult? AuthorizeCaller(out Guid callerId) => ValidateVerifiedCaller(_tokens, out callerId);
 
         /// <summary>
         /// The caller's own room token. canPublish comes from the role just read from the
@@ -381,17 +387,8 @@ namespace AlSaqr.API.Controllers.Meetup
             return (_sfu.MintJoinToken(stream.RoomName, identity, canPublish), canPublish);
         }
 
-        private async Task RemoveFromRoom(string roomName, string identity, CancellationToken ct)
-        {
-            try
-            {
-                await _sfu.RemoveParticipantsAsync(roomName, new[] { identity }, ct);
-            }
-            catch (ParticipantNotConnectedException)
-            {
-                // Already gone: that is the outcome we wanted.
-            }
-        }
+        private Task RemoveFromRoom(string roomName, string identity, CancellationToken ct) =>
+            EventVideoSteps.RemoveFromRoom(_sfu, roomName, identity, ct);
 
         private async Task SetPublish(string roomName, string identity, bool canPublish)
         {
@@ -419,16 +416,7 @@ namespace AlSaqr.API.Controllers.Meetup
             }
         }
 
-        private async Task BroadcastSafely(Func<Task> broadcast, string name, Guid eventId)
-        {
-            try
-            {
-                await broadcast();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Broadcasting {Name} for event {EventId} failed.", name, eventId);
-            }
-        }
+        private Task BroadcastSafely(Func<Task> broadcast, string name, Guid eventId) =>
+            EventVideoSteps.BroadcastSafely(_logger, broadcast, name, eventId);
     }
 }

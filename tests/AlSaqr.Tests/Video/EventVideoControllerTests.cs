@@ -181,6 +181,23 @@ namespace AlSaqr.Tests.Video
         }
 
         [Fact]
+        public async Task Join_Again_WhenOlderConnectionCannotBeRemoved_StillMintsToken()
+        {
+            await Start();
+            await _api.Post(Route("join"), _s.AttendeeId);
+            _api.Sfu.FailRoomTeardown = _ => new InvalidOperationException("Galène operator unreachable.");
+
+            var again = await _api.Post(Route("join"), _s.AttendeeId);
+
+            // The join is already written; failing here would 500 every retry while the
+            // operator is down. The failure is logged and the older connection stays.
+            Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+            Assert.Single(_api.Sfu.Calls, c => c.StartsWith("Remove"));
+            Assert.Equal(2, _api.Sfu.MintedTokens.Count);
+            Assert.Equal(1L, await LiveRows(_s.AttendeeId));
+        }
+
+        [Fact]
         public async Task Join_DemotedWhileOlderConnectionIsKicked_MintsViewerToken()
         {
             await Start();

@@ -1,4 +1,5 @@
 using AlSaqr.Domain.Utils;
+using AlSaqr.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AlSaqr.API.Controllers
@@ -27,6 +28,24 @@ namespace AlSaqr.API.Controllers
                 return Unauthorized(error);
 
             return null;
+        }
+
+        /// <summary>
+        /// The expiry gate, then the caller id from the signature-verified token, for
+        /// actions that must know who the caller really is. Identity never comes from
+        /// the shared logged-in-user cache slot, which holds whoever logged in last.
+        /// Returns an <see cref="UnauthorizedObjectResult"/> when either check fails.
+        /// </summary>
+        protected IActionResult? ValidateVerifiedCaller(IAccessTokenVerifier tokens, out Guid callerId)
+        {
+            callerId = Guid.Empty;
+
+            var authError = ValidateAccessToken();
+            if (authError != null)
+                return authError;
+
+            callerId = tokens.GetVerifiedUserId(Request.Headers.Authorization.ToString());
+            return callerId == Guid.Empty ? Unauthorized("A verified access token is required.") : null;
         }
     }
 }

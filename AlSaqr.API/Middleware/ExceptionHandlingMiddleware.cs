@@ -27,6 +27,15 @@ namespace AlSaqr.API.Middleware
             {
                 await _next(context);
             }
+            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+            {
+                // The client disconnected and the action observed its abort signal. That
+                // is not a server error, and nobody is left to read a body: answer 499
+                // (client closed request) with no ProblemDetails.
+                _logger.LogInformation("Request {Path} was aborted by the client.", context.Request.Path);
+                if (!context.Response.HasStarted)
+                    context.Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
+            }
             catch (Exception ex)
             {
                 if (context.Response.HasStarted)
