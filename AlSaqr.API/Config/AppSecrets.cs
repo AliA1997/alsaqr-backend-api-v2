@@ -9,7 +9,6 @@ namespace AlSaqr.API.Config
         public SupabaseSettings Supabase { get; set; } = new();
         public GoogleGeminiSettings GoogleGemini { get; set; } = new();
         public CloudflareCallsSettings CloudflareCalls { get; set; } = new();
-        public GaleneSettings Galene { get; set; } = new();
     }
 
     public sealed class GraphDBSettings
@@ -68,22 +67,5 @@ namespace AlSaqr.API.Config
         public string ApiKey { get; set; } = default!;
         public string Model { get; set; } = default!;
         public string BaseUrl { get; set; } = default!;
-    }
-
-    /// <summary>
-    /// Self-hosted Galène SFU for event video. In AWS Secrets Manager as
-    /// Galene__AdminUrl, Galene__PublicUrl, Galene__AdminUsername,
-    /// Galene__AdminPassword, Galene__TokenSecret (exactly 32 bytes). The password and
-    /// secret never leave the server.
-    /// </summary>
-    public sealed class GaleneSettings
-    {
-        public string AdminUrl { get; set; } = default!;
-        public string PublicUrl { get; set; } = default!;
-        public string AdminUsername { get; set; } = default!;
-        public string AdminPassword { get; set; } = default!;
-        public string TokenSecret { get; set; } = default!;
-        public int MaxParticipants { get; set; } = 50;
-        public int MaxPresenters { get; set; } = 9;
     }
 }

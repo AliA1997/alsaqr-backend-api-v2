@@ -8,7 +8,11 @@ namespace AlSaqr.Infrastructure.Config
     /// </summary>
     public sealed class GaleneConfig
     {
-        /// <summary>Server-side base for the admin API and operator WebSocket, e.g. http://galene.internal:8443</summary>
+        /// <summary>
+        /// Server-side base for the admin API and operator WebSocket, e.g. https://galene.internal:8443.
+        /// Must be https; http is accepted only for a loopback host such as localhost
+        /// (GaleneConfigValidator).
+        /// </summary>
         public string AdminUrl { get; set; } = "http://localhost:8443";
 
         /// <summary>Public origin browsers connect to; also the token audience host, e.g. https://video.alsaqr.app</summary>
